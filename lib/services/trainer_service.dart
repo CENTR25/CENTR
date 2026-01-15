@@ -1,0 +1,496 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_service.dart';
+
+/// Service for trainer-specific operations
+class TrainerService {
+  final SupabaseClient _client;
+  
+  TrainerService(this._client);
+  
+  String? get currentUserId => _client.auth.currentUser?.id;
+  
+  /// Get trainer ID from trainers table (not user_id)
+  Future<String?> _getTrainerId() async {
+    final userId = currentUserId;
+    if (userId == null) return null;
+    
+    final result = await _client
+        .from('trainers')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+    
+    return result?['id'] as String?;
+  }
+  
+  // ==================== STUDENTS ====================
+  
+  /// Get all students for current trainer
+  Future<List<Map<String, dynamic>>> getMyStudents() async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return [];
+    
+    final response = await _client
+        .from('athletes')
+        .select('*, profiles!inner(*)')
+        .eq('trainer_id', trainerId)
+        .order('created_at', ascending: false);
+    
+    return List<Map<String, dynamic>>.from(response);
+  }
+  
+  /// Get student count for current trainer
+  Future<int> getStudentCount() async {
+    final students = await getMyStudents();
+    return students.length;
+  }
+  
+  /// Get student details with progress
+  Future<Map<String, dynamic>?> getStudentDetails(String studentId) async {
+    final response = await _client
+        .from('athletes')
+        .select('''
+          *,
+          profiles(*),
+          athlete_routines(*, routines(*)),
+          athlete_meal_plans(*, meal_plans(*)),
+          workout_logs(*, routine_exercises(*, exercises(*))),
+          body_progress(*),
+          streaks(*),
+          daily_steps(*)
+        ''')
+        .eq('id', studentId)
+        .maybeSingle();
+    
+    return response;
+  }
+  
+  // ==================== EXERCISES ====================
+  
+  /// Get all exercises (global library)
+  Future<List<Map<String, dynamic>>> getExercises({String? category, String? muscleGroup}) async {
+    var query = _client.from('exercises').select();
+    
+    if (category != null) {
+      query = query.eq('category', category);
+    }
+    if (muscleGroup != null) {
+      query = query.eq('muscle_group', muscleGroup);
+    }
+    
+    final response = await query.order('name');
+    return List<Map<String, dynamic>>.from(response);
+  }
+  
+  /// Get exercise categories
+  Future<List<String>> getExerciseCategories() async {
+    final response = await _client
+        .from('exercises')
+        .select('category')
+        .not('category', 'is', null);
+    
+    final categories = response
+        .map((e) => e['category'] as String?)
+        .where((c) => c != null)
+        .cast<String>()
+        .toSet()
+        .toList();
+    
+    return categories;
+  }
+  
+  /// Get muscle groups
+  Future<List<String>> getMuscleGroups() async {
+    final response = await _client
+        .from('exercises')
+        .select('muscle_group')
+        .not('muscle_group', 'is', null);
+    
+    final groups = response
+        .map((e) => e['muscle_group'] as String?)
+        .where((g) => g != null)
+        .cast<String>()
+        .toSet()
+        .toList();
+    
+    return groups;
+  }
+  
+  /// Create custom exercise
+  Future<Map<String, dynamic>> createExercise({
+    required String name,
+    required String muscleGroup,
+    String? instructions,
+  }) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) throw Exception('No trainer record found');
+
+    final response = await _client.from('exercises').insert({
+      'name': name,
+      'muscle_group': muscleGroup,
+      'instructions': instructions,
+      'created_by_trainer': trainerId,
+      'is_public': false,
+      'created_at': DateTime.now().toIso8601String(),
+    }).select().single();
+
+    return response;
+  }
+  
+  /// Update exercise media URLs after upload
+  Future<void> updateExerciseMedia(
+    String exerciseId, {
+    String? videoUrl,
+    List<String>? imageUrls,
+  }) async {
+    final updates = <String, dynamic>{};
+    
+    if (videoUrl != null) {
+      updates['video_url'] = videoUrl;
+    }
+    
+    if (imageUrls != null && imageUrls.isNotEmpty) {
+      updates['image_urls'] = imageUrls;
+    }
+    
+    if (updates.isNotEmpty) {
+      await _client.from('exercises').update(updates).eq('id', exerciseId);
+    }
+  }
+  
+  /// Update exercise basic info
+  Future<void> updateExercise(
+    String exerciseId, {
+    String? name,
+    String? muscleGroup,
+    String? instructions,
+  }) async {
+    final updates = <String, dynamic>{};
+    
+    if (name != null) {
+      updates['name'] = name;
+    }
+    
+    if (muscleGroup != null) {
+      updates['muscle_group'] = muscleGroup;
+    }
+    
+    if (instructions != null) {
+      updates['instructions'] = instructions;
+    }
+    
+    if (updates.isNotEmpty) {
+      await _client.from('exercises').update(updates).eq('id', exerciseId);
+    }
+  }
+  
+  
+  
+  // ==================== ROUTINES ====================
+  
+  /// Get all routines created by current trainer
+  Future<List<Map<String, dynamic>>> getMyRoutines() async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return [];
+    
+    final response = await _client
+        .from('routines')
+        .select('*, routine_exercises(*, exercises(*))')
+        .eq('trainer_id', trainerId)
+        .order('created_at', ascending: false);
+    
+    return List<Map<String, dynamic>>.from(response);
+  }
+  
+  /// Get routine by ID
+  Future<Map<String, dynamic>?> getRoutine(String routineId) async {
+    final response = await _client
+        .from('routines')
+        .select('*, routine_exercises(*, exercises(*))')
+        .eq('id', routineId)
+        .maybeSingle();
+    
+    return response;
+  }
+  
+  /// Create a new routine
+  Future<Map<String, dynamic>> createRoutine({
+    required String name,
+    String? description,
+    String? objective,
+    String level = 'beginner',
+    int daysPerWeek = 3,
+  }) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) throw Exception('No trainer record found for this user');
+    
+    // Schema uses 'title' not 'name'
+    final data = <String, dynamic>{
+      'trainer_id': trainerId,
+      'title': name,  // Column is 'title' in schema
+      'objective': objective,
+      'level': level,
+      'days_per_week': daysPerWeek,
+      'created_at': DateTime.now().toIso8601String(),
+    };
+    
+    final response = await _client.from('routines').insert(data).select().single();
+    
+    return response;
+  }
+  
+  /// Update routine
+  Future<void> updateRoutine(String routineId, Map<String, dynamic> updates) async {
+    await _client.from('routines').update(updates).eq('id', routineId);
+  }
+  
+  /// Delete routine
+  Future<void> deleteRoutine(String routineId) async {
+    await _client.from('routines').delete().eq('id', routineId);
+  }
+  
+  /// Add exercise to routine
+  Future<void> addExerciseToRoutine({
+    required String routineId,
+    required String exerciseId,
+    required int dayNumber,
+    int sets = 3,
+    String? reps,
+    String? restTime,
+    int orderIndex = 0,
+    String? notes,
+  }) async {
+    // Parse rest time to seconds
+    int restSeconds = 60;
+    if (restTime != null) {
+      restSeconds = int.tryParse(restTime.replaceAll('s', '')) ?? 60;
+    }
+
+    await _client.from('routine_exercises').insert({
+      'routine_id': routineId,
+      'exercise_id': exerciseId,
+      'day_number': dayNumber,
+      'sets': sets,
+      'reps_target': reps ?? '10-12',  // Schema uses reps_target
+      'rest_seconds': restSeconds,      // Schema uses rest_seconds (integer)
+      'order_index': orderIndex,
+      'comment': notes,                 // Schema uses comment, not notes
+    });
+  }
+  
+  /// Remove exercise from routine
+  Future<void> removeExerciseFromRoutine(String routineExerciseId) async {
+    await _client.from('routine_exercises').delete().eq('id', routineExerciseId);
+  }
+  
+  /// Assign routine to student
+  Future<void> assignRoutineToStudent({
+    required String athleteId,
+    required String routineId,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final trainerId = currentUserId;
+    if (trainerId == null) throw Exception('No authenticated user');
+    
+    // Deactivate current routines
+    await _client
+        .from('athlete_routines')
+        .update({'is_active': false})
+        .eq('athlete_id', athleteId)
+        .eq('is_active', true);
+    
+    // Assign new routine
+    await _client.from('athlete_routines').insert({
+      'athlete_id': athleteId,
+      'routine_id': routineId,
+      'assigned_by': trainerId,
+      'start_date': (startDate ?? DateTime.now()).toIso8601String(),
+      'end_date': endDate?.toIso8601String(),
+      'is_active': true,
+    });
+  }
+  
+  // ==================== MEAL PLANS ====================
+  
+  /// Get all meal plans created by current trainer
+  Future<List<Map<String, dynamic>>> getMyMealPlans() async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return [];
+    
+    final response = await _client
+        .from('meal_plans')
+        .select('*, meal_plan_items(*)')
+        .eq('trainer_id', trainerId)
+        .order('created_at', ascending: false);
+    
+    return List<Map<String, dynamic>>.from(response);
+  }
+  
+  /// Get meal plan by ID
+  Future<Map<String, dynamic>?> getMealPlan(String mealPlanId) async {
+    final response = await _client
+        .from('meal_plans')
+        .select('*, meal_plan_items(*)')
+        .eq('id', mealPlanId)
+        .maybeSingle();
+    
+    return response;
+  }
+  
+  /// Create a meal plan
+  Future<Map<String, dynamic>> createMealPlan({
+    required String name,
+    String? description,
+    String? objective,
+    int? targetCalories,
+  }) async {
+    final trainerId = currentUserId;
+    if (trainerId == null) throw Exception('No authenticated user');
+    
+    final response = await _client.from('meal_plans').insert({
+      'trainer_id': trainerId,
+      'name': name,
+      'description': description,
+      'objective': objective,
+      'target_calories': targetCalories,
+      'is_active': true,
+      'created_at': DateTime.now().toIso8601String(),
+    }).select().single();
+    
+    return response;
+  }
+  
+  /// Update meal plan
+  Future<void> updateMealPlan(String mealPlanId, Map<String, dynamic> updates) async {
+    await _client.from('meal_plans').update(updates).eq('id', mealPlanId);
+  }
+  
+  /// Delete meal plan
+  Future<void> deleteMealPlan(String mealPlanId) async {
+    await _client.from('meal_plans').delete().eq('id', mealPlanId);
+  }
+  
+  /// Add item to meal plan
+  Future<void> addMealPlanItem({
+    required String mealPlanId,
+    required int dayNumber,
+    required String timeOfDay, // breakfast, lunch, dinner, snack
+    required String name,
+    String? description,
+    int? calories,
+    Map<String, dynamic>? macros, // {protein: 30, carbs: 50, fat: 20}
+  }) async {
+    await _client.from('meal_plan_items').insert({
+      'meal_plan_id': mealPlanId,
+      'day_number': dayNumber,
+      'time_of_day': timeOfDay,
+      'name': name,
+      'description': description,
+      'calories': calories,
+      'macros': macros,
+    });
+  }
+  
+  /// Remove item from meal plan
+  Future<void> removeMealPlanItem(String itemId) async {
+    await _client.from('meal_plan_items').delete().eq('id', itemId);
+  }
+  
+  /// Assign meal plan to student
+  Future<void> assignMealPlanToStudent({
+    required String athleteId,
+    required String mealPlanId,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final trainerId = currentUserId;
+    if (trainerId == null) throw Exception('No authenticated user');
+    
+    // Deactivate current meal plans
+    await _client
+        .from('athlete_meal_plans')
+        .update({'is_active': false})
+        .eq('athlete_id', athleteId)
+        .eq('is_active', true);
+    
+    // Assign new meal plan
+    await _client.from('athlete_meal_plans').insert({
+      'athlete_id': athleteId,
+      'meal_plan_id': mealPlanId,
+      'assigned_by': trainerId,
+      'start_date': (startDate ?? DateTime.now()).toIso8601String(),
+      'end_date': endDate?.toIso8601String(),
+      'is_active': true,
+    });
+  }
+  
+  // ==================== STATS ====================
+  
+  /// Get trainer stats
+  Future<Map<String, dynamic>> getTrainerStats() async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return {};
+    
+    final students = await getMyStudents();
+    final routines = await getMyRoutines();
+    final mealPlans = await getMyMealPlans();
+    
+    // Count active students (those who logged in this week)
+    final oneWeekAgo = DateTime.now().subtract(const Duration(days: 7));
+    int activeStudents = 0;
+    for (final student in students) {
+      final profile = student['profiles'] as Map<String, dynamic>?;
+      if (profile != null && profile['last_login_at'] != null) {
+        final lastLogin = DateTime.parse(profile['last_login_at']);
+        if (lastLogin.isAfter(oneWeekAgo)) {
+          activeStudents++;
+        }
+      }
+    }
+    
+    return {
+      'total_students': students.length,
+      'active_students': activeStudents,
+      'total_routines': routines.length,
+      'total_meal_plans': mealPlans.length,
+    };
+  }
+}
+
+/// Provider for TrainerService
+final trainerServiceProvider = Provider<TrainerService>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return TrainerService(client);
+});
+
+/// Provider for trainer's students
+final myStudentsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getMyStudents();
+});
+
+/// Provider for trainer's routines
+final myRoutinesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getMyRoutines();
+});
+
+/// Provider for trainer's meal plans
+final myMealPlansProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getMyMealPlans();
+});
+
+/// Provider for exercises library
+final exercisesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getExercises();
+});
+
+/// Provider for trainer stats
+final trainerStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getTrainerStats();
+});

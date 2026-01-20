@@ -52,9 +52,12 @@ dependencies:
   # Media
   image_picker: ^1.0.7
   video_player: ^2.8.2
-  file_picker: ^6.1.1
+  file_picker: ^8.0.0
   shared_preferences: ^2.3.4
   url_launcher: ^6.3.2
+  share_plus: ^10.0.0
+  fl_chart: ^0.69.0
+  audioplayers: ^6.1.0
   
   # Icons
   cupertino_icons: ^1.0.8

@@ -37,16 +37,21 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
         title: Text(widget.routineTitle),
         actions: [
           IconButton(
+            icon: const Icon(Icons.person_add),
+            tooltip: 'Asignar a alumnos',
+            onPressed: () => _showAssignToStudents(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () {
-              // TODO: Edit routine
+              // TODO: Edit routine details (title, objective)
+              // For now just show snackbar or implement small dialog
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Edición de detalles próximamente')));
             },
           ),
           IconButton(
             icon: const Icon(Icons.delete),
-            onPressed: () {
-              // TODO: Delete routine with confirmation
-            },
+            onPressed: _deleteRoutine,
           ),
         ],
       ),
@@ -134,7 +139,9 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                   controller: _tabController!,
                   children: List.generate(daysPerWeek, (dayIndex) {
                     final dayNum = dayIndex + 1;
-                    final dayExercises = exercises.where((e) => e['day_number'] == dayNum).toList();
+                    final dayExercises = exercises.where((e) => e['day_number'] == dayNum).cast<Map<String, dynamic>>().toList();
+                    // Sort by order_index just in case
+                    dayExercises.sort((a, b) => (a['order_index'] as int? ?? 0).compareTo(b['order_index'] as int? ?? 0));
 
                     if (dayExercises.isEmpty) {
                       return Center(
@@ -158,14 +165,17 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                       );
                     }
 
-                    return ListView.builder(
+                    return ReorderableListView.builder(
                       padding: const EdgeInsets.all(16),
                       itemCount: dayExercises.length,
+                      onReorder: (oldIndex, newIndex) => _onReorder(dayExercises, oldIndex, newIndex),
                       itemBuilder: (context, index) {
                         final exercise = dayExercises[index];
                         return _ExerciseCard(
+                          key: ValueKey(exercise['id']),
                           exercise: exercise,
                           onDelete: () => _deleteExercise(exercise['id']),
+                          onEdit: () => _showEditExercise(exercise),
                         );
                       },
                     );
@@ -186,6 +196,37 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     );
   }
 
+  void _showAssignToStudents(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _AssignToStudentsSheet(routineId: widget.routineId),
+    );
+  }
+
+  void _onReorder(List<Map<String, dynamic>> exercises, int oldIndex, int newIndex) async {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    
+    final item = exercises.removeAt(oldIndex);
+    exercises.insert(newIndex, item);
+    
+    try {
+        final service = ref.read(trainerServiceProvider);
+        for (int i = 0; i < exercises.length; i++) {
+           final ex = exercises[i];
+           if (ex['order_index'] != i) {
+             await service.updateRoutineExercise(ex['id'], {'order_index': i});
+           }
+        }
+        ref.invalidate(routineDetailProvider(widget.routineId));
+    } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al reordenar: $e')));
+    }
+  }
+
   void _showAddExercise(BuildContext context, int dayNumber) {
     showModalBottomSheet(
       context: context,
@@ -196,6 +237,65 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
         dayNumber: dayNumber,
       ),
     );
+  }
+
+
+  void _showEditExercise(Map<String, dynamic> exercise) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _AddExerciseSheet(
+        routineId: widget.routineId,
+        dayNumber: exercise['day_number'],
+        existingExercise: exercise,
+      ),
+    );
+  }
+
+  Future<void> _deleteRoutine() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar rutina'),
+        content: const Text('¿Estás seguro de eliminar esta rutina? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final service = ref.read(trainerServiceProvider);
+        await service.deleteRoutine(widget.routineId);
+        
+        // Refresh lists and stats
+        ref.invalidate(myRoutinesProvider);
+        ref.invalidate(trainerStatsProvider);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Rutina eliminada'), backgroundColor: AppColors.success),
+          );
+          Navigator.pop(context); // Go back to dashboard
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al eliminar: $e'), backgroundColor: AppColors.error),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _deleteExercise(String exerciseId) async {
@@ -278,10 +378,13 @@ class _InfoChip extends StatelessWidget {
 class _ExerciseCard extends StatelessWidget {
   final Map<String, dynamic> exercise;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
 
   const _ExerciseCard({
+    super.key,
     required this.exercise,
     required this.onDelete,
+    required this.onEdit,
   });
 
   @override
@@ -290,49 +393,122 @@ class _ExerciseCard extends StatelessWidget {
     final name = exerciseData?['name'] ?? 'Ejercicio';
     final muscleGroup = exerciseData?['muscle_group'] ?? '';
     final sets = exercise['sets'] ?? 3;
-    final reps = exercise['reps_target'] ?? '10-12';
+    final repsTarget = exercise['reps_target'] ?? '10-12';
     final rest = exercise['rest_seconds'] ?? 60;
+    final comment = exercise['comment'] as String?;
+
+    // Parse reps for display
+    String repsDisplay;
+    if (repsTarget.toString().contains('|')) {
+       final parts = repsTarget.toString().split('|');
+       // If all are same, show one
+       if (parts.every((r) => r == parts[0])) {
+         repsDisplay = '$sets sets × ${parts[0]} reps';
+       } else {
+         repsDisplay = '$sets sets × Varias reps (${parts.join(", ")})';
+       }
+    } else {
+       repsDisplay = '$sets sets × $repsTarget reps';
+    }
 
     return Card(
+      key: key,
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.primary.withOpacity(0.1),
-          child: Text(
-            '${exercise['order_index'] + 1}',
-            style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+      child: InkWell(
+        onTap: onEdit,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+                Row(
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                   children: [
+                       CircleAvatar(
+                          backgroundColor: AppColors.primary.withOpacity(0.1),
+                          child: Text(
+                            '${(exercise['order_index'] as int? ?? 0) + 1}',
+                            style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                          ),
+                       ),
+                       const SizedBox(width: 12),
+                       Expanded(
+                         child: Column(
+                           crossAxisAlignment: CrossAxisAlignment.start,
+                           children: [
+                               Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                               Text(muscleGroup, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                           ]
+                         )
+                       ),
+                       Icon(Icons.drag_handle, color: Colors.grey.shade400),
+                   ] 
+                ),
+                const SizedBox(height: 12),
+                Row(
+                    children: [
+                        _DetailIconInfo(icon: Icons.repeat, label: repsDisplay),
+                        const SizedBox(width: 16),
+                        _DetailIconInfo(icon: Icons.timer_outlined, label: '${rest}s descanso'),
+                    ],
+                ),
+                if (comment != null && comment.isNotEmpty) ...[
+                    const Divider(height: 16),
+                    Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                            const Icon(Icons.comment_outlined, size: 16, color: AppColors.textSecondary),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(comment, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic))),
+                        ],
+                    )
+                ],
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                      onPressed: onDelete, 
+                      icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.error), 
+                      label: const Text('Eliminar', style: TextStyle(color: AppColors.error)),
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  ),
+                )
+            ],
           ),
         ),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(muscleGroup, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-            const SizedBox(height: 4),
-            Text(
-              '$sets sets × $reps reps • ${rest}s descanso',
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete_outline, color: AppColors.error),
-          onPressed: onDelete,
-        ),
-        isThreeLine: true,
       ),
     );
   }
 }
 
-// Add Exercise Sheet
+class _DetailIconInfo extends StatelessWidget {
+    final IconData icon;
+    final String label;
+    
+    const _DetailIconInfo({required this.icon, required this.label});
+    
+    @override
+    Widget build(BuildContext context) {
+        return Row(
+           children: [
+               Icon(icon, size: 16, color: Colors.grey.shade600),
+               const SizedBox(width: 4),
+               Text(label, style: TextStyle(color: Colors.grey.shade800, fontSize: 13, fontWeight: FontWeight.w500)),
+           ],
+        );
+    }
+}
+
+// Add/Edit Exercise Sheet
 class _AddExerciseSheet extends ConsumerStatefulWidget {
   final String routineId;
   final int dayNumber;
+  final Map<String, dynamic>? existingExercise;
 
   const _AddExerciseSheet({
     required this.routineId,
     required this.dayNumber,
+    this.existingExercise,
   });
 
   @override
@@ -342,14 +518,66 @@ class _AddExerciseSheet extends ConsumerStatefulWidget {
 class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
   String? _selectedExerciseId;
   int _sets = 3;
-  String _reps = '10-12';
+  bool _useSameReps = true;
+  String _standardReps = '10-12';
+  List<String> _individualReps = ['10', '10', '10'];
   int _rest = 60;
+  String _comments = '';
   bool _isLoading = false;
+  
+  // Search state
+  String _searchQuery = '';
+  String? _selectedMuscleGroup;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingExercise != null) {
+      _initializeFromExisting();
+    }
+  }
+
+  void _initializeFromExisting() {
+    final ex = widget.existingExercise!;
+    _selectedExerciseId = ex['exercise_id'];
+    _sets = ex['sets'] ?? 3;
+    _rest = ex['rest_seconds'] ?? 60;
+    _comments = ex['comment'] ?? '';
+    
+    final repsTarget = ex['reps_target']?.toString() ?? '10-12';
+    if (repsTarget.contains('|')) {
+      _useSameReps = false;
+      _individualReps = repsTarget.split('|');
+      // Ensure specific list length matches sets
+      if (_individualReps.length < _sets) {
+        _individualReps.addAll(List.filled(_sets - _individualReps.length, '10'));
+      }
+    } else {
+      _useSameReps = true;
+      _standardReps = repsTarget;
+      // Pre-fill individual just in case they toggle
+      _individualReps = List.filled(_sets, repsTarget);
+    }
+  }
+
+  void _updateSets(int newSets) {
+    setState(() {
+      _sets = newSets;
+      // Adjust individual reps list size
+      if (_individualReps.length < newSets) {
+        _individualReps.addAll(List.filled(newSets - _individualReps.length, '10'));
+      } else {
+        _individualReps = _individualReps.sublist(0, newSets);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.existingExercise != null;
+
     return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
+      height: MediaQuery.of(context).size.height * 0.85,
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -368,7 +596,7 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                 ),
                 Expanded(
                   child: Text(
-                    'Agregar ejercicio - Día ${widget.dayNumber}',
+                    isEditing ? 'Editar Ejercicio' : 'Agregar ejercicio - Día ${widget.dayNumber}',
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
@@ -377,7 +605,7 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                   onPressed: _isLoading || _selectedExerciseId == null ? null : _saveExercise,
                   child: _isLoading
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Guardar'),
+                      : Text(isEditing ? 'Actualizar' : 'Guardar'),
                 ),
               ],
             ),
@@ -390,55 +618,179 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Exercise Selector
-                  const Text('Ejercicio', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  _ExerciseSelector(
-                    selectedExerciseId: _selectedExerciseId,
-                    onSelect: (id) => setState(() => _selectedExerciseId = id),
+                  // --- Exercise Selection Section ---
+                  // Only show current exercise info if editing, or allow changing it?
+                  // Usually changing the exercise itself is rare, better to delete and add new.
+                  // But for flexibility let's allow it, OR just lock it. 
+                  // Let's allow searching/changing to match user flexibility request.
+                  
+                  const Text('1. Buscar Ejercicio', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 12),
+                  
+                  // Search Bar
+                  TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Buscar por nombre...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Muscle Group Filters
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _FilterChip(
+                          label: 'Todos',
+                          selected: _selectedMuscleGroup == null,
+                          onSelected: () => setState(() => _selectedMuscleGroup = null),
+                        ),
+                        ...['Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Abdominales'].map((group) => 
+                          _FilterChip(
+                            label: group,
+                            selected: _selectedMuscleGroup == group,
+                            onSelected: () => setState(() => _selectedMuscleGroup = group),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Exercise List Box
+                  Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: _ExerciseSelector(
+                      selectedExerciseId: _selectedExerciseId,
+                      searchQuery: _searchQuery,
+                      muscleGroupFilter: _selectedMuscleGroup,
+                      onSelect: (id) => setState(() => _selectedExerciseId = id),
+                    ),
                   ),
 
                   const SizedBox(height: 24),
 
-                  // Sets
-                  const Text('Sets', style: TextStyle(fontWeight: FontWeight.w600)),
+                  // --- Configuration Section ---
+                  const Text('2. Configuración', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 16),
+
+                  // Sets Slider
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Series (Sets)'),
+                      Text('$_sets', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
+                  ),
                   Slider(
                     value: _sets.toDouble(),
                     min: 1,
                     max: 10,
                     divisions: 9,
-                    label: '$_sets sets',
-                    onChanged: (v) => setState(() => _sets = v.round()),
+                    onChanged: (v) => _updateSets(v.round()),
+                    activeColor: AppColors.primary,
                   ),
-                  Center(child: Text('$_sets sets')),
 
-                  const SizedBox(height: 16),
-
-                  // Reps
-                  const Text('Repeticiones', style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
-                  TextFormField(
-                    initialValue: _reps,
-                    decoration: const InputDecoration(
-                      hintText: 'Ej: 10-12 o 15',
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (v) => _reps = v,
+
+                  // Reps Configuration Type
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _useSameReps,
+                        activeColor: AppColors.primary,
+                        onChanged: (val) => setState(() => _useSameReps = val ?? true),
+                      ),
+                      const Text('Mismas repeticiones para todas las series'),
+                    ],
                   ),
 
-                  const SizedBox(height: 16),
+                  // Reps Inputs
+                  if (_useSameReps)
+                    TextFormField(
+                      initialValue: _standardReps,
+                      decoration: const InputDecoration(
+                        labelText: 'Repeticiones',
+                        hintText: 'Ej: 10-12',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (v) => _standardReps = v,
+                    )
+                  else
+                    Column(
+                      children: List.generate(_sets, (index) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Text('Serie ${index + 1}:', style: const TextStyle(fontWeight: FontWeight.w500)),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TextFormField(
+                                  // Use Key to force rebuild if individual reps change drastically
+                                  key: ValueKey('rep_input_$index'), 
+                                  initialValue: _individualReps.length > index ? _individualReps[index] : '',
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Reps',
+                                    isDense: true,
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (v) {
+                                    if (index < _individualReps.length) {
+                                      _individualReps[index] = v;
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ),
 
-                  // Rest
-                  const Text('Descanso (segundos)', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 24),
+
+                  // Rest Slider
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Descanso'),
+                      Text('${_rest}s', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
+                  ),
                   Slider(
                     value: _rest.toDouble(),
                     min: 30,
                     max: 180,
                     divisions: 15,
-                    label: '${_rest}s',
                     onChanged: (v) => setState(() => _rest = v.round()),
                   ),
-                  Center(child: Text('$_rest segundos')),
+
+                  const SizedBox(height: 16),
+
+                  // Comments
+                  TextFormField(
+                    initialValue: _comments,
+                    decoration: const InputDecoration(
+                      labelText: 'Comentarios (Opcional)',
+                      hintText: 'Ej: Controlar la excéntrica, pausa abajo...',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.comment_outlined),
+                    ),
+                    onChanged: (v) => _comments = v,
+                    minLines: 1,
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -455,21 +807,50 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
 
     try {
       final service = ref.read(trainerServiceProvider);
-      await service.addExerciseToRoutine(
-        routineId: widget.routineId,
-        exerciseId: _selectedExerciseId!,
-        dayNumber: widget.dayNumber,
-        sets: _sets,
-        reps: _reps,
-        restTime: '${_rest}s',
-      );
+      
+      // Determine final reps string format
+      // "12-15" (Standard) or "12|10|8|6" (Individual)
+      String finalReps;
+      if (_useSameReps) {
+        finalReps = _standardReps;
+      } else {
+        finalReps = _individualReps.sublist(0, _sets).join('|');
+      }
+
+      if (widget.existingExercise != null) {
+        // UPDATE
+        await service.updateRoutineExercise(
+          widget.existingExercise!['id'], 
+          {
+            'exercise_id': _selectedExerciseId,
+            'sets': _sets,
+            'reps_target': finalReps,
+            'rest_seconds': _rest,
+            'comment': _comments.isNotEmpty ? _comments : null,
+          }
+        );
+      } else {
+        // CREATE
+        await service.addExerciseToRoutine(
+          routineId: widget.routineId,
+          exerciseId: _selectedExerciseId!,
+          dayNumber: widget.dayNumber,
+          sets: _sets,
+          reps: finalReps,
+          restTime: '${_rest}s',
+          notes: _comments.isNotEmpty ? _comments : null,
+        );
+      }
 
       ref.invalidate(routineDetailProvider(widget.routineId));
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ejercicio agregado'), backgroundColor: AppColors.success),
+          SnackBar(
+            content: Text(widget.existingExercise != null ? 'Ejercicio actualizado' : 'Ejercicio agregado'), 
+            backgroundColor: AppColors.success
+          ),
         );
       }
     } catch (e) {
@@ -484,13 +865,43 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
   }
 }
 
-// Exercise Selector Widget
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  const _FilterChip({required this.label, required this.selected, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onSelected(),
+        selectedColor: AppColors.primary.withOpacity(0.2),
+        checkmarkColor: AppColors.primary,
+        labelStyle: TextStyle(
+          color: selected ? AppColors.primary : Colors.black87,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+    );
+  }
+}
+
+// Exercise Selector Widget with Search & Filter
 class _ExerciseSelector extends ConsumerWidget {
   final String? selectedExerciseId;
+  final String searchQuery;
+  final String? muscleGroupFilter;
   final Function(String) onSelect;
 
   const _ExerciseSelector({
     required this.selectedExerciseId,
+    required this.searchQuery,
+    required this.muscleGroupFilter,
     required this.onSelect,
   });
 
@@ -500,41 +911,45 @@ class _ExerciseSelector extends ConsumerWidget {
 
     return exercisesAsync.when(
       data: (exercises) {
-        if (exercises.isEmpty) {
-          return const Text('No hay ejercicios disponibles');
+        // Filter list locally
+        final filtered = exercises.where((ex) {
+          final name = (ex['name'] as String? ?? '').toLowerCase();
+          final group = (ex['muscle_group'] as String? ?? '');
+          
+          final matchesSearch = name.contains(searchQuery.toLowerCase());
+          final matchesGroup = muscleGroupFilter == null || group == muscleGroupFilter;
+          
+          return matchesSearch && matchesGroup;
+        }).toList();
+
+        if (filtered.isEmpty) {
+          return const Center(
+            child: Text('No se encontraron ejercicios', style: TextStyle(color: Colors.grey)),
+          );
         }
 
-        return Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: exercises.length,
-            itemBuilder: (context, index) {
-              final exercise = exercises[index];
-              final isSelected = selectedExerciseId == exercise['id'];
+        return ListView.builder(
+          itemCount: filtered.length,
+          itemBuilder: (context, index) {
+            final exercise = filtered[index];
+            final isSelected = selectedExerciseId == exercise['id'];
 
-              return ListTile(
-                selected: isSelected,
-                selectedTileColor: AppColors.primary.withOpacity(0.1),
-                leading: Radio<String>(
-                  value: exercise['id'],
-                  groupValue: selectedExerciseId,
-                  onChanged: (id) => id != null ? onSelect(id) : null,
-                ),
-                title: Text(exercise['name'] ?? ''),
-                subtitle: Text(exercise['muscle_group'] ?? ''),
-                onTap: () => onSelect(exercise['id']),
-              );
-            },
-          ),
+            return ListTile(
+              dense: true,
+              selected: isSelected,
+              selectedTileColor: AppColors.primary.withOpacity(0.1),
+              leading: isSelected 
+                ? const Icon(Icons.check_circle, color: AppColors.primary)
+                : const Icon(Icons.circle_outlined, color: Colors.grey),
+              title: Text(exercise['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w500)),
+              subtitle: Text(exercise['muscle_group'] ?? '', style: const TextStyle(fontSize: 12)),
+              onTap: () => onSelect(exercise['id']),
+            );
+          },
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Text('Error: $e'),
+      error: (e, _) => Center(child: Text('Error: $e')),
     );
   }
 }
@@ -544,3 +959,127 @@ final routineDetailProvider = FutureProvider.family<Map<String, dynamic>?, Strin
   final service = ref.watch(trainerServiceProvider);
   return service.getRoutine(routineId);
 });
+
+// Add this class at the end of the file
+class _AssignToStudentsSheet extends ConsumerStatefulWidget {
+  final String routineId;
+
+  const _AssignToStudentsSheet({super.key, required this.routineId});
+
+  @override
+  ConsumerState<_AssignToStudentsSheet> createState() => _AssignToStudentsSheetState();
+}
+
+class _AssignToStudentsSheetState extends ConsumerState<_AssignToStudentsSheet> {
+  final Set<String> _selectedStudentIds = {};
+  bool _isLoading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final studentsAsync = ref.watch(myStudentsProvider);
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Asignar Rutina',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                TextButton(
+                  onPressed: _selectedStudentIds.isEmpty || _isLoading ? null : _assign,
+                  child: _isLoading 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text('Asignar (${_selectedStudentIds.length})'),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: studentsAsync.when(
+              data: (students) {
+                if (students.isEmpty) {
+                  return const Center(child: Text('No tienes alumnos asignados'));
+                }
+                return ListView.builder(
+                  itemCount: students.length,
+                  itemBuilder: (context, index) {
+                    final student = students[index];
+                    final profile = student['profiles'];
+                    final name = profile?['name'] ?? 'Sin nombre';
+                    final email = profile?['email'] ?? '';
+                    final studentId = student['id'];
+                    final isSelected = _selectedStudentIds.contains(studentId);
+
+                    return CheckboxListTile(
+                      value: isSelected,
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == true) {
+                            _selectedStudentIds.add(studentId);
+                          } else {
+                            _selectedStudentIds.remove(studentId);
+                          }
+                        });
+                      },
+                      title: Text(name),
+                      subtitle: Text(email),
+                      secondary: CircleAvatar(
+                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'A'),
+                      ),
+                      activeColor: AppColors.primary,
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, s) => Center(child: Text('Error: $e')),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _assign() async {
+    setState(() => _isLoading = true);
+    try {
+      final service = ref.read(trainerServiceProvider);
+      await service.assignRoutineToMultipleStudents(
+        athleteIds: _selectedStudentIds.toList(),
+        routineId: widget.routineId,
+      );
+      
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Rutina asignada a ${_selectedStudentIds.length} alumnos'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+}
+
+

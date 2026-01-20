@@ -224,6 +224,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
   void clearError() {
     state = state.copyWith(errorMessage: null);
   }
+
+  /// Refresh user profile from database
+  Future<void> refreshProfile() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return;
+    
+    try {
+      final profile = await _supabaseService.getProfile(userId);
+      if (profile != null) {
+        final user = UserModel.fromJson(profile);
+        state = state.copyWith(user: user);
+        debugPrint('🔄 RefreshProfile: Perfil actualizado, hasCompletedOnboarding: ${user.hasCompletedOnboarding}');
+      }
+    } catch (e) {
+      debugPrint('⚠️ RefreshProfile: Error: $e');
+    }
+  }
   
   /// Get localized auth error message
   String _getAuthErrorMessage(AuthException e) {

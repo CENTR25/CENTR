@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/auth_service.dart';
+import '../../services/student_service.dart';
+import 'student_meal_plan_screen.dart';
+import 'student_weight_screen.dart';
+import 'student_check_in_screen.dart';
+import 'student_routine_screen.dart';
 
 class StudentDashboardScreen extends ConsumerWidget {
   const StudentDashboardScreen({super.key});
@@ -188,36 +193,89 @@ class StudentDashboardScreen extends ConsumerWidget {
               
               const SizedBox(height: 12),
               
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.event_busy_rounded,
-                      size: 48,
-                      color: AppColors.textLight.withOpacity(0.5),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'No tienes rutina asignada',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Contacta a tu entrenador',
-                      style: TextStyle(
-                        color: AppColors.textLight,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
+              Consumer(
+                builder: (context, ref, _) {
+                  final routineAsync = ref.watch(activeRoutineProvider);
+                  
+                  return routineAsync.when(
+                    data: (routine) {
+                      if (routine == null) {
+                        return Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.event_busy_rounded,
+                                size: 48,
+                                color: AppColors.textLight.withOpacity(0.5),
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'No tienes rutina asignada',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      
+                      return InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const StudentRoutineScreen()),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.fitness_center, color: AppColors.primary),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      routine['title'] ?? 'Rutina Actual',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    ),
+                                    Text(
+                                      'Ver ejercicios del día',
+                                      style: TextStyle(color: AppColors.primary, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (_, __) => const SizedBox(),
+                  );
+                },
               ),
               
               const SizedBox(height: 24),
@@ -230,26 +288,41 @@ class StudentDashboardScreen extends ConsumerWidget {
                       icon: Icons.camera_alt_rounded,
                       label: 'Check-in',
                       color: AppColors.primary,
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const StudentCheckInScreen()),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _buildQuickAction(
-                      icon: Icons.monitor_weight_rounded,
-                      label: 'Registrar Peso',
-                      color: AppColors.accent,
-                      onTap: () {},
-                    ),
-                  ),
+                      child: _buildQuickAction(
+                        icon: Icons.monitor_weight_rounded,
+                        label: 'Registrar Peso',
+                        color: AppColors.accent,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const StudentWeightScreen()),
+                          );
+                        },
+                      )
+                      ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _buildQuickAction(
-                      icon: Icons.restaurant_rounded,
-                      label: 'Comidas',
-                      color: AppColors.warning,
-                      onTap: () {},
-                    ),
+                      child: _buildQuickAction(
+                        icon: Icons.restaurant_rounded,
+                        label: 'Comidas',
+                        color: AppColors.warning,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const StudentMealPlanScreen()),
+                          );
+                        },
+                      ),
                   ),
                 ],
               ),
@@ -259,6 +332,17 @@ class StudentDashboardScreen extends ConsumerWidget {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
+        onTap: (index) {
+          if (index == 1) {
+            // Navigate to Routine screen
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const StudentRoutineScreen()),
+            );
+          } else if (index == 2) {
+            // Profile - TODO: implement profile screen
+          }
+        },
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_rounded),
@@ -267,10 +351,6 @@ class StudentDashboardScreen extends ConsumerWidget {
           BottomNavigationBarItem(
             icon: Icon(Icons.fitness_center_rounded),
             label: 'Rutina',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.leaderboard_rounded),
-            label: 'Ranking',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_rounded),

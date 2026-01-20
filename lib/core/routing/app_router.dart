@@ -8,6 +8,7 @@ import 'package:north_star/features/auth/presentation/first_login_screen.dart';
 import 'package:north_star/features/admin/presentation/admin_dashboard_screen.dart';
 import 'package:north_star/features/trainer/trainer_dashboard_screen.dart';
 import 'package:north_star/features/student/student_dashboard_screen.dart';
+import 'package:north_star/features/student/student_onboarding_screen.dart';
 import 'package:north_star/features/shared/widgets/loading_screen.dart';
 
 /// Route names
@@ -32,18 +33,26 @@ class AppRoutes {
   
   // Student routes
   static const String studentDashboard = '/student';
+  static const String studentOnboarding = '/student/onboarding';
   static const String studentRoutine = '/student/routine';
   static const String studentProgress = '/student/progress';
 }
 
 /// Router provider
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  // Use read instead of watch to avoid rebuilding GoRouter on auth changes
+  final authNotifier = ref.read(authProvider.notifier);
   
   return GoRouter(
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
+    // Use refreshListenable to trigger redirects on auth state changes
+    refreshListenable: GoRouterRefreshStream(authNotifier.stream),
     redirect: (context, state) {
+      // Read current state from provider directly
+      // We rely on refreshListenable to trigger this callback
+      final authState = ref.read(authProvider);
+      
       final isAuthenticated = authState.status == AuthStatus.authenticated;
       final isLoading = authState.status == AuthStatus.loading || 
                         authState.status == AuthStatus.initial;
@@ -53,12 +62,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isSplash = state.matchedLocation == AppRoutes.splash;
       
       // Show loading/splash while checking auth
-      if (isLoading && isSplash) {
-        return null;
-      }
-      
-      // If still loading, stay on current page
       if (isLoading) {
+        if (isSplash) return null;
+        // If we are already on a loading screen or acceptable initial screen, stay there
         return null;
       }
       
@@ -70,9 +76,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         return AppRoutes.login;
       }
       
-      // Authenticated - redirect to role-based dashboard
+      // Authenticated - redirect to role-based dashboard if on auth/splash pages
       if (isLoginRoute || isSplash) {
+        if (authState.user?.role == UserRole.student && authState.user?.hasCompletedOnboarding == false) {
+          return AppRoutes.studentOnboarding;
+        }
         return _getDashboardRoute(authState.user?.role);
+      }
+      
+      // Enforce onboarding for students
+      if (isAuthenticated && authState.user?.role == UserRole.student && 
+          authState.user?.hasCompletedOnboarding == false && 
+          state.matchedLocation != AppRoutes.studentOnboarding) {
+        return AppRoutes.studentOnboarding;
       }
       
       return null;
@@ -88,6 +104,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.login,
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.register,
+        builder: (context, state) => const LoginScreen(), // Or RegisterScreen if separate
+      ),
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        builder: (context, state) => const LoginScreen(), // Or ForgotPasswordScreen
       ),
       
       // First login (invitation)
@@ -116,6 +140,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.studentDashboard,
         builder: (context, state) => const StudentDashboardScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.studentOnboarding,
+        builder: (context, state) => const StudentOnboardingScreen(),
+      ),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(
@@ -136,6 +164,24 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
   );
 });
+
+/// A class that converts a stream to a Listenable for GoRouter
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen(
+      (dynamic _) => notifyListeners(),
+    );
+  }
+
+  late final dynamic _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
 
 /// Get dashboard route based on user role
 String _getDashboardRoute(UserRole? role) {

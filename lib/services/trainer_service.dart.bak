@@ -253,19 +253,16 @@ class TrainerService {
     String level = 'beginner',
     int daysPerWeek = 3,
     File? imageFile,
-    String? imageUrl, // NEW: Allow passing URL directly
     required StorageService storageService,
   }) async {
     final trainerId = await _getTrainerId();
     if (trainerId == null) throw Exception('No trainer record found for this user');
     
-    String? finalImageUrl = imageUrl; // Use the provided imageUrl if available
-    
-    if (imageFile != null) { // If an image file is provided, upload it
+    String? imageUrl;
+    if (imageFile != null) {
       final userId = currentUserId;
       if (userId != null) {
-        final uploadedUrl = await storageService.uploadRoutineImage(imageFile, userId); // Corrected typo
-        finalImageUrl = uploadedUrl; // Update finalImageUrl with the uploaded URL
+        imageUrl = await storageService.uploadRoutineImage(imageFile, userId);
       }
     }
     
@@ -277,7 +274,7 @@ class TrainerService {
       'level': level,
       'days_per_week': daysPerWeek,
       'created_at': DateTime.now().toIso8601String(),
-      if (finalImageUrl != null) 'image_url': finalImageUrl,
+      if (imageUrl != null) 'image_url': imageUrl,
     };
     
     final response = await _client.from('routines').insert(data).select().single();
@@ -328,29 +325,8 @@ class TrainerService {
   Future<void> removeExerciseFromRoutine(String routineExerciseId) async {
     await _client.from('routine_exercises').delete().eq('id', routineExerciseId);
   }
-
-  /// Update routine exercise details (sets, reps, order, comment)
-  Future<void> updateRoutineExercise(String routineExerciseId, Map<String, dynamic> updates) async {
-    await _client.from('routine_exercises').update(updates).eq('id', routineExerciseId);
-  }
   
-  /// Check if routine name exists
-  Future<bool> checkRoutineNameExists(String name) async {
-    final trainerId = await _getTrainerId();
-    if (trainerId == null) return false;
-
-    final response = await _client
-        .from('routines')
-        .select('id')
-        .eq('trainer_id', trainerId)
-        .eq('title', name)
-        .maybeSingle();
-
-    return response != null;
-  }
-
-  /// Assign routine to student (CLONE STRATEGY)
-  /// Creates a copy of the routine specifically for the student
+  /// Assign routine to student
   Future<void> assignRoutineToStudent({
     required String athleteId,
     required String routineId,
@@ -359,91 +335,22 @@ class TrainerService {
   }) async {
     final trainerId = currentUserId;
     if (trainerId == null) throw Exception('No authenticated user');
-
-    // 1. Get original routine details with exercises
-    final originalRoutine = await getRoutine(routineId);
-    if (originalRoutine == null) throw Exception('Routine not found');
-
-    // 2. Get student details for naming
-    final studentData = await _client
-        .from('athletes')
-        .select('profiles(name)')
-        .eq('id', athleteId)
-        .single();
-    final studentName = studentData['profiles']['name'] ?? 'Alumno';
-
-    // 3. Create NEW routine (Clone)
-    // We keep the same structure but mark it maybe with a special flag if needed, 
-    // or just rely on it being assigned. 
-    // For now, we'll append the student name to distinguish it in lists if visible,
-    // or we could keep the same name. Let's append for clarity.
-    final newRoutineData = {
-      'trainer_id': originalRoutine['trainer_id'],
-      'title': '${originalRoutine['title']} ($studentName)',
-      'objective': originalRoutine['objective'],
-      'level': originalRoutine['level'],
-      'days_per_week': originalRoutine['days_per_week'],
-      'created_at': DateTime.now().toIso8601String(),
-      'image_url': originalRoutine['image_url'],
-    };
-
-    final newRoutine = await _client
-        .from('routines')
-        .insert(newRoutineData)
-        .select()
-        .single();
-
-    final newRoutineId = newRoutine['id'];
-
-    // 4. Clone exercises
-    final originalExercises = (originalRoutine['routine_exercises'] as List? ?? []);
     
-    for (var ex in originalExercises) {
-        await _client.from('routine_exercises').insert({
-          'routine_id': newRoutineId,
-          'exercise_id': ex['exercise_id'],
-          'day_number': ex['day_number'],
-          'sets': ex['sets'],
-          'reps_target': ex['reps_target'], 
-          'rest_seconds': ex['rest_seconds'],
-          'order_index': ex['order_index'],
-          'comment': ex['comment'],
-        });
-    }
-
-    // 5. Deactivate previous active routines for this student
+    // Deactivate current routines
     await _client
         .from('athlete_routines')
         .update({'is_active': false})
         .eq('athlete_id', athleteId)
         .eq('is_active', true);
     
-    // 6. Assign the NEW cloned routine
+    // Assign new routine
     await _client.from('athlete_routines').insert({
       'athlete_id': athleteId,
-      'routine_id': newRoutineId,
+      'routine_id': routineId,
       'start_date': (startDate ?? DateTime.now()).toIso8601String(),
       'end_date': endDate?.toIso8601String(),
       'is_active': true,
     });
-  }
-  
-  /// Assign routine to multiple students (Batch)
-  Future<void> assignRoutineToMultipleStudents({
-    required List<String> athleteIds,
-    required String routineId,
-    DateTime? startDate,
-    DateTime? endDate,
-  }) async {
-    // Run sequentially to avoid overwhelming the DB connection if many students,
-    // or use Future.wait for parallel execution if small number.
-    // using Future.wait for better performance on reasonable batch sizes
-    await Future.wait(athleteIds.map((id) => assignRoutineToStudent(
-      athleteId: id,
-      routineId: routineId,
-      startDate: startDate,
-      endDate: endDate,
-    )));
   }
   
   // ==================== MEAL PLANS ====================

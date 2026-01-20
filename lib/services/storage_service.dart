@@ -132,6 +132,86 @@ class StorageService {
         return 'image/jpeg';
     }
   }
+
+  /// Upload meal plan item image
+  /// Returns the public URL of the uploaded image
+  Future<String> uploadMealImage(File file, String mealPlanId) async {
+    final extension = file.path.split('.').last;
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = '${mealPlanId}_$timestamp.$extension';
+    final path = 'meals/$fileName';
+
+    await _client.storage.from(_bucketName).upload(
+          path,
+          file,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+            upsert: true,
+          ),
+        );
+
+    final url = _client.storage.from(_bucketName).getPublicUrl(path);
+    return url;
+  }
+  Future<String> uploadRoutineImage(File file, String userId) async {
+    final extension = file.path.split('.').last;
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = '${userId}_$timestamp.$extension';
+    final path = 'routines/$fileName';
+
+    await _client.storage.from(_bucketName).upload(
+          path,
+          file,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+            upsert: true,
+          ),
+        );
+
+    final url = _client.storage.from(_bucketName).getPublicUrl(path);
+    return url;
+  }
+
+  /// Upload meal plan cover image
+  /// Returns the public URL of the uploaded image
+  Future<String> uploadMealPlanCover(File file, String userId) async {
+    final extension = file.path.split('.').last;
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = '${userId}_$timestamp.$extension';
+    final path = 'meal_plans/$fileName';
+
+    await _client.storage.from(_bucketName).upload(
+          path,
+          file,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+            upsert: true,
+          ),
+        );
+
+    final url = _client.storage.from(_bucketName).getPublicUrl(path);
+    return url;
+  }
+
+  /// Upload check-in photo
+  Future<String> uploadCheckInPhoto(File file, String userId) async {
+    final extension = file.path.split('.').last;
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = '${userId}_$timestamp.$extension';
+    final path = 'check_ins/$fileName';
+
+    await _client.storage.from(_bucketName).upload(
+          path,
+          file,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+            upsert: true,
+          ),
+        );
+
+    final url = _client.storage.from(_bucketName).getPublicUrl(path);
+    return url;
+  }
 }
 
 /// Provider for StorageService

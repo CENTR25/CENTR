@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// App color scheme
+/// App color scheme - North Star Fitness
 class AppColors {
-  // Primary colors - Energetic Orange/Coral
-  static const Color primary = Color(0xFFFF6B35);
-  static const Color primaryLight = Color(0xFFFF8F5C);
-  static const Color primaryDark = Color(0xFFE55520);
+  // Primary colors - Violeta
+  static const Color primary = Color(0xFF78278A);      // Violeta principal
+  static const Color primaryLight = Color(0xFF9B4AAD); // Violeta claro
+  static const Color primaryDark = Color(0xFF321C50);  // Violeta oscuro
   
-  // Secondary colors - Deep Blue
-  static const Color secondary = Color(0xFF1A237E);
-  static const Color secondaryLight = Color(0xFF534BAE);
-  static const Color secondaryDark = Color(0xFF000051);
+  // Secondary colors - Complementary
+  static const Color secondary = Color(0xFF321C50);
+  static const Color secondaryLight = Color(0xFF4A3470);
+  static const Color secondaryDark = Color(0xFF1A0E30);
   
-  // Accent - Bright Teal
-  static const Color accent = Color(0xFF00BFA5);
+  // Accent - Amarillo para botones y controles
+  static const Color accent = Color(0xFFFFB404);
+  static const Color accentLight = Color(0xFFFFCC4D);
+  static const Color accentDark = Color(0xFFCC9003);
   
   // Background colors
   static const Color background = Color(0xFFF8F9FA);
@@ -32,10 +34,15 @@ class AppColors {
   static const Color error = Color(0xFFEF4444);
   static const Color info = Color(0xFF3B82F6);
   
+  // Dashboard notification colors
+  static const Color notificationGreen = Color(0xFF10B981);   // Reportes mensuales
+  static const Color notificationYellow = Color(0xFFF59E0B);  // Pesajes
+  static const Color notificationRed = Color(0xFFEF4444);     // Vencimientos
+  
   // Role colors
   static const Color adminColor = Color(0xFF8B5CF6);
-  static const Color trainerColor = Color(0xFF06B6D4);
-  static const Color studentColor = Color(0xFF22C55E);
+  static const Color trainerColor = Color(0xFF78278A);  // Mismo violeta principal
+  static const Color studentColor = Color(0xFFFFB404);  // Amarillo accent
   
   // Gamification colors
   static const Color gold = Color(0xFFFFD700);
@@ -43,7 +50,7 @@ class AppColors {
   static const Color bronze = Color(0xFFCD7F32);
   
   // Streak colors
-  static const Color streakActive = Color(0xFFFF6B35);
+  static const Color streakActive = Color(0xFFFFB404);  // Amarillo accent
   static const Color streakInactive = Color(0xFFE5E7EB);
 }
 

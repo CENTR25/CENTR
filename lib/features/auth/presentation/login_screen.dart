@@ -76,6 +76,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -87,11 +89,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                const SizedBox(height: 40),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight - 48, // 48 = padding top + bottom
+                  ),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 40),
                 
                 // Logo
                 Container(
@@ -272,6 +281,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 
                 const SizedBox(height: 24),
                 
+                // Spacer para empujar el footer hacia abajo
+                const Spacer(),
+                
                 // Footer text
                 Text(
                   '© 2024 North Star',
@@ -282,6 +294,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ],
             ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ),

@@ -435,15 +435,63 @@ class TrainerService {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    // Run sequentially to avoid overwhelming the DB connection if many students,
-    // or use Future.wait for parallel execution if small number.
-    // using Future.wait for better performance on reasonable batch sizes
-    await Future.wait(athleteIds.map((id) => assignRoutineToStudent(
-      athleteId: id,
-      routineId: routineId,
-      startDate: startDate,
-      endDate: endDate,
-    )));
+    // Run sequentially to avoid overwhelming the DB connection if many students
+    for (final athleteId in athleteIds) {
+      await assignRoutineToStudent(
+        athleteId: athleteId,
+        routineId: routineId,
+        startDate: startDate,
+        endDate: endDate,
+      );
+    }
+  }
+  /// Save an existing routine (e.g. from a student) as a new template
+  Future<void> saveRoutineAsTemplate({
+    required String sourceRoutineId,
+    required String newTitle,
+  }) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) throw Exception('No trainer record found');
+    
+    // 1. Get source routine
+    final sourceRoutine = await getRoutine(sourceRoutineId);
+    if (sourceRoutine == null) throw Exception('Source routine not found');
+    
+    // 2. Create new routine as template
+    final newRoutineData = {
+      'trainer_id': trainerId,
+      'title': newTitle,
+      'objective': sourceRoutine['objective'],
+      'level': sourceRoutine['level'],
+      'days_per_week': sourceRoutine['days_per_week'],
+      'created_at': DateTime.now().toIso8601String(),
+      'image_url': sourceRoutine['image_url'],
+      // Ensure it's not linked to any specific athlete implicitly (schema doesn't have an owner field other than trainer_id)
+    };
+    
+    final newRoutine = await _client
+        .from('routines')
+        .insert(newRoutineData)
+        .select()
+        .single();
+    
+    final newRoutineId = newRoutine['id'];
+    
+    // 3. Copy exercises
+    final sourceExercises = (sourceRoutine['routine_exercises'] as List? ?? []);
+    
+    for (var ex in sourceExercises) {
+        await _client.from('routine_exercises').insert({
+          'routine_id': newRoutineId,
+          'exercise_id': ex['exercise_id'],
+          'day_number': ex['day_number'],
+          'sets': ex['sets'],
+          'reps_target': ex['reps_target'], 
+          'rest_seconds': ex['rest_seconds'],
+          'order_index': ex['order_index'],
+          'comment': ex['comment'],
+        });
+    }
   }
   
   // ==================== MEAL PLANS ====================
@@ -627,6 +675,30 @@ class TrainerService {
       'total_routines': routines.length,
       'total_meal_plans': mealPlans.length,
     };
+  }
+
+  /// Get student history (workout logs)
+  Future<List<Map<String, dynamic>>> getStudentHistory(String studentId) async {
+    final response = await _client
+        .from('workout_logs')
+        .select('*, routine_exercises(*, routines(*), exercises(*))')
+        .eq('athlete_id', studentId)
+        .order('created_at', ascending: false);
+        
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Search food bank (Internal Database)
+  Future<List<Map<String, dynamic>>> searchFoodBank(String query) async {
+    if (query.length < 2) return [];
+
+    final response = await _client
+        .from('default_meals')
+        .select()
+        .or('meal_title.ilike.%$query%,meal_description.ilike.%$query%')
+        .limit(20);
+        
+    return List<Map<String, dynamic>>.from(response);
   }
 }
 

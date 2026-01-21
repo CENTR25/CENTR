@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../services/trainer_service.dart';
 import 'routine_detail_screen.dart';
 import 'assignment_sheets.dart';
+import 'student_history_screen.dart';
 
 class StudentDetailScreen extends ConsumerStatefulWidget {
   final String studentId;
@@ -194,9 +195,20 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 const SizedBox(height: 32),
 
                 // Stats Section
-                const Text(
-                  'Estadísticas',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                _SectionHeader(
+                  title: 'Estadísticas', 
+                  action: 'Ver Historial',
+                  onTap: () {
+                     Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => StudentHistoryScreen(
+                          studentId: widget.studentId,
+                          studentName: name,
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 _buildStatsRow(student),

@@ -328,6 +328,42 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
     }
   }
 
+  Future<void> _showFoodBankSearch() async {
+    final selectedItem = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const _FoodBankSearchSheet(),
+    );
+
+    if (selectedItem != null) {
+      setState(() {
+        _nameController.text = selectedItem['meal_title'] ?? '';
+        _descController.text = selectedItem['meal_description'] ?? '';
+        _calController.text = (selectedItem['calories'] as int?)?.toString() ?? '';
+        if (selectedItem['time_of_day'] != null) {
+          // Verify if it maps to our values
+          final t = selectedItem['time_of_day'];
+          if (['breakfast', 'lunch', 'dinner', 'snack'].contains(t)) {
+             _time = t;
+          }
+        }
+        // If macros exist, maybe append to description for now or just log them
+        // The current addMealPlanItem supports 'macros' map, but the UI doesn't have inputs for it.
+        // We can secretly store it if we added a member generic map, but for now let's just use text fields.
+        if (selectedItem['macros'] != null) {
+           final m = selectedItem['macros'];
+           if (m is Map) {
+             final macroText = "\n\nMacros: P: ${m['p']}g, C: ${m['c']}g, G: ${m['f']}g";
+             if (!_descController.text.contains("Macros:")) {
+               _descController.text += macroText;
+             }
+           }
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -340,7 +376,17 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Agregar Comida - Día ${widget.day}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                   Text('Agregar Comida - Día ${widget.day}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                   TextButton.icon(
+                     onPressed: _showFoodBankSearch,
+                     icon: const Icon(Icons.search),
+                     label: const Text('Buscar en Banco'),
+                   )
+                ],
+              ),
               const SizedBox(height: 24),
               
               // Image Picker
@@ -397,8 +443,8 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _descController,
-                maxLines: 2,
-                decoration: const InputDecoration(labelText: 'Descripción / Ingredientes'),
+                maxLines: 4,
+                decoration: const InputDecoration(labelText: 'Descripción / Ingredientes / Macros'),
               ),
               const SizedBox(height: 24),
               SizedBox(
@@ -412,6 +458,96 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FoodBankSearchSheet extends ConsumerStatefulWidget {
+  const _FoodBankSearchSheet();
+
+  @override
+  ConsumerState<_FoodBankSearchSheet> createState() => _FoodBankSearchSheetState();
+}
+
+class _FoodBankSearchSheetState extends ConsumerState<_FoodBankSearchSheet> {
+  final _searchController = TextEditingController();
+  List<Map<String, dynamic>> _results = [];
+  bool _isLoading = false;
+
+  Future<void> _search(String query) async {
+    if (query.length < 2) return;
+    setState(() => _isLoading = true);
+    
+    try {
+      final service = ref.read(trainerServiceProvider);
+      final results = await service.searchFoodBank(query);
+      setState(() => _results = results);
+    } catch (e) {
+      // ignore error
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+              const Expanded(child: Text('Banco de Alimentos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18), textAlign: TextAlign.center)),
+              const SizedBox(width: 48), // balance space
+            ],
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Buscar comida (ej: pollo, avena...)',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+            ),
+            onChanged: (val) {
+               // Debounce could be good, but for now direct call if length > 2
+               if (val.length > 2) _search(val);
+            },
+            onSubmitted: _search,
+            autofocus: true,
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _isLoading 
+              ? const Center(child: CircularProgressIndicator())
+              : _results.isEmpty 
+                  ? Center(child: Text('Busca una comida para ver resultados', style: TextStyle(color: Colors.grey.shade400)))
+                  : ListView.builder(
+                      itemCount: _results.length,
+                      itemBuilder: (context, index) {
+                        final item = _results[index];
+                        return ListTile(
+                          title: Text(item['meal_title'] ?? ''),
+                          subtitle: Text(item['meal_description'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                          leading: item['image_url'] != null
+                             ? CircleAvatar(backgroundImage: NetworkImage(item['image_url']))
+                             : const CircleAvatar(child: Icon(Icons.restaurant, size: 16)),
+                          trailing: Text('${item['calories'] ?? 0} kcal'),
+                          onTap: () => Navigator.pop(context, item),
+                        );
+                      },
+                    ),
+          ),
+        ],
       ),
     );
   }

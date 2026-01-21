@@ -37,21 +37,47 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
         title: Text(widget.routineTitle),
         actions: [
           IconButton(
+            icon: const Icon(Icons.save_as),
+            tooltip: 'Guardar como Plantilla',
+            onPressed: () => _showSaveAsTemplateDialog(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.person_add),
             tooltip: 'Asignar a alumnos',
             onPressed: () => _showAssignToStudents(context),
           ),
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {
-              // TODO: Edit routine details (title, objective)
-              // For now just show snackbar or implement small dialog
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Edición de detalles próximamente')));
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'edit') {
+                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Edición de detalles próximamente')));
+              } else if (value == 'delete') {
+                _deleteRoutine();
+              }
             },
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: _deleteRoutine,
+            itemBuilder: (BuildContext context) {
+              return [
+                const PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit, color: Colors.blue),
+                      SizedBox(width: 8),
+                      Text('Editar Detalles'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Eliminar Rutina'),
+                    ],
+                  ),
+                ),
+              ];
+            },
           ),
         ],
       ),
@@ -249,6 +275,87 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
         routineId: widget.routineId,
         dayNumber: exercise['day_number'],
         existingExercise: exercise,
+      ),
+    );
+  }
+
+  void _showSaveAsTemplateDialog(BuildContext context) {
+    if (!widget.routineTitle.contains('(')) {
+      // Just a heuristic: Usually student routines have the name in parenthesis or appended.
+      // But trainers might want to clone their own templates too.
+    }
+    
+    final controller = TextEditingController(text: '${widget.routineTitle} (Copia)');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Guardar como Plantilla'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Esta acción creará una nueva rutina en tu librería basada en esta configuración.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'Nombre de la nueva plantilla',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.trim().isEmpty) return;
+              
+              Navigator.pop(context); // Close dialog
+              
+              try {
+                // Show loading
+                if (mounted) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Guardando plantilla...')),
+                  );
+                }
+                
+                final service = ref.read(trainerServiceProvider);
+                await service.saveRoutineAsTemplate(
+                  sourceRoutineId: widget.routineId,
+                  newTitle: controller.text.trim(),
+                );
+                
+                ref.invalidate(myRoutinesProvider); // Refresh dashboard list
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('¡Plantilla guardada con éxito!'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+                  );
+                }
+              }
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
       ),
     );
   }

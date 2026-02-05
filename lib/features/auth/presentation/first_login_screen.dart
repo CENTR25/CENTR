@@ -59,7 +59,7 @@ class _FirstLoginScreenState extends ConsumerState<FirstLoginScreen> {
                 const SizedBox(height: 8),
 
                 Text(
-                  'Bienvenido a North Star. Establece una contraseña segura para tu cuenta.',
+                  'Bienvenido a CENTR. Establece una contraseña segura para tu cuenta.',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 14,

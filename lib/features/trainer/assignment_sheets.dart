@@ -29,32 +29,48 @@ class _AssignRoutineSheetState extends ConsumerState<AssignRoutineSheet> {
       height: MediaQuery.of(context).size.height * 0.7,
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: Column(
         children: [
           // Header
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              width: 50,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.assignment_rounded, color: AppColors.primaryLight, size: 24),
                 ),
+                const SizedBox(width: 16),
                 const Expanded(
                   child: Text(
                     'Asignar Rutina',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ),
                 TextButton(
                   onPressed: _isLoading || _selectedRoutineId == null ? null : _assignRoutine,
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primaryLight),
                   child: _isLoading
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Asignar'),
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                      : const Text('ASIGNAR', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -74,24 +90,34 @@ class _AssignRoutineSheetState extends ConsumerState<AssignRoutineSheet> {
                     final routine = routines[index];
                     final isSelected = _selectedRoutineId == routine['id'];
                     
-                    return RadioListTile<String>(
-                      value: routine['id'],
-                      groupValue: _selectedRoutineId,
-                      onChanged: (val) => setState(() => _selectedRoutineId = val),
-                      title: Text(routine['title'] ?? 'Rutina'),
-                      subtitle: Text(routine['objective'] ?? ''),
-                      secondary: isSelected 
-                        ? const Icon(Icons.check_circle, color: AppColors.primary)
-                        : null,
-                      activeColor: AppColors.primary,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: isSelected 
-                           ? const BorderSide(color: AppColors.primary)
-                           : BorderSide.none,
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.primary.withOpacity(0.05) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected ? AppColors.primary.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+                        ),
                       ),
-                      tileColor: isSelected ? AppColors.primary.withOpacity(0.05) : null,
+                      child: RadioListTile<String>(
+                        value: routine['id'],
+                        groupValue: _selectedRoutineId,
+                        onChanged: (val) => setState(() => _selectedRoutineId = val),
+                        title: Text(
+                          routine['title'] ?? 'Rutina',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          routine['objective'] ?? '',
+                          style: TextStyle(color: AppColors.textLight),
+                        ),
+                        secondary: isSelected 
+                          ? const Icon(Icons.check_circle_rounded, color: AppColors.primaryLight)
+                          : null,
+                        activeColor: AppColors.primaryLight,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
                     );
                   },
                 );
@@ -166,32 +192,48 @@ class _AssignMealPlanSheetState extends ConsumerState<AssignMealPlanSheet> {
       height: MediaQuery.of(context).size.height * 0.7,
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: Column(
         children: [
           // Header
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              width: 50,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.restaurant_menu_rounded, color: AppColors.warning, size: 24),
                 ),
+                const SizedBox(width: 16),
                 const Expanded(
                   child: Text(
-                    'Asignar Plan Alimenticio',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
+                    'Asignar Plan',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ),
                 TextButton(
                   onPressed: _isLoading || _selectedMealPlanId == null ? null : _assignMealPlan,
+                  style: TextButton.styleFrom(foregroundColor: AppColors.warning),
                   child: _isLoading
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Asignar'),
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning))
+                      : const Text('ASIGNAR', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -211,24 +253,34 @@ class _AssignMealPlanSheetState extends ConsumerState<AssignMealPlanSheet> {
                     final plan = plans[index];
                     final isSelected = _selectedMealPlanId == plan['id'];
                     
-                    return RadioListTile<String>(
-                      value: plan['id'],
-                      groupValue: _selectedMealPlanId,
-                      onChanged: (val) => setState(() => _selectedMealPlanId = val),
-                      title: Text(plan['title'] ?? 'Plan'),
-                      subtitle: Text(plan['objective'] ?? ''),
-                      secondary: isSelected 
-                        ? const Icon(Icons.check_circle, color: AppColors.warning)
-                        : null,
-                      activeColor: AppColors.warning,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: isSelected 
-                           ? const BorderSide(color: AppColors.warning)
-                           : BorderSide.none,
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.warning.withOpacity(0.05) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected ? AppColors.warning.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+                        ),
                       ),
-                      tileColor: isSelected ? AppColors.warning.withOpacity(0.05) : null,
+                      child: RadioListTile<String>(
+                        value: plan['id'],
+                        groupValue: _selectedMealPlanId,
+                        onChanged: (val) => setState(() => _selectedMealPlanId = val),
+                        title: Text(
+                          plan['title'] ?? 'Plan',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          plan['objective'] ?? '',
+                          style: TextStyle(color: AppColors.textLight),
+                        ),
+                        secondary: isSelected 
+                          ? const Icon(Icons.check_circle_rounded, color: AppColors.warning)
+                          : null,
+                        activeColor: AppColors.warning,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
                     );
                   },
                 );

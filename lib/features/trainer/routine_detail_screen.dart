@@ -18,12 +18,19 @@ class RoutineDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   TabController? _tabController;
   int _currentDay = 1;
 
+  void _handleTabSelection() {
+    if (mounted && _tabController != null) {
+      setState(() => _currentDay = _tabController!.index + 1);
+    }
+  }
+
   @override
   void dispose() {
+    _tabController?.removeListener(_handleTabSelection);
     _tabController?.dispose();
     super.dispose();
   }
@@ -35,21 +42,23 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.routineTitle),
+        backgroundColor: AppColors.background,
         actions: [
           IconButton(
-            icon: const Icon(Icons.save_as),
+            icon: const Icon(Icons.copy_rounded),
             tooltip: 'Guardar como Plantilla',
             onPressed: () => _showSaveAsTemplateDialog(context),
           ),
           IconButton(
-            icon: const Icon(Icons.person_add),
+            icon: const Icon(Icons.person_add_rounded),
             tooltip: 'Asignar a alumnos',
             onPressed: () => _showAssignToStudents(context),
           ),
           PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded),
             onSelected: (value) {
               if (value == 'edit') {
-                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Edición de detalles próximamente')));
+                 _showEditRoutineDetails(routineAsync.value!);
               } else if (value == 'delete') {
                 _deleteRoutine();
               }
@@ -60,7 +69,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                   value: 'edit',
                   child: Row(
                     children: [
-                      Icon(Icons.edit, color: Colors.blue),
+                      Icon(Icons.edit_rounded, color: AppColors.primary),
                       SizedBox(width: 8),
                       Text('Editar Detalles'),
                     ],
@@ -70,7 +79,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                   value: 'delete',
                   child: Row(
                     children: [
-                      Icon(Icons.delete, color: Colors.red),
+                      Icon(Icons.delete_rounded, color: AppColors.error),
                       SizedBox(width: 8),
                       Text('Eliminar Rutina'),
                     ],
@@ -89,30 +98,44 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
 
           final daysPerWeek = routine['days_per_week'] ?? 3;
           
-          // Initialize tab controller only once
           if (_tabController == null || _tabController!.length != daysPerWeek) {
-            _tabController?.dispose();
-            _tabController = TabController(length: daysPerWeek, vsync: this);
-            _tabController!.addListener(() {
-              setState(() => _currentDay = _tabController!.index + 1);
-            });
+            final oldController = _tabController;
+            _tabController = TabController(
+              length: daysPerWeek, 
+              vsync: this,
+              initialIndex: (oldController != null && oldController.index < daysPerWeek) 
+                  ? oldController.index 
+                  : 0,
+            );
+            _tabController!.addListener(_handleTabSelection);
+            if (oldController != null) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                oldController.removeListener(_handleTabSelection);
+                oldController.dispose();
+              });
+            }
           }
 
           final exercises = routine['routine_exercises'] as List? ?? [];
 
           return Column(
             children: [
-              // Routine Info Card
               Container(
+                width: double.infinity,
                 margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  gradient: const LinearGradient(
+                    colors: [AppColors.primary, AppColors.primaryDark],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
+                      color: AppColors.primary.withOpacity(0.3),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
                     ),
                   ],
                 ),
@@ -121,24 +144,27 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                   children: [
                     Text(
                       routine['objective'] ?? 'Sin objetivo definido',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         _InfoChip(
-                          icon: Icons.trending_up,
+                          icon: Icons.trending_up_rounded,
                           label: routine['level'] ?? 'beginner',
-                          color: AppColors.primary,
+                          color: Colors.white,
+                          backgroundColor: Colors.white.withOpacity(0.2),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
                         _InfoChip(
-                          icon: Icons.calendar_today,
+                          icon: Icons.calendar_today_rounded,
                           label: '$daysPerWeek días/sem',
-                          color: AppColors.success,
+                          color: Colors.white,
+                          backgroundColor: Colors.white.withOpacity(0.2),
                         ),
                       ],
                     ),
@@ -150,12 +176,19 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
               TabBar(
                 controller: _tabController!,
                 isScrollable: true,
-                labelColor: AppColors.primary,
-                unselectedLabelColor: AppColors.textSecondary,
-                indicatorColor: AppColors.primary,
+                tabAlignment: TabAlignment.start,
+                labelColor: AppColors.accent,
+                unselectedLabelColor: AppColors.textLight,
+                indicatorColor: AppColors.accent,
+                indicatorSize: TabBarIndicatorSize.label,
+                dividerColor: Colors.transparent,
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold),
                 tabs: List.generate(
                   daysPerWeek,
-                  (index) => Tab(text: 'Día ${index + 1}'),
+                  (index) {
+                    const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+                    return Tab(text: index < days.length ? days[index] : 'Día ${index + 1}');
+                  },
                 ),
               ),
 
@@ -169,41 +202,115 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                     // Sort by order_index just in case
                     dayExercises.sort((a, b) => (a['order_index'] as int? ?? 0).compareTo(b['order_index'] as int? ?? 0));
 
-                    if (dayExercises.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.fitness_center, size: 64, color: Colors.grey.shade300),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Sin ejercicios para este día',
-                              style: TextStyle(color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: () => _showAddExercise(context, dayNum),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Agregar ejercicio'),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
+                    final List<int> cardioDays = List<int>.from(routine['cardio_days'] ?? []);
+                    final isCardioDay = cardioDays.contains(dayNum);
 
-                    return ReorderableListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: dayExercises.length,
-                      onReorder: (oldIndex, newIndex) => _onReorder(dayExercises, oldIndex, newIndex),
-                      itemBuilder: (context, index) {
-                        final exercise = dayExercises[index];
-                        return _ExerciseCard(
-                          key: ValueKey(exercise['id']),
-                          exercise: exercise,
-                          onDelete: () => _deleteExercise(exercise['id']),
-                          onEdit: () => _showEditExercise(exercise),
-                        );
-                      },
+                    return Column(
+                      children: [
+                        // Cardio Switch
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: isCardioDay ? AppColors.primary.withOpacity(0.2) : Colors.grey.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.directions_run_rounded,
+                                    color: isCardioDay ? AppColors.accent : Colors.grey,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Cardio para este día',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      Text(
+                                        isCardioDay ? 'Marcado como día con cardio' : 'Sin cardio marcado',
+                                        style: TextStyle(
+                                          color: AppColors.textLight,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  value: isCardioDay,
+                                  onChanged: (val) => _toggleCardio(routine, dayNum, val),
+                                  activeColor: AppColors.accent,
+                                  activeTrackColor: AppColors.accent.withOpacity(0.4),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        if (dayExercises.isEmpty)
+                          Expanded(
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.fitness_center_rounded, size: 80, color: Colors.white.withOpacity(0.1)),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    'Sin ejercicios para este día',
+                                    style: TextStyle(color: AppColors.textLight, fontSize: 16),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  ElevatedButton.icon(
+                                    onPressed: () => _showAddExercise(context, dayNum),
+                                    icon: const Icon(Icons.add_rounded),
+                                    label: const Text('Agregar ejercicio'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          Expanded(
+                            child: ReorderableListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: dayExercises.length,
+                              onReorder: (oldIndex, newIndex) => _onReorder(dayExercises, oldIndex, newIndex),
+                              itemBuilder: (context, index) {
+                                final exercise = dayExercises[index];
+                                return _ExerciseCard(
+                                  key: ValueKey(exercise['id']),
+                                  exercise: exercise,
+                                  onDelete: () => _deleteExercise(exercise['id']),
+                                  onEdit: () => _showEditExercise(exercise),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
                     );
                   }),
                 ),
@@ -216,8 +323,11 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddExercise(context, _currentDay),
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add),
+        backgroundColor: AppColors.accent,
+        foregroundColor: AppColors.primaryDark,
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Icon(Icons.add_rounded, size: 30),
       ),
     );
   }
@@ -253,6 +363,32 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     }
   }
 
+  Future<void> _toggleCardio(Map<String, dynamic> routine, int dayNum, bool isActive) async {
+    final List<int> cardioDays = List<int>.from(routine['cardio_days'] ?? []);
+    
+    if (isActive) {
+      if (!cardioDays.contains(dayNum)) {
+        cardioDays.add(dayNum);
+      }
+    } else {
+      cardioDays.remove(dayNum);
+    }
+
+    try {
+      final service = ref.read(trainerServiceProvider);
+      await service.updateRoutine(widget.routineId, {
+        'cardio_days': cardioDays,
+      });
+      ref.invalidate(routineDetailProvider(widget.routineId));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al actualizar cardio: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
   void _showAddExercise(BuildContext context, int dayNumber) {
     showModalBottomSheet(
       context: context,
@@ -275,6 +411,116 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
         routineId: widget.routineId,
         dayNumber: exercise['day_number'],
         existingExercise: exercise,
+      ),
+    );
+  }
+
+  void _showEditRoutineDetails(Map<String, dynamic> routine) {
+    final titleController = TextEditingController(text: routine['title']);
+    final objectiveController = TextEditingController(text: routine['objective']);
+    String selectedLevel = routine['level'] ?? 'beginner';
+    int selectedDays = routine['days_per_week'] ?? 3;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Editar Detalles de Rutina'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Título de la rutina',
+                    prefixIcon: Icon(Icons.title),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: objectiveController,
+                  decoration: const InputDecoration(
+                    labelText: 'Objetivo',
+                    prefixIcon: Icon(Icons.track_changes),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedLevel,
+                  decoration: const InputDecoration(
+                    labelText: 'Nivel',
+                    prefixIcon: Icon(Icons.trending_up),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'beginner', child: Text('Principiante')),
+                    DropdownMenuItem(value: 'intermediate', child: Text('Intermedio')),
+                    DropdownMenuItem(value: 'advanced', child: Text('Avanzado')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setDialogState(() => selectedLevel = val);
+                  },
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  value: selectedDays,
+                  decoration: const InputDecoration(
+                    labelText: 'Días por semana',
+                    prefixIcon: Icon(Icons.calendar_month),
+                  ),
+                  items: List.generate(7, (index) => index + 1)
+                      .map((d) => DropdownMenuItem(value: d, child: Text('$d días')))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) setDialogState(() => selectedDays = val);
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (titleController.text.isEmpty) return;
+
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                final navigator = Navigator.of(context);
+
+                try {
+                  final service = ref.read(trainerServiceProvider);
+                  await service.updateRoutine(widget.routineId, {
+                    'title': titleController.text.trim(),
+                    'objective': objectiveController.text.trim(),
+                    'level': selectedLevel,
+                    'days_per_week': selectedDays,
+                  });
+                  
+                  ref.invalidate(routineDetailProvider(widget.routineId));
+                  ref.invalidate(myRoutinesProvider);
+
+                  if (mounted) {
+                    navigator.pop();
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(content: Text('Rutina actualizada con éxito'), backgroundColor: AppColors.success),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+                    );
+                  }
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -319,15 +565,14 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
             onPressed: () async {
               if (controller.text.trim().isEmpty) return;
               
-              Navigator.pop(context); // Close dialog
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
               
               try {
                 // Show loading
-                if (mounted) {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Guardando plantilla...')),
-                  );
-                }
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('Guardando plantilla...')),
+                );
                 
                 final service = ref.read(trainerServiceProvider);
                 await service.saveRoutineAsTemplate(
@@ -337,20 +582,17 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                 
                 ref.invalidate(myRoutinesProvider); // Refresh dashboard list
                 
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('¡Plantilla guardada con éxito!'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                }
+                navigator.pop(); // Close dialog
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('¡Plantilla guardada con éxito!'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
-                  );
-                }
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+                );
               }
             },
             child: const Text('Guardar'),
@@ -381,6 +623,9 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     );
 
     if (confirmed == true) {
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
+      
       try {
         final service = ref.read(trainerServiceProvider);
         await service.deleteRoutine(widget.routineId);
@@ -390,14 +635,14 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
         ref.invalidate(trainerStatsProvider);
         
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessenger.showSnackBar(
             const SnackBar(content: Text('Rutina eliminada'), backgroundColor: AppColors.success),
           );
-          Navigator.pop(context); // Go back to dashboard
+          navigator.pop(); // Go back to dashboard
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessenger.showSnackBar(
             SnackBar(content: Text('Error al eliminar: $e'), backgroundColor: AppColors.error),
           );
         }
@@ -426,18 +671,19 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     );
 
     if (confirmed == true) {
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
       try {
         final service = ref.read(trainerServiceProvider);
         await service.removeExerciseFromRoutine(exerciseId);
         ref.invalidate(routineDetailProvider(widget.routineId));
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessenger.showSnackBar(
             const SnackBar(content: Text('Ejercicio eliminado'), backgroundColor: AppColors.success),
           );
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessenger.showSnackBar(
             SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
           );
         }
@@ -451,11 +697,13 @@ class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
+  final Color? backgroundColor;
 
   const _InfoChip({
     required this.icon,
     required this.label,
     required this.color,
+    this.backgroundColor,
   });
 
   @override
@@ -463,17 +711,17 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
+        color: backgroundColor ?? color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: color),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
           Text(
             label,
-            style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+            style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -520,22 +768,39 @@ class _ExerciseCard extends StatelessWidget {
 
     return Card(
       key: key,
-      margin: const EdgeInsets.only(bottom: 12),
+      color: AppColors.surface,
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 4,
+      shadowColor: Colors.black.withOpacity(0.4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
+      ),
       child: InkWell(
         onTap: onEdit,
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
                 Row(
                    crossAxisAlignment: CrossAxisAlignment.start,
                    children: [
-                       CircleAvatar(
-                          backgroundColor: AppColors.primary.withOpacity(0.1),
-                          child: Text(
-                            '${(exercise['order_index'] as int? ?? 0) + 1}',
-                            style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                       Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppColors.primary, AppColors.primaryDark],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${(exercise['order_index'] as int? ?? 0) + 1}',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                            ),
                           ),
                        ),
                        const SizedBox(width: 12),
@@ -543,21 +808,41 @@ class _ExerciseCard extends StatelessWidget {
                          child: Column(
                            crossAxisAlignment: CrossAxisAlignment.start,
                            children: [
-                               Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                               Text(muscleGroup, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                               Text(
+                                 name, 
+                                 style: const TextStyle(
+                                   fontWeight: FontWeight.bold, 
+                                   fontSize: 18,
+                                   color: Colors.white,
+                                 )
+                               ),
+                               Text(
+                                 muscleGroup, 
+                                 style: const TextStyle(
+                                   color: AppColors.textLight, 
+                                   fontSize: 13,
+                                 )
+                               ),
                            ]
                          )
                        ),
-                       Icon(Icons.drag_handle, color: Colors.grey.shade400),
+                       Icon(Icons.drag_indicator_rounded, color: Colors.white.withOpacity(0.2)),
                    ] 
                 ),
-                const SizedBox(height: 12),
-                Row(
-                    children: [
-                        _DetailIconInfo(icon: Icons.repeat, label: repsDisplay),
-                        const SizedBox(width: 16),
-                        _DetailIconInfo(icon: Icons.timer_outlined, label: '${rest}s descanso'),
-                    ],
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                      children: [
+                          Expanded(child: _DetailIconInfo(icon: Icons.repeat_one_rounded, label: repsDisplay)),
+                          const SizedBox(width: 16),
+                          Expanded(child: _DetailIconInfo(icon: Icons.timer_outlined, label: '${rest}s descanso')),
+                      ],
+                  ),
                 ),
                 if (comment != null && comment.isNotEmpty) ...[
                     const Divider(height: 16),
@@ -598,9 +883,19 @@ class _DetailIconInfo extends StatelessWidget {
     Widget build(BuildContext context) {
         return Row(
            children: [
-               Icon(icon, size: 16, color: Colors.grey.shade600),
-               const SizedBox(width: 4),
-               Text(label, style: TextStyle(color: Colors.grey.shade800, fontSize: 13, fontWeight: FontWeight.w500)),
+               Icon(icon, size: 18, color: AppColors.accent),
+               const SizedBox(width: 6),
+               Expanded(
+                 child: Text(
+                   label, 
+                   style: const TextStyle(
+                     color: Colors.white, 
+                     fontSize: 14, 
+                     fontWeight: FontWeight.w500,
+                   ),
+                   overflow: TextOverflow.ellipsis,
+                 )
+               ),
            ],
         );
     }
@@ -684,40 +979,62 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
     final isEditing = widget.existingExercise != null;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
+      height: MediaQuery.of(context).size.height * 0.9,
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: Column(
         children: [
-          // Header
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    isEditing ? Icons.edit_rounded : Icons.add_rounded, 
+                    color: AppColors.accent, 
+                    size: 24
+                  ),
                 ),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Text(
-                    isEditing ? 'Editar Ejercicio' : 'Agregar ejercicio - Día ${widget.dayNumber}',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
+                    isEditing ? 'Editar Ejercicio' : 'Agregar Ejercicio',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ),
                 TextButton(
                   onPressed: _isLoading || _selectedExerciseId == null ? null : _saveExercise,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.accent,
+                    disabledForegroundColor: Colors.grey,
+                  ),
                   child: _isLoading
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Text(isEditing ? 'Actualizar' : 'Guardar'),
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent))
+                      : Text(isEditing ? 'ACTUALIZAR' : 'GUARDAR', style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Colors.white10),
 
           Expanded(
             child: SingleChildScrollView(
@@ -731,16 +1048,21 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                   // But for flexibility let's allow it, OR just lock it. 
                   // Let's allow searching/changing to match user flexibility request.
                   
-                  const Text('1. Buscar Ejercicio', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 12),
+                  const Text('1. Buscar Ejercicio', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                  const SizedBox(height: 16),
                   
                   // Search Bar
                   TextField(
+                    style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       hintText: 'Buscar por nombre...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                      prefixIcon: const Icon(Icons.search_rounded, color: AppColors.accent),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.03),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                     onChanged: (val) => setState(() => _searchQuery = val),
                   ),
@@ -770,24 +1092,27 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
 
                   // Exercise List Box
                   Container(
-                    height: 200,
+                    height: 220,
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.white.withOpacity(0.02),
+                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    child: _ExerciseSelector(
-                      selectedExerciseId: _selectedExerciseId,
-                      searchQuery: _searchQuery,
-                      muscleGroupFilter: _selectedMuscleGroup,
-                      onSelect: (id) => setState(() => _selectedExerciseId = id),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: _ExerciseSelector(
+                        selectedExerciseId: _selectedExerciseId,
+                        searchQuery: _searchQuery,
+                        muscleGroupFilter: _selectedMuscleGroup,
+                        onSelect: (id) => setState(() => _selectedExerciseId = id),
+                      ),
                     ),
                   ),
 
                   const SizedBox(height: 24),
 
-                  // --- Configuration Section ---
-                  const Text('2. Configuración', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 16),
+                  const Text('2. Configuración', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                  const SizedBox(height: 20),
 
                   // Sets Slider
                   Row(
@@ -1086,39 +1411,71 @@ class _AssignToStudentsSheetState extends ConsumerState<_AssignToStudentsSheet> 
     final studentsAsync = ref.watch(myStudentsProvider);
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
+      height: MediaQuery.of(context).size.height * 0.8,
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: Column(
         children: [
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Asignar Rutina',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.person_add_rounded, color: AppColors.primaryLight, size: 24),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Text(
+                    'Asignar a Alumnos',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
                 ),
                 TextButton(
                   onPressed: _selectedStudentIds.isEmpty || _isLoading ? null : _assign,
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primaryLight),
                   child: _isLoading 
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text('Asignar (${_selectedStudentIds.length})'),
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryLight))
+                    : Text('ASIGNAR (${_selectedStudentIds.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Colors.white10),
           Expanded(
             child: studentsAsync.when(
               data: (students) {
                 if (students.isEmpty) {
-                  return const Center(child: Text('No tienes alumnos asignados'));
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.people_outline_rounded, size: 48, color: Colors.white.withOpacity(0.1)),
+                        const SizedBox(height: 16),
+                        Text('No tienes alumnos asignados', style: TextStyle(color: AppColors.textLight)),
+                      ],
+                    ),
+                  );
                 }
                 return ListView.builder(
+                  padding: const EdgeInsets.all(16),
                   itemCount: students.length,
                   itemBuilder: (context, index) {
                     final student = students[index];
@@ -1128,29 +1485,45 @@ class _AssignToStudentsSheetState extends ConsumerState<_AssignToStudentsSheet> 
                     final studentId = student['id'];
                     final isSelected = _selectedStudentIds.contains(studentId);
 
-                    return CheckboxListTile(
-                      value: isSelected,
-                      onChanged: (val) {
-                        setState(() {
-                          if (val == true) {
-                            _selectedStudentIds.add(studentId);
-                          } else {
-                            _selectedStudentIds.remove(studentId);
-                          }
-                        });
-                      },
-                      title: Text(name),
-                      subtitle: Text(email),
-                      secondary: CircleAvatar(
-                        backgroundColor: AppColors.primary.withOpacity(0.1),
-                        child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'A'),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.primary.withOpacity(0.05) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected ? AppColors.primary.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+                        ),
                       ),
-                      activeColor: AppColors.primary,
+                      child: CheckboxListTile(
+                        value: isSelected,
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedStudentIds.add(studentId);
+                            } else {
+                              _selectedStudentIds.remove(studentId);
+                            }
+                          });
+                        },
+                        title: Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        subtitle: Text(email, style: TextStyle(color: AppColors.textLight, fontSize: 13)),
+                        secondary: CircleAvatar(
+                          backgroundColor: AppColors.primary.withOpacity(0.15),
+                          child: Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : 'A',
+                            style: const TextStyle(color: AppColors.primaryLight, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        activeColor: AppColors.primaryLight,
+                        checkboxShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
                     );
                   },
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
               error: (e, s) => Center(child: Text('Error: $e')),
             ),
           ),

@@ -25,6 +25,13 @@ class TrainerDashboardScreen extends ConsumerStatefulWidget {
 
 class _TrainerDashboardScreenState extends ConsumerState<TrainerDashboardScreen> {
   int _currentIndex = 0;
+  late final PageController _pageController = PageController(initialPage: _currentIndex);
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   final List<_NavItem> _navItems = [
     _NavItem(icon: Icons.home_rounded, label: 'Inicio'),
@@ -43,42 +50,44 @@ class _TrainerDashboardScreenState extends ConsumerState<TrainerDashboardScreen>
   }
 
   Widget _buildBody() {
-    switch (_currentIndex) {
-      case 0:
-        return const _HomeView();
-      case 1:
-        return const _StudentsView();
-      case 2:
-        return const _RoutinesView();
-      case 3:
-        return const _MealPlansView();
-      case 4:
-        return const _ProfileView();
-      default:
-        return const _HomeView();
-    }
+    return PageView(
+      controller: _pageController,
+      physics: const NeverScrollableScrollPhysics(),
+      children: const [
+        _HomeView(),
+        _StudentsView(),
+        _RoutinesView(),
+        _MealPlansView(),
+        _ProfileView(),
+      ],
+    );
   }
 
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        color: AppColors.background,
+        border: Border(
+          top: BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
+        ),
       ),
       child: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: (index) {
+          setState(() => _currentIndex = index);
+          _pageController.animateToPage(
+            index,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOutQuart,
+          );
+        },
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textSecondary,
-        selectedFontSize: 11,
-        unselectedFontSize: 11,
+        backgroundColor: AppColors.background,
+        selectedItemColor: AppColors.accent,
+        unselectedItemColor: AppColors.textLight,
+        selectedFontSize: 12,
+        unselectedFontSize: 12,
+        elevation: 0,
         items: _navItems.map((item) => BottomNavigationBarItem(
           icon: Icon(item.icon),
           label: item.label,
@@ -112,15 +121,24 @@ class _HomeView extends ConsumerWidget {
             // Header
             Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: AppColors.primary,
-                  child: Text(
-                    (user?.name ?? user?.email ?? 'E')[0].toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.accent, AppColors.primary],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: CircleAvatar(
+                    radius: 24,
+                    backgroundColor: AppColors.surface,
+                    child: Text(
+                      (user?.name ?? user?.email ?? 'E')[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
                     ),
                   ),
                 ),
@@ -132,23 +150,40 @@ class _HomeView extends ConsumerWidget {
                       Text(
                         '¡Hola, ${user?.name ?? 'Entrenador'}!',
                         style: const TextStyle(
-                          fontSize: 20,
+                          fontSize: 22,
                           fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
                       Text(
                         'Vamos a entrenar 💪',
                         style: TextStyle(
-                          color: AppColors.textSecondary,
+                          color: AppColors.textLight,
                           fontSize: 14,
                         ),
                       ),
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined),
-                  onPressed: () {},
+                Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 28),
+                      onPressed: () {},
+                    ),
+                    Positioned(
+                      right: 12,
+                      top: 12,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: AppColors.accent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -210,12 +245,20 @@ class _HomeView extends ConsumerWidget {
             const SizedBox(height: 24),
 
             // Quick actions - Solo Invitar Alumno
-            const Text(
-              'Acciones rápidas',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            const Row(
+              children: [
+                Icon(Icons.bolt_rounded, color: AppColors.accent, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Acciones Rápidas',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
 
@@ -240,12 +283,20 @@ class _HomeView extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Notificaciones',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                const Row(
+                  children: [
+                    Icon(Icons.notifications_active_rounded, color: AppColors.primaryLight, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Notificaciones',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
                 ),
                 IconButton(
                   icon: const Icon(Icons.send_rounded, color: AppColors.primary),
@@ -290,38 +341,42 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.2),
             blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: color.withOpacity(0.15),
+              shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: color, size: 22),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 24,
+              fontSize: 26,
               fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
           Text(
             label,
             style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
+              color: AppColors.textLight,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -345,27 +400,43 @@ class _QuickActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: color,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Colors.white),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [color, color.withAlpha(200)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: Colors.white, size: 24),
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    letterSpacing: 0.5,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -445,31 +516,39 @@ class _EmptyNotificationsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
       ),
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.notifications_none, size: 48, color: AppColors.textSecondary),
-            const SizedBox(height: 12),
-            Text(
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.03),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.notifications_none_rounded, size: 48, color: Colors.white.withOpacity(0.2)),
+            ),
+            const SizedBox(height: 16),
+            const Text(
               'Sin notificaciones',
               style: TextStyle(
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Text(
               'Las actualizaciones de tus alumnos aparecerán aquí',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
+                color: AppColors.textLight,
+                fontSize: 13,
               ),
             ),
           ],
@@ -538,24 +617,31 @@ class _NotificationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
+      color: AppColors.surface,
+      elevation: 4,
+      shadowColor: Colors.black.withOpacity(0.3),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           child: Row(
             children: [
               // Icono con color
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _tagColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  color: _tagColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(15),
                 ),
-                child: Icon(_icon, color: _tagColor, size: 24),
+                child: Icon(_icon, color: _tagColor, size: 28),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               // Contenido
               Expanded(
                 child: Column(
@@ -563,51 +649,60 @@ class _NotificationCard extends StatelessWidget {
                   children: [
                     // Etiqueta de color
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _tagColor,
-                        borderRadius: BorderRadius.circular(4),
+                        color: _tagColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: _tagColor.withOpacity(0.5)),
                       ),
                       child: Text(
                         _tagLabel,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: _tagColor,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Text(
                       title,
                       style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
                       subtitle,
                       style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
+                        color: AppColors.textLight,
+                        fontSize: 14,
                       ),
                     ),
                     if (date != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatDate(date!),
-                        style: TextStyle(
-                          color: AppColors.textLight,
-                          fontSize: 11,
-                        ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.access_time_rounded, size: 12, color: AppColors.textLight.withOpacity(0.7)),
+                          const SizedBox(width: 4),
+                          Text(
+                            _formatDate(date!),
+                            style: TextStyle(
+                              color: AppColors.textLight.withOpacity(0.7),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ],
                 ),
               ),
               // Flecha
-              const Icon(Icons.chevron_right, color: AppColors.textLight),
+              Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.3), size: 16),
             ],
           ),
         ),
@@ -703,8 +798,8 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -716,11 +811,11 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
             children: [
               Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
+                  width: 50,
+                  height: 5,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
@@ -728,14 +823,14 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
+                      color: AppColors.primary.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Icon(Icons.campaign, color: AppColors.primary),
+                    child: const Icon(Icons.campaign_rounded, color: AppColors.primaryLight, size: 28),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -743,15 +838,16 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                         Text(
                           'Enviar Notificación',
                           style: TextStyle(
-                            fontSize: 20,
+                            fontSize: 22,
                             fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
                         Text(
                           'Se enviará a todos tus alumnos',
                           style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 13,
+                            color: AppColors.textLight,
+                            fontSize: 14,
                           ),
                         ),
                       ],
@@ -797,20 +893,24 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 56,
                 child: ElevatedButton.icon(
                   onPressed: _isLoading ? null : _sendNotification,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   icon: _isLoading
                       ? const SizedBox(
-                          width: 20,
-                          height: 20,
+                          width: 24,
+                          height: 24,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Icon(Icons.send),
-                  label: Text(_isLoading ? 'Enviando...' : 'Enviar a Todos'),
+                      : const Icon(Icons.send_rounded, color: Colors.white),
+                  label: Text(
+                    _isLoading ? 'ENVIANDO...' : 'ENVIAR A TODOS',
+                    style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -831,11 +931,14 @@ class _StudentsView extends ConsumerWidget {
     final studentsAsync = ref.watch(myStudentsProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Mis Alumnos'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
+            icon: const Icon(Icons.search_rounded, color: Colors.white),
             onPressed: () {},
           ),
         ],
@@ -850,38 +953,44 @@ class _StudentsView extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withOpacity(0.1),
                         shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
                       ),
                       child: const Icon(
-                        Icons.people_outline,
+                        Icons.people_outline_rounded,
                         size: 64,
-                        color: AppColors.primary,
+                        color: AppColors.primaryLight,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
                     const Text(
                       'Sin alumnos',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     Text(
                       'Envía una invitación para que tus alumnos puedan acceder a la app',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppColors.textSecondary,
+                        color: AppColors.textLight,
+                        fontSize: 16,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
                     ElevatedButton.icon(
                       onPressed: () => _showInviteStudent(context),
-                      icon: const Icon(Icons.send),
+                      icon: const Icon(Icons.send_rounded),
                       label: const Text('Invitar alumno'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      ),
                     ),
                   ],
                 ),
@@ -897,26 +1006,94 @@ class _StudentsView extends ConsumerWidget {
               final profile = student['profiles'] as Map<String, dynamic>?;
               final name = profile?['name'] ?? 'Sin nombre';
               final email = profile?['email'] ?? 'Sin correo';
-              // final lastLogin = profile?['last_login_at'] != null 
-              //     ? DateTime.parse(profile!['last_login_at']) 
-              //     : null;
 
-              return Card(
+              return Container(
                 margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                ),
                 child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: AppColors.primary.withOpacity(0.1),
-                    child: Text(
-                      (name.isNotEmpty ? name[0] : 'A').toUpperCase(),
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(colors: [AppColors.primary, AppColors.accent]),
+                      shape: BoxShape.circle,
+                    ),
+                    child: CircleAvatar(
+                      backgroundColor: AppColors.surface,
+                      child: Text(
+                        (name.isNotEmpty ? name[0] : 'A').toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                  title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(email),
-                  trailing: const Icon(Icons.chevron_right),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name, 
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+                        ),
+                      ),
+                      // Streak Badge
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final streaks = (student['streaks'] as List?) ?? [];
+                          int currentStreak = 0;
+                          if (streaks.isNotEmpty) {
+                            final streakData = streaks.first as Map<String, dynamic>;
+                            currentStreak = (streakData['current_streak'] as int?) ?? 0;
+                            
+                            // Live calculation
+                            final lastWorkoutStr = streakData['last_workout_date'] as String?;
+                            if (lastWorkoutStr != null) {
+                              final lastWorkoutDate = DateTime.parse(lastWorkoutStr);
+                              final now = DateTime.now();
+                              final today = DateTime(now.year, now.month, now.day);
+                              final yesterday = today.subtract(const Duration(days: 1));
+                              final workoutDate = DateTime(lastWorkoutDate.year, lastWorkoutDate.month, lastWorkoutDate.day);
+                              if (workoutDate.isBefore(yesterday) && workoutDate != today) {
+                                currentStreak = 0;
+                              }
+                            }
+                          }
+
+                          if (currentStreak <= 0) return const SizedBox.shrink();
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.local_fire_department_rounded, color: Colors.orange, size: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$currentStreak',
+                                  style: const TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  subtitle: Text(email, style: TextStyle(color: AppColors.textLight)),
+                  trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.2), size: 16),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -935,8 +1112,9 @@ class _StudentsView extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showInviteStudent(context),
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.person_add),
+        backgroundColor: AppColors.accent,
+        elevation: 4,
+        child: const Icon(Icons.person_add_rounded, color: Colors.white),
       ),
     );
   }
@@ -1049,8 +1227,8 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -1061,11 +1239,11 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
             // Drag handle
             Center(
               child: Container(
-                width: 40,
-                height: 4,
+                width: 50,
+                height: 5,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
@@ -1077,10 +1255,10 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.primary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(Icons.person_add, color: AppColors.primary, size: 28),
+                  child: const Icon(Icons.person_add_rounded, color: AppColors.primaryLight, size: 28),
                 ),
                 const SizedBox(width: 16),
                 const Expanded(
@@ -1092,13 +1270,14 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
                       Text(
                         'Comparte tu link por WhatsApp, email o cualquier medio',
                         style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
+                          color: AppColors.textLight,
+                          fontSize: 14,
                         ),
                       ),
                     ],
@@ -1132,23 +1311,23 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
             else ...[
               // Link container
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  color: Colors.black.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.2)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.link, color: AppColors.primary),
-                    const SizedBox(width: 12),
+                    const Icon(Icons.link_rounded, color: AppColors.primaryLight),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Text(
                         _inviteLink ?? '',
                         style: const TextStyle(
                           fontFamily: 'monospace',
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                          color: Colors.white70,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1162,14 +1341,15 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
               // WhatsApp button (prominent)
               SizedBox(
                 width: double.infinity,
+                height: 56,
                 child: ElevatedButton.icon(
                   onPressed: _shareViaWhatsApp,
-                  icon: const Icon(Icons.chat, size: 22),
-                  label: const Text('Enviar por WhatsApp'),
+                  icon: const Icon(Icons.chat_rounded, size: 22),
+                  label: const Text('ENVIAR POR WHATSAPP', style: TextStyle(fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    backgroundColor: const Color(0xFF25D366), // WhatsApp green
+                    backgroundColor: const Color(0xFF25D366),
                     foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                 ),
               ),
@@ -1181,12 +1361,13 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: _copyLink,
-                      icon: const Icon(Icons.copy, size: 18),
-                      label: const Text('Copiar'),
+                      icon: const Icon(Icons.copy_rounded, size: 18),
+                      label: const Text('COPIAR'),
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: const BorderSide(color: AppColors.primary),
-                        foregroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                     ),
                   ),
@@ -1194,12 +1375,13 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: _shareLink,
-                      icon: const Icon(Icons.share, size: 18),
-                      label: const Text('Otros'),
+                      icon: const Icon(Icons.share_rounded, size: 18),
+                      label: const Text('OTROS'),
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: const BorderSide(color: AppColors.textSecondary),
-                        foregroundColor: AppColors.textSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                     ),
                   ),
@@ -1251,11 +1433,14 @@ class _RoutinesView extends ConsumerWidget {
     final routinesAsync = ref.watch(myRoutinesProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Rutinas'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
+            icon: const Icon(Icons.search_rounded, color: Colors.white),
             onPressed: () {},
           ),
         ],
@@ -1270,19 +1455,35 @@ class _RoutinesView extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
                         color: AppColors.success.withOpacity(0.1),
                         shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.success.withOpacity(0.2)),
                       ),
-                      child: const Icon(Icons.fitness_center, size: 64, color: AppColors.success),
+                      child: const Icon(Icons.fitness_center_rounded, size: 64, color: AppColors.success),
                     ),
-                    const SizedBox(height: 24),
-                    const Text('Sin rutinas', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Text('Crea tu primera rutina de entrenamiento', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary)),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(onPressed: () => _showCreateRoutine(context), icon: const Icon(Icons.add), label: const Text('Crear rutina')),
+                    const SizedBox(height: 32),
+                    const Text(
+                      'Sin rutinas', 
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Crea tu primera rutina de entrenamiento', 
+                      textAlign: TextAlign.center, 
+                      style: TextStyle(color: AppColors.textLight, fontSize: 16),
+                    ),
+                    const SizedBox(height: 32),
+                    ElevatedButton.icon(
+                      onPressed: () => _showCreateRoutine(context), 
+                      icon: const Icon(Icons.add_rounded), 
+                      label: const Text('Crear rutina'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1294,8 +1495,20 @@ class _RoutinesView extends ConsumerWidget {
             itemCount: routines.length,
             itemBuilder: (context, index) {
               final routine = routines[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: () {
@@ -1314,30 +1527,41 @@ class _RoutinesView extends ConsumerWidget {
                       if (routine['image_url'] != null)
                         CachedNetworkImage(
                           imageUrl: routine['image_url'],
-                          height: 140,
+                          height: 160,
                           width: double.infinity,
                           fit: BoxFit.cover,
                           placeholder: (context, url) => Container(
-                            height: 140,
-                            color: Colors.grey[100],
+                            height: 160,
+                            color: Colors.white.withOpacity(0.05),
                             child: const Center(child: CircularProgressIndicator()),
                           ),
                           errorWidget: (context, url, error) => Container(
-                            height: 140,
-                            color: Colors.grey[200],
-                            child: const Icon(Icons.broken_image, color: Colors.grey),
+                            height: 160,
+                            color: Colors.white.withOpacity(0.05),
+                            child: const Icon(Icons.broken_image_rounded, color: Colors.grey),
                           ),
                         ),
                       ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                         leading: routine['image_url'] == null 
-                          ? CircleAvatar(
-                              backgroundColor: AppColors.success.withOpacity(0.1),
-                              child: const Icon(Icons.fitness_center, color: AppColors.success),
+                          ? Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.success.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.fitness_center_rounded, color: AppColors.success),
                             )
                           : null,
-                        title: Text(routine['title'] ?? 'Rutina', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(routine['objective'] ?? 'Sin objetivo'),
-                        trailing: const Icon(Icons.chevron_right),
+                        title: Text(
+                          routine['title'] ?? 'Rutina', 
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+                        ),
+                        subtitle: Text(
+                          routine['objective'] ?? 'Sin objetivo',
+                          style: TextStyle(color: AppColors.textLight),
+                        ),
+                        trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.2), size: 16),
                       ),
                     ],
                   ),
@@ -1352,7 +1576,8 @@ class _RoutinesView extends ConsumerWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showCreateRoutine(context),
         backgroundColor: AppColors.success,
-        child: const Icon(Icons.add),
+        elevation: 4,
+        child: const Icon(Icons.add_rounded, color: Colors.white),
       ),
     );
   }
@@ -1487,8 +1712,8 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -1498,22 +1723,47 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const SizedBox(height: 12),
               Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
+                  width: 50,
+                  height: 5,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              const Text(
-                'Nueva Rutina',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.fitness_center_rounded, color: AppColors.primaryLight, size: 24),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Text(
+                        'Nueva Rutina',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _isLoading ? null : _createRoutine,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.primaryLight,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                          : const Text('GUARDAR', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),
@@ -1522,12 +1772,12 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
               GestureDetector(
                 onTap: _pickImage,
                 child: Container(
-                  height: 150,
+                  height: 160,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
+                    color: Colors.black.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.05)),
                     image: _selectedImage != null
                         ? DecorationImage(
                             image: FileImage(_selectedImage!),
@@ -1539,14 +1789,14 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                       ? Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_photo_alternate_outlined, 
-                                 size: 40, color: Colors.grey.shade600),
-                            const SizedBox(height: 8),
-                            Text(
+                            Icon(Icons.add_photo_alternate_rounded, 
+                                 size: 40, color: AppColors.primaryLight.withOpacity(0.5)),
+                            const SizedBox(height: 12),
+                            const Text(
                               'Añadir portada',
                               style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontWeight: FontWeight.w500,
+                                color: Colors.white54,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
@@ -1593,42 +1843,58 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                 onChanged: (value) => setState(() => _level = value!),
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  const Text('Días por semana:'),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Slider(
-                      value: _daysPerWeek.toDouble(),
-                      min: 1,
-                      max: 7,
-                      divisions: 6,
-                      label: '$_daysPerWeek días',
-                      onChanged: (value) => setState(() => _daysPerWeek = value.round()),
-                      activeColor: AppColors.success,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      'Días por semana:',
+                      style: TextStyle(color: AppColors.textLight, fontWeight: FontWeight.w500),
                     ),
-                  ),
-                  Text(
-                    '$_daysPerWeek',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          activeTrackColor: AppColors.primaryLight,
+                          inactiveTrackColor: Colors.white.withOpacity(0.1),
+                          thumbColor: AppColors.primaryLight,
+                          overlayColor: AppColors.primaryLight.withOpacity(0.1),
+                          valueIndicatorColor: AppColors.primary,
+                        ),
+                        child: Slider(
+                          value: _daysPerWeek.toDouble(),
+                          min: 1,
+                          max: 7,
+                          divisions: 6,
+                          label: '$_daysPerWeek días',
+                          onChanged: (value) => setState(() => _daysPerWeek = value.round()),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _createRoutine,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                  ),
-                  child: Text(_isLoading ? 'Creando...' : 'Crear Rutina'),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$_daysPerWeek',
+                        style: const TextStyle(
+                          color: AppColors.primaryLight,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(height: 24),
               const SizedBox(height: 16),
             ],
           ),
@@ -1677,8 +1943,17 @@ class _MealPlansView extends ConsumerWidget {
     final mealPlansAsync = ref.watch(myMealPlansProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Planes Alimenticios'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search_rounded, color: Colors.white),
+            onPressed: () {},
+          ),
+        ],
       ),
       body: mealPlansAsync.when(
         data: (plans) {
@@ -1690,40 +1965,44 @@ class _MealPlansView extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
                         color: AppColors.warning.withOpacity(0.1),
                         shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.warning.withOpacity(0.2)),
                       ),
                       child: const Icon(
-                        Icons.restaurant_menu,
+                        Icons.restaurant_menu_rounded,
                         size: 64,
                         color: AppColors.warning,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
                     const Text(
                       'Sin planes de comida',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     Text(
                       'Crea planes alimenticios para tus alumnos',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppColors.textSecondary,
+                        color: AppColors.textLight,
+                        fontSize: 16,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
                     ElevatedButton.icon(
                       onPressed: () => _showCreateMealPlan(context),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.warning,
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                       ),
-                      icon: const Icon(Icons.add),
+                      icon: const Icon(Icons.add_rounded),
                       label: const Text('Crear plan'),
                     ),
                   ],
@@ -1737,10 +2016,20 @@ class _MealPlansView extends ConsumerWidget {
             itemCount: plans.length,
             itemBuilder: (context, index) {
               final plan = plans[index];
-              final items = (plan['meal_plan_items'] as List?) ?? [];
-              
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: () {
@@ -1760,34 +2049,41 @@ class _MealPlansView extends ConsumerWidget {
                       if (plan['image_url'] != null)
                         CachedNetworkImage(
                           imageUrl: plan['image_url'],
-                          height: 140,
+                          height: 160,
                           width: double.infinity,
                           fit: BoxFit.cover,
                           placeholder: (context, url) => Container(
-                            height: 140,
-                            color: Colors.grey[100],
+                            height: 160,
+                            color: Colors.white.withOpacity(0.05),
                             child: const Center(child: CircularProgressIndicator()),
                           ),
                           errorWidget: (context, url, error) => Container(
-                            height: 140,
-                            color: Colors.grey[200],
-                            child: const Icon(Icons.broken_image, color: Colors.grey),
+                            height: 160,
+                            color: Colors.white.withOpacity(0.05),
+                            child: const Icon(Icons.broken_image_rounded, color: Colors.grey),
                           ),
                         ),
                       ListTile(
-                        leading: plan['image_url'] == null
-                            ? Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.warning.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.restaurant, color: AppColors.warning),
-                              )
-                            : null,
-                        title: Text(plan['title'] ?? 'Plan', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('${items.length} comidas • ${plan['target_calories'] ?? 0} kcal'),
-                        trailing: const Icon(Icons.chevron_right),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        leading: plan['image_url'] == null 
+                          ? Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.warning.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.restaurant_rounded, color: AppColors.warning),
+                            )
+                          : null,
+                        title: Text(
+                          plan['title'] ?? 'Plan', 
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+                        ),
+                        subtitle: Text(
+                          '${((plan['meal_plan_items'] as List?) ?? []).length} comidas',
+                          style: TextStyle(color: AppColors.textLight),
+                        ),
+                        trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.2), size: 16),
                       ),
                     ],
                   ),
@@ -1802,7 +2098,8 @@ class _MealPlansView extends ConsumerWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showCreateMealPlan(context),
         backgroundColor: AppColors.warning,
-        child: const Icon(Icons.add),
+        elevation: 4,
+        child: const Icon(Icons.add_rounded, color: Colors.white),
       ),
     );
   }
@@ -1826,11 +2123,14 @@ class _ProfileView extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Mi Perfil'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
+            icon: const Icon(Icons.edit_rounded, color: Colors.white),
             onPressed: () {},
           ),
         ],
@@ -1839,58 +2139,78 @@ class _ProfileView extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Profile header
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                   colors: [AppColors.primary, AppColors.primaryDark],
                 ),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
               ),
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.white,
-                    child: Text(
-                      (user?.name ?? user?.email ?? 'E')[0].toUpperCase(),
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.white24,
+                      shape: BoxShape.circle,
+                    ),
+                    child: CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.white,
+                      child: Text(
+                        (user?.name ?? user?.email ?? 'E')[0].toUpperCase(),
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   Text(
                     user?.name ?? 'Entrenador',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 22,
+                      fontSize: 24,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
                     ),
                   ),
                   Text(
                     user?.email ?? '',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 14,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: Colors.white.withOpacity(0.2)),
                     ),
                     child: const Text(
                       'ENTRENADOR',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 11,
+                        fontSize: 12,
+                        letterSpacing: 1.2,
                       ),
                     ),
                   ),
@@ -1901,57 +2221,73 @@ class _ProfileView extends ConsumerWidget {
             const SizedBox(height: 24),
 
             // Stats
-            Row(
-              children: [
-                Expanded(
-                  child: _ProfileStatCard(
-                    value: '0',
-                    label: 'Alumnos',
-                    icon: Icons.people,
+            ref.watch(trainerStatsProvider).when(
+              data: (stats) => Row(
+                children: [
+                  Expanded(
+                    child: _ProfileStatCard(
+                      value: '${stats['total_students'] ?? 0}',
+                      label: 'Alumnos',
+                      icon: Icons.people_rounded,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ProfileStatCard(
-                    value: '0',
-                    label: 'Rutinas',
-                    icon: Icons.fitness_center,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ProfileStatCard(
+                      value: '${stats['total_routines'] ?? 0}',
+                      label: 'Rutinas',
+                      icon: Icons.fitness_center_rounded,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ProfileStatCard(
-                    value: '0',
-                    label: 'Planes',
-                    icon: Icons.restaurant,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ProfileStatCard(
+                      value: '0',
+                      label: 'Planes',
+                      icon: Icons.restaurant_rounded,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+              loading: () => const Row(
+                children: [
+                  Expanded(child: Center(child: CircularProgressIndicator())),
+                ],
+              ),
+              error: (_, __) => Row(
+                children: [
+                   Expanded(child: _ProfileStatCard(value: '0', label: 'Alumnos', icon: Icons.people_rounded)),
+                   const SizedBox(width: 12),
+                   Expanded(child: _ProfileStatCard(value: '0', label: 'Rutinas', icon: Icons.fitness_center_rounded)),
+                   const SizedBox(width: 12),
+                   Expanded(child: _ProfileStatCard(value: '0', label: 'Planes', icon: Icons.restaurant_rounded)),
+                ],
+              ),
             ),
 
             const SizedBox(height: 24),
 
             // Menu items
             _MenuItem(
-              icon: Icons.card_membership,
+              icon: Icons.card_membership_rounded,
               title: 'Mi Suscripción',
               subtitle: 'Plan actual y límites',
               onTap: () {},
             ),
             _MenuItem(
-              icon: Icons.bar_chart,
+              icon: Icons.bar_chart_rounded,
               title: 'Estadísticas',
               subtitle: 'Rendimiento de tus alumnos',
               onTap: () {},
             ),
             _MenuItem(
-              icon: Icons.settings,
+              icon: Icons.settings_rounded,
               title: 'Configuración',
               subtitle: 'Notificaciones y preferencias',
               onTap: () {},
             ),
             _MenuItem(
-              icon: Icons.help_outline,
+              icon: Icons.help_outline_rounded,
               title: 'Ayuda',
               subtitle: 'Centro de soporte',
               onTap: () {},
@@ -1963,11 +2299,15 @@ class _ProfileView extends ConsumerWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () => ref.read(authProvider.notifier).signOut(),
-                icon: const Icon(Icons.logout, color: AppColors.error),
-                label: const Text('Cerrar sesión', style: TextStyle(color: AppColors.error)),
+                icon: const Icon(Icons.logout_rounded, color: AppColors.notificationRed),
+                label: const Text('Cerrar Sesión', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.error),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: BorderSide(color: AppColors.notificationRed.withOpacity(0.5)),
+                  foregroundColor: AppColors.notificationRed,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ),
@@ -1994,31 +2334,42 @@ class _ProfileStatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.2),
             blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         children: [
-          Icon(icon, color: AppColors.primary),
-          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: AppColors.primaryLight, size: 20),
+          ),
+          const SizedBox(height: 12),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 20,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
           Text(
             label,
             style: TextStyle(
-              color: AppColors.textSecondary,
+              color: AppColors.textLight,
               fontSize: 12,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -2042,21 +2393,52 @@ class _MenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.primaryLight),
+              ),
+              title: Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              subtitle: Text(
+                subtitle,
+                style: TextStyle(
+                  color: AppColors.textLight,
+                  fontSize: 13,
+                ),
+              ),
+              trailing: Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.white.withOpacity(0.2),
+                size: 16,
+              ),
+            ),
           ),
-          child: Icon(icon, color: AppColors.primary),
         ),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
       ),
     );
   }

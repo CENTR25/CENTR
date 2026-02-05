@@ -1,9 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:video_player/video_player.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import '../../core/theme/app_theme.dart';
+import '../../services/student_service.dart';
+import '../../services/notification_service.dart';
+
 
 /// Workout Session Screen - Guided workout experience
 class WorkoutSessionScreen extends ConsumerStatefulWidget {
@@ -34,6 +39,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   bool _isCountingDown = true;
   bool _isCompleted = false;
   int _countdownValue = 3;
+  DateTime? _startTime;
   
   // Timers
   Timer? _restTimer;
@@ -52,6 +58,18 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   // Animation
   late AnimationController _countdownController;
   late Animation<double> _scaleAnimation;
+  
+  // Weights and Reps tracking
+  final TextEditingController _weightController = TextEditingController();
+  final FocusNode _weightFocusNode = FocusNode();
+  final TextEditingController _repsController = TextEditingController();
+  final FocusNode _repsFocusNode = FocusNode();
+  final Map<int, Map<int, double>> _recordedWeights = {}; // exerciseIndex -> {set -> weight}
+  final Map<int, Map<int, int>> _recordedReps = {}; // exerciseIndex -> {set -> reps}
+  
+  // History
+  Map<String, dynamic>? _lastSession;
+  bool _isLoadingHistory = true;
 
   @override
   void initState() {
@@ -69,6 +87,30 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     );
     
     _startInitialCountdown();
+    
+    // Initialize Notification Service
+    NotificationService().init();
+    
+    // Fetch history
+    _fetchLastSession();
+  }
+
+  Future<void> _fetchLastSession() async {
+    try {
+      final service = ref.read(studentServiceProvider);
+      final session = await service.getLastWorkoutSession(widget.routine['id'], widget.dayNumber);
+      if (mounted) {
+        setState(() {
+          _lastSession = session;
+          _isLoadingHistory = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching history: $e');
+      if (mounted) {
+        setState(() => _isLoadingHistory = false);
+      }
+    }
   }
 
   @override
@@ -80,6 +122,11 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     _restStopwatch.stop();
     _audioPlayer.dispose();
     _countdownController.dispose();
+    _weightController.dispose();
+    _weightFocusNode.dispose();
+    _repsController.dispose();
+    _repsFocusNode.dispose();
+    NotificationService().cancelAll();
     super.dispose();
   }
 
@@ -96,6 +143,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
         setState(() {
           _isCountingDown = false;
           _totalStopwatch.start();
+          _startTime = DateTime.now();
         });
         // Start elapsed time display timer - always update UI
         _startElapsedTimer();
@@ -110,6 +158,75 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
         setState(() {}); // Force UI refresh to update elapsed time
       }
     });
+
+    // Initialize weight controller with target or last weight
+    _updateWeightController();
+  }
+
+  Map<String, dynamic> _getLastLog() {
+    if (_lastSession == null) return {};
+    
+    try {
+      final setLogs = _lastSession!['set_logs'] as Map<String, dynamic>?;
+      final repsLogs = _lastSession!['reps_logs'] as Map<String, dynamic>?;
+      
+      if (setLogs == null && repsLogs == null) return {};
+
+      // Keys are strings in JSON: "0": {"1": 50.0}
+      final exIndexStr = _currentExerciseIndex.toString();
+      final setIndexStr = _currentSet.toString();
+
+      final weightMap = setLogs?[exIndexStr] as Map<String, dynamic>?;
+      final repsMap = repsLogs?[exIndexStr] as Map<String, dynamic>?;
+
+      final weight = weightMap?[setIndexStr];
+      final reps = repsMap?[setIndexStr];
+
+      return {
+        'weight': weight,
+        'reps': reps,
+      };
+    } catch (e) {
+      debugPrint('Error parsing last log: $e');
+      return {};
+    }
+  }
+
+  String _getCurrentTargetReps() {
+    final currentExercise = _orderedExercises[_currentExerciseIndex];
+    final targetRepsPattern = currentExercise['reps_target']?.toString() ?? '10';
+    
+    if (targetRepsPattern.contains('|')) {
+      final repsList = targetRepsPattern.split('|').map((e) => e.trim()).toList();
+      if (_currentSet <= repsList.length) {
+        return repsList[_currentSet - 1];
+      } else {
+        return repsList.last;
+      }
+    }
+    // Fallback for commas if mixed usage
+    if (targetRepsPattern.contains(',')) {
+      final repsList = targetRepsPattern.split(',').map((e) => e.trim()).toList();
+      if (_currentSet <= repsList.length) {
+        return repsList[_currentSet - 1];
+      } else {
+        return repsList.last;
+      }
+    }
+    return targetRepsPattern;
+  }
+
+  void _updateWeightController() {
+    final currentExercise = _orderedExercises[_currentExerciseIndex];
+    final targetWeight = currentExercise['weight_target']?.toString() ?? '';
+    final recordedWeight = _recordedWeights[_currentExerciseIndex]?[_currentSet]?.toString();
+    
+    _weightController.text = recordedWeight ?? targetWeight;
+
+    // Use _getCurrentTargetReps() to get the specific target for this set
+    final currentTargetReps = _getCurrentTargetReps();
+    final recordedReps = _recordedReps[_currentExerciseIndex]?[_currentSet]?.toString();
+    _repsController.text = recordedReps ?? currentTargetReps;
   }
 
   void _playBeep() async {
@@ -141,6 +258,13 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       _isResting = true;
       _restSecondsRemaining = restSeconds;
     });
+
+    // Schedule notification
+    NotificationService().scheduleRestNotification(
+      restSeconds, 
+      '¡Descanso terminado!', 
+      'Es hora de la siguiente serie. ¡Tú puedes!'
+    );
     
     _restStopwatch.start();
     
@@ -175,7 +299,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     
     final currentExercise = _orderedExercises[_currentExerciseIndex];
     final totalSets = (currentExercise['sets'] as int?) ?? 3;
-    
     setState(() {
       _isResting = false;
       
@@ -190,14 +313,33 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
         }
       }
     });
+
+    _updateWeightController();
+    NotificationService().cancelAll();
   }
 
   void _skipRest() {
     _restTimer?.cancel();
+    NotificationService().cancelAll();
     _endRest();
   }
 
   void _completeSet() {
+    final weight = double.tryParse(_weightController.text) ?? 0.0;
+    final reps = int.tryParse(_repsController.text) ?? 0;
+    
+    // Record weight
+    if (!_recordedWeights.containsKey(_currentExerciseIndex)) {
+      _recordedWeights[_currentExerciseIndex] = {};
+    }
+    _recordedWeights[_currentExerciseIndex]![_currentSet] = weight;
+
+    // Record reps
+    if (!_recordedReps.containsKey(_currentExerciseIndex)) {
+      _recordedReps[_currentExerciseIndex] = {};
+    }
+    _recordedReps[_currentExerciseIndex]![_currentSet] = reps;
+
     final currentExercise = _orderedExercises[_currentExerciseIndex];
     final totalSets = (currentExercise['sets'] as int?) ?? 3;
     
@@ -217,6 +359,30 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     _totalStopwatch.stop();
     setState(() {
       _isCompleted = true;
+    });
+
+    // Save completed workout
+    _saveWorkoutData(isCompleted: true);
+  }
+
+  void _saveWorkoutData({required bool isCompleted}) {
+    final service = ref.read(studentServiceProvider);
+    
+    // Calculate total sets completed
+    int setsCompleted = 0;
+    _recordedWeights.forEach((_, sets) {
+      setsCompleted += sets.length;
+    });
+
+    service.saveWorkoutSession({
+      'routine_id': widget.routine['id'],
+      'day_number': widget.dayNumber,
+      'started_at': _startTime?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      'duration_seconds': _totalStopwatch.elapsed.inSeconds,
+      'sets_completed': setsCompleted,
+      'is_completed': isCompleted,
+      'set_logs': _recordedWeights.map((k, v) => MapEntry(k.toString(), v.map((k2, v2) => MapEntry(k2.toString(), v2)))),
+      'reps_logs': _recordedReps.map((k, v) => MapEntry(k.toString(), v.map((k2, v2) => MapEntry(k2.toString(), v2)))),
     });
   }
 
@@ -280,7 +446,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     final name = exerciseData['name'] ?? 'Ejercicio';
     final videoUrl = exerciseData['video_url'] as String?;
     final totalSets = (exercise['sets'] as int?) ?? 3;
-    final reps = exercise['reps_target'] ?? '10';
     final notes = exercise['comment'];
     final restSeconds = (exercise['rest_seconds'] as int?) ?? 60;
     
@@ -289,286 +454,311 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     final exerciseProgress = (_currentExerciseIndex + (_currentSet - 1) / totalSets) / totalExercises;
 
     return Scaffold(
-      body: Column(
-        children: [
-          // Gradient header with video/placeholder
-          Container(
-            height: MediaQuery.of(context).size.height * 0.4,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.primaryDark,
-                  AppColors.primary,
-                ],
-              ),
-            ),
-            child: SafeArea(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 1. Top Bar & Progress
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Column(
                 children: [
-                  // Top bar
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white, size: 28),
-                          onPressed: () => _showExitDialog(),
+                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                        onPressed: () => _showExitDialog(),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white.withOpacity(0.1),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Ejercicio ${_currentExerciseIndex + 1} de $totalExercises',
+                      ),
+                      Column(
+                        children: [
+                          Text(
+                            'EJERCICIO ${_currentExerciseIndex + 1} / $totalExercises',
+                            style: TextStyle(
+                              color: AppColors.textLight.withOpacity(0.5),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            name,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.bold,
                             ),
-                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                      // Invisible button for balance
+                       const SizedBox(width: 48),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: exerciseProgress,
+                      backgroundColor: Colors.white.withOpacity(0.1),
+                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
+                      minHeight: 6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // 2. Stats Row (Modern)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _ModernStatItem(
+                    label: 'SERIE',
+                    value: '$_currentSet / $totalSets',
+                    icon: Icons.layers_rounded,
+                    color: AppColors.primaryLight,
+                  ),
+                  const SizedBox(width: 12),
+                  _ModernStatItem(
+                    label: 'OBJETIVO',
+                    value: _getCurrentTargetReps(),
+                    icon: Icons.track_changes,
+                    color: AppColors.accent,
+                  ),
+                  const SizedBox(width: 12),
+                  _ModernStatItem(
+                    label: 'DESCANSO',
+                    value: '${restSeconds}s',
+                    icon: Icons.timer_outlined,
+                    color: AppColors.warning,
+                  ),
+                ],
+              ),
+            ),
+
+            // 3. Scrollable Content
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    // Video/Image Container
+                    Container(
+                      height: 200,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: videoUrl != null
+                          ? _VideoPlayerWidget(url: videoUrl)
+                          : Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.white.withOpacity(0.05),
+                                        Colors.white.withOpacity(0.02),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.fitness_center_rounded,
+                                  size: 64,
+                                  color: Colors.white.withOpacity(0.1),
+                                ),
+                              ],
+                            ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // History Info
+                    _HistoryInfoRow(
+                      lastLog: _getLastLog(),
+                      isLoading: _isLoadingHistory,
+                    ),
+                          
+                    // Inputs
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _InputStatBox(
+                            label: 'PESO (kg)',
+                            controller: _weightController,
+                            focusNode: _weightFocusNode,
+                            color: AppColors.studentColor,
                           ),
                         ),
-                        // Elapsed time display
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.timer_outlined, color: Colors.white, size: 16),
-                              const SizedBox(width: 4),
-                              Text(
-                                _formatDuration(_totalStopwatch.elapsed),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _InputStatBox(
+                            label: 'REPS',
+                            controller: _repsController,
+                            focusNode: _repsFocusNode,
+                            color: AppColors.success,
+                            isInteger: true,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  
-                  // Progress bar
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: exerciseProgress,
-                        backgroundColor: Colors.white24,
-                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                        minHeight: 6,
+
+                    if (notes != null && notes.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.info.withOpacity(0.2)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.info_outline_rounded, color: AppColors.info, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                notes,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textLight.withOpacity(0.9),
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                  
-                  // Video or icon
-                  Expanded(
-                    child: Center(
-                      child: videoUrl != null 
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.85,
-                              child: _VideoPlayerWidget(url: videoUrl),
+                    ],
+                    
+                    const SizedBox(height: 32),
+
+                      /*
+                    // Paused indicator
+                    if (_isPaused)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.pause_circle_rounded, color: AppColors.warning),
+                            SizedBox(width: 8),
+                            Text(
+                              'PAUSADO',
+                              style: TextStyle(
+                                color: AppColors.warning,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          )
-                        : Container(
-                            width: 120,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(60),
-                            ),
-                            child: const Icon(
-                              Icons.fitness_center,
-                              size: 56,
-                              color: Colors.white,
-                            ),
-                          ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          // Content
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+                          ],
+                        ),
+                      ),
+                    */
+                  ],
                 ),
               ),
-              transform: Matrix4.translationValues(0, -24, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+            
+            // 4. Bottom Action Bar
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: Row(
                 children: [
-                  // Exercise name
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                  /*
+                  // Pause Button REMOVED
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: IconButton(
+                      onPressed: _togglePause,
+                      icon: Icon(
+                        _isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Sets/Reps info cards
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ExerciseInfoCard(
-                          icon: Icons.refresh,
-                          title: 'Serie',
-                          value: '$_currentSet / $totalSets',
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _ExerciseInfoCard(
-                          icon: Icons.repeat,
-                          title: 'Repeticiones',
-                          value: '$reps',
-                          color: AppColors.accent,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _ExerciseInfoCard(
-                          icon: Icons.timer_outlined,
-                          title: 'Descanso',
-                          value: '${restSeconds}s',
-                          color: AppColors.warning,
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  if (notes != null && notes.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.info.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.info.withValues(alpha: 0.2)),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.tips_and_updates, color: AppColors.info, size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              notes,
-                              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
-                            ),
+                  const SizedBox(width: 16),
+                  */
+                  // Finish Set Button
+                  Expanded(
+                    child: SizedBox(
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _isPaused ? null : _completeSet,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.success,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  
-                  const Spacer(),
-                  
-                  // Paused indicator
-                  if (_isPaused)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: AppColors.warning.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.pause_circle, color: AppColors.warning),
-                          SizedBox(width: 8),
-                          Text(
-                            'PAUSADO',
-                            style: TextStyle(
-                              color: AppColors.warning,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  
-                  // Pause/Resume button row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _togglePause,
-                          icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
-                          label: Text(_isPaused ? 'Reanudar' : 'Pausar'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: BorderSide(color: Colors.grey.shade300),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
+                          elevation: 0,
+                          shadowColor: Colors.transparent, 
+                        ).copyWith(
+                          elevation: WidgetStateProperty.all(8),
+                          shadowColor: WidgetStateProperty.all(AppColors.success.withOpacity(0.4)),
                         ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 12),
-                  
-                  // Complete button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 60,
-                    child: ElevatedButton(
-                      onPressed: _isPaused ? null : _completeSet,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey.shade300,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
+                        child: const Text(
+                          'Terminar Serie',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                         ),
-                        elevation: 0,
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.check_circle, size: 24),
-                          SizedBox(width: 12),
-                          Text(
-                            'Serie Completada',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                        ],
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -594,7 +784,12 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
               child: const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
             ),
             const SizedBox(width: 12),
-            const Expanded(child: Text('¿Abandonar entrenamiento?')),
+            const Expanded(
+              child: Text(
+                '¿Abandonar entrenamiento?',
+                style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+              ),
+            ),
           ],
         ),
         content: Column(
@@ -603,7 +798,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
           children: [
             const Text(
               'Tu progreso actual:',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 12),
             _ExitStatRow(icon: Icons.timer, label: 'Tiempo', value: _formatDuration(elapsed)),
@@ -657,13 +852,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   }
 
   Future<void> _saveIncompleteWorkout() async {
-    // TODO: Save to Supabase workout_sessions table
-    // Fields: athlete_id, routine_id, started_at, duration, sets_completed, is_completed
-    debugPrint('📊 Saving incomplete workout:');
-    debugPrint('   Duration: ${_totalStopwatch.elapsed}');
-    debugPrint('   Exercise: ${_currentExerciseIndex + 1}/${_orderedExercises.length}');
-    debugPrint('   Set: $_currentSet');
-    debugPrint('   Rest time: $_totalRestTime');
+    _saveWorkoutData(isCompleted: false);
   }
 
   Widget _buildRestView() {
@@ -1071,58 +1260,132 @@ class _ExitStatRow extends StatelessWidget {
           const SizedBox(width: 8),
           Text(label, style: const TextStyle(color: AppColors.textSecondary)),
           const Spacer(),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(
+            value, 
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _ExerciseInfoCard extends StatelessWidget {
+class _ExerciseStatRow extends StatelessWidget {
   final IconData icon;
-  final String title;
-  final String value;
+  final String label;
+  final String? value;
   final Color color;
+  final bool isEditable;
+  final TextEditingController? controller;
+  final FocusNode? focusNode;
 
-  const _ExerciseInfoCard({
+  const _ExerciseStatRow({
     required this.icon,
-    required this.title,
-    required this.value,
+    required this.label,
+    this.value,
     required this.color,
+    this.isEditable = false,
+    this.controller,
+    this.focusNode,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+    final Widget content = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isEditable && focusNode != null ? () => focusNode!.requestFocus() : null,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceVariant.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withOpacity(0.2)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 11,
-              color: AppColors.textSecondary,
-            ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 20, color: color),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              if (isEditable && controller != null)
+                Container(
+                  width: 120,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: color.withOpacity(0.5)),
+                  ),
+                  child: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.center,
+                    cursorColor: color,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: '0.0',
+                      hintStyle: TextStyle(color: color.withOpacity(0.3)),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      suffixText: ' kg',
+                      suffixStyle: TextStyle(
+                        color: color.withOpacity(0.5),
+                        fontSize: 14,
+                        fontWeight: FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  value ?? '',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+            ],
           ),
-        ],
+        ),
       ),
     );
+
+    return content;
   }
 }
 
@@ -1172,34 +1435,309 @@ class _VideoPlayerWidget extends StatefulWidget {
 }
 
 class _VideoPlayerWidgetState extends State<_VideoPlayerWidget> {
-  late VideoPlayerController _controller;
+  late VideoPlayerController _videoController;
+  late YoutubePlayerController _youtubeController;
+  
   bool _initialized = false;
+  bool _isGif = false;
+  bool _isYoutube = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
-      ..initialize().then((_) {
-        setState(() => _initialized = true);
-        _controller.setLooping(true);
-        _controller.play();
-      });
+    final lowerUrl = widget.url.toLowerCase();
+    
+    _isGif = lowerUrl.endsWith('.gif');
+    _isYoutube = lowerUrl.contains('youtube.com') || lowerUrl.contains('youtu.be');
+
+    if (_isYoutube) {
+      final videoId = YoutubePlayerController.convertUrlToId(widget.url);
+      
+      _youtubeController = YoutubePlayerController.fromVideoId(
+        videoId: videoId ?? '',
+        autoPlay: true,
+        params: const YoutubePlayerParams(
+          showControls: false,
+          showFullscreenButton: false,
+          mute: true,
+          loop: true,
+        ),
+      );
+      
+      // Iframe controller doesn't need explicit initialization check like video_player
+      // but we set initialized to true to show the widget
+      setState(() => _initialized = true);
+      
+    } else if (!_isGif) {
+      _videoController = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+        ..initialize().then((_) {
+          if (mounted) {
+            setState(() => _initialized = true);
+            _videoController.setLooping(true);
+            _videoController.play();
+          }
+        });
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (_isYoutube) {
+      _youtubeController.close();
+    } else if (!_isGif) {
+      _videoController.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isGif) {
+      return Image.network(
+        widget.url,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(
+             child: CircularProgressIndicator(color: Colors.white),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+           return const Center(
+             child: Icon(Icons.broken_image, color: Colors.white54, size: 48),
+           );
+        },
+      );
+    }
+
+    if (_isYoutube) {
+       return YoutubePlayer(
+          controller: _youtubeController,
+          aspectRatio: 16 / 9,
+       );
+    }
+
     if (!_initialized) {
       return const Center(child: CircularProgressIndicator(color: Colors.white));
     }
+    
     return AspectRatio(
-      aspectRatio: _controller.value.aspectRatio,
-      child: VideoPlayer(_controller),
+      aspectRatio: _videoController.value.aspectRatio,
+      child: VideoPlayer(_videoController),
+    );
+  }
+}
+
+
+
+
+
+
+
+
+class _ModernStatItem extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _ModernStatItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color.withOpacity(0.8),
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w900, // Thicker font
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InputStatBox extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final Color color;
+  final bool isInteger;
+
+  const _InputStatBox({
+    required this.label,
+    required this.controller,
+    required this.focusNode,
+    required this.color,
+    this.isInteger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 100,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.surfaceVariant.withOpacity(0.6),
+            AppColors.surfaceVariant.withOpacity(0.3),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.0,
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                keyboardType: TextInputType.numberWithOptions(decimal: !isInteger),
+                textAlign: TextAlign.center,
+                cursorColor: color,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 32, // Larger text
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                ),
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: '0',
+                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.1)),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryInfoRow extends StatelessWidget {
+  final Map<String, dynamic> lastLog;
+  final bool isLoading;
+
+  const _HistoryInfoRow({
+    required this.lastLog,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) return const SizedBox();
+    
+    final weight = lastLog['weight'];
+    final reps = lastLog['reps'];
+    
+    // If no history found for this specific set
+    if (weight == null && reps == null) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Text(
+          'Primera vez en esta serie',
+          style: TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppColors.accent.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.history, color: AppColors.accent, size: 16),
+          const SizedBox(width: 8),
+          Text(
+            'ANTERIOR: ',
+            style: TextStyle(
+              color: AppColors.accent.withOpacity(0.8),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+          Text(
+            '${weight ?? '-'} kg  /  ${reps ?? '-'} reps',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

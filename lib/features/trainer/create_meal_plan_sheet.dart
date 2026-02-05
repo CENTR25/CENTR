@@ -83,40 +83,58 @@ class _CreateMealPlanSheetState extends ConsumerState<CreateMealPlanSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 50,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.restaurant_menu_rounded, color: AppColors.warning, size: 24),
                   ),
+                  const SizedBox(width: 16),
                   const Expanded(
                     child: Text(
-                      'Nuevo Plan Alimenticio',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
+                      'Nuevo Plan',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                   ),
                   TextButton(
                     onPressed: _isLoading ? null : _save,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.warning,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
                     child: _isLoading
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Guardar'),
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning))
+                        : const Text('GUARDAR', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -126,13 +144,13 @@ class _CreateMealPlanSheetState extends ConsumerState<CreateMealPlanSheet> {
                     GestureDetector(
                       onTap: _pickImage,
                       child: Container(
-                        height: 150,
+                        height: 160,
                         width: double.infinity,
                         margin: const EdgeInsets.only(bottom: 24),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
+                          color: Colors.black.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withOpacity(0.05)),
                           image: _selectedImage != null
                               ? DecorationImage(
                                   image: FileImage(_selectedImage!),
@@ -144,14 +162,14 @@ class _CreateMealPlanSheetState extends ConsumerState<CreateMealPlanSheet> {
                             ? Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.add_photo_alternate_outlined, 
-                                       size: 40, color: Colors.grey.shade600),
-                                  const SizedBox(height: 8),
-                                  Text(
+                                  Icon(Icons.add_photo_alternate_rounded, 
+                                       size: 40, color: AppColors.warning.withOpacity(0.5)),
+                                  const SizedBox(height: 12),
+                                  const Text(
                                     'Añadir portada',
                                     style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white54,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ],
@@ -165,7 +183,7 @@ class _CreateMealPlanSheetState extends ConsumerState<CreateMealPlanSheet> {
                       decoration: const InputDecoration(
                         labelText: 'Nombre del plan',
                         hintText: 'Ej: Definición, Volumen...',
-                        prefixIcon: Icon(Icons.restaurant_menu),
+                        prefixIcon: Icon(Icons.restaurant_rounded),
                       ),
                       validator: (v) => v?.isEmpty == true ? 'Requerido' : null,
                     ),
@@ -176,7 +194,7 @@ class _CreateMealPlanSheetState extends ConsumerState<CreateMealPlanSheet> {
                       decoration: const InputDecoration(
                         labelText: 'Calorías objetivo (opcional)',
                         hintText: 'Ej: 2000',
-                        prefixIcon: Icon(Icons.local_fire_department),
+                        prefixIcon: Icon(Icons.local_fire_department_rounded),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -187,10 +205,10 @@ class _CreateMealPlanSheetState extends ConsumerState<CreateMealPlanSheet> {
                         labelText: 'Descripción / Notas',
                         hintText: 'Instrucciones generales...',
                         alignLabelWithHint: true,
-                        prefixIcon: Icon(Icons.notes),
+                        prefixIcon: Icon(Icons.notes_rounded),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
                   ],
                 ),
               ),

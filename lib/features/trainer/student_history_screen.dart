@@ -25,23 +25,35 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen> {
     final historyAsync = ref.watch(studentHistoryProvider(widget.studentId));
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text('Historial de ${widget.studentName}'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
       body: historyAsync.when(
         data: (logs) {
-          if (logs.isEmpty) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.history, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('Sin historial de entrenamientos'),
+                   Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    ),
+                    child: Icon(Icons.history_rounded, size: 64, color: Colors.white.withOpacity(0.1)),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Sin historial de entrenamientos',
+                    style: TextStyle(color: AppColors.textLight, fontSize: 16),
+                  ),
                 ],
               ),
             );
-          }
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -84,10 +96,15 @@ class _WorkoutLogCard extends StatelessWidget {
     final rpe = log['rpe'];
     final date = DateTime.parse(log['created_at']);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -96,30 +113,31 @@ class _WorkoutLogCard extends StatelessWidget {
               children: [
                 Text(
                   '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: AppColors.textLight, fontWeight: FontWeight.w500),
                 ),
                 if (rpe != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getRpeColor(rpe),
-                      borderRadius: BorderRadius.circular(4),
+                      color: _getRpeColor(rpe).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: _getRpeColor(rpe).withOpacity(0.3)),
                     ),
-                    child: Text('RPE $rpe', style: const TextStyle(color: Colors.white, fontSize: 10)),
+                    child: Text('RPE $rpe', style: TextStyle(color: _getRpeColor(rpe), fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
              Text(
               exerciseName,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             Row(
               children: [
-                _StatBadge(icon: Icons.repeat, text: '$reps reps'),
-                const SizedBox(width: 12),
-                _StatBadge(icon: Icons.fitness_center, text: '${weight}kg'),
+                _StatBadge(icon: Icons.repeat_rounded, text: '$reps reps'),
+                const SizedBox(width: 20),
+                _StatBadge(icon: Icons.fitness_center_rounded, text: '${weight}kg'),
               ],
             ),
           ],
@@ -129,9 +147,9 @@ class _WorkoutLogCard extends StatelessWidget {
   }
 
   Color _getRpeColor(int rpe) {
-    if (rpe < 6) return Colors.green;
-    if (rpe < 8) return Colors.orange;
-    return Colors.red;
+    if (rpe < 6) return AppColors.success;
+    if (rpe < 8) return AppColors.warning;
+    return AppColors.error;
   }
 }
 
@@ -145,9 +163,16 @@ class _StatBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: AppColors.primary),
-        const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontWeight: FontWeight.w500)),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 16, color: AppColors.primaryLight),
+        ),
+        const SizedBox(width: 8),
+        Text(text, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
       ],
     );
   }

@@ -50,7 +50,7 @@ class TrainerService {
     // Use left join instead of inner to see all athletes
     final response = await _client
         .from('athletes')
-        .select('*, profiles(*)')
+        .select('*, profiles(*), streaks(*)')
         .eq('trainer_id', trainerId)
         .order('created_at', ascending: false);
     
@@ -95,6 +95,45 @@ class TrainerService {
         .maybeSingle();
     
     return response;
+  }
+  
+  /// Update athlete supplements
+  Future<void> updateAthleteSupplements(String athleteId, String daily, String chemical) async {
+    await _client.from('athletes').update({
+      'daily_supplements': daily,
+      'chemical_supplements': chemical,
+    }).eq('id', athleteId);
+  }
+
+  /// Update athlete cardio configuration
+  Future<void> updateAthleteCardio(String athleteId, String description, List<int> days) async {
+    debugPrint('🏃 updateAthleteCardio: $athleteId, desc: $description, days: $days');
+    
+    try {
+      await _client.from('athletes').update({
+        'cardio_description': description,
+        'cardio_days': days,
+      }).eq('id', athleteId);
+      debugPrint('✅ updateAthleteCardio success');
+    } catch (e) {
+      debugPrint('⚠️ updateAthleteCardio failed with standard list: $e');
+      debugPrint('🔄 Retrying with Postgres array string format...');
+      
+      // Fallback: Try sending as Postgres array string format "{1,2,3}"
+      // This is sometimes needed if the column is strict integer[] and JSON parsing fails
+      final pgArrayString = '{${days.join(',')}}';
+      
+      try {
+        await _client.from('athletes').update({
+          'cardio_description': description,
+          'cardio_days': pgArrayString,
+        }).eq('id', athleteId);
+        debugPrint('✅ updateAthleteCardio success with PG string');
+      } catch (retryError) {
+        debugPrint('❌ updateAthleteCardio retry failed: $retryError');
+        rethrow;
+      }
+    }
   }
   
   // ==================== EXERCISES ====================

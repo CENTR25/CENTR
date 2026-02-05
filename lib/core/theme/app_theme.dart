@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// App color scheme - North Star Fitness
+/// App color scheme - CENTR
 class AppColors {
   // Primary colors - Violeta
   static const Color primary = Color(0xFF78278A);      // Violeta principal
@@ -9,40 +9,41 @@ class AppColors {
   static const Color primaryDark = Color(0xFF321C50);  // Violeta oscuro
   
   // Secondary colors - Complementary
-  static const Color secondary = Color(0xFF321C50);
-  static const Color secondaryLight = Color(0xFF4A3470);
-  static const Color secondaryDark = Color(0xFF1A0E30);
+  static const Color secondary = Color(0xFF4A3470);
+  static const Color secondaryLight = Color(0xFF634D8A);
+  static const Color secondaryDark = Color(0xFF2E1A4D);
   
   // Accent - Amarillo para botones y controles
   static const Color accent = Color(0xFFFFB404);
   static const Color accentLight = Color(0xFFFFCC4D);
   static const Color accentDark = Color(0xFFCC9003);
   
-  // Background colors
-  static const Color background = Color(0xFFF8F9FA);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceVariant = Color(0xFFF0F4F8);
+  // Background colors - Purple dominant
+  static const Color background = Color(0xFF1A0E30); // Fondo morado oscuro
+  static const Color surface = Color(0xFF2E1A4D);    // Superficie morada
+  static const Color surfaceVariant = Color(0xFF3D2A5E);
   
-  // Text colors
-  static const Color textPrimary = Color(0xFF1A1F36);
-  static const Color textSecondary = Color(0xFF6B7280);
+  // Text colors - High contrast on dark purple
+  static const Color textPrimary = Color(0xFFFFFFFF);
+  static const Color textSecondary = Color(0xFFE5E7EB);
   static const Color textLight = Color(0xFF9CA3AF);
   
   // Status colors
   static const Color success = Color(0xFF10B981);
   static const Color warning = Color(0xFFF59E0B);
+  static const Color warningDark = Color(0xFFB45309);
   static const Color error = Color(0xFFEF4444);
   static const Color info = Color(0xFF3B82F6);
   
   // Dashboard notification colors
-  static const Color notificationGreen = Color(0xFF10B981);   // Reportes mensuales
-  static const Color notificationYellow = Color(0xFFF59E0B);  // Pesajes
-  static const Color notificationRed = Color(0xFFEF4444);     // Vencimientos
+  static const Color notificationGreen = Color(0xFF10B981);
+  static const Color notificationYellow = Color(0xFFF59E0B);
+  static const Color notificationRed = Color(0xFFEF4444);
   
   // Role colors
   static const Color adminColor = Color(0xFF8B5CF6);
-  static const Color trainerColor = Color(0xFF78278A);  // Mismo violeta principal
-  static const Color studentColor = Color(0xFFFFB404);  // Amarillo accent
+  static const Color trainerColor = Color(0xFF78278A);
+  static const Color studentColor = Color(0xFFFFB404);
   
   // Gamification colors
   static const Color gold = Color(0xFFFFD700);
@@ -50,8 +51,8 @@ class AppColors {
   static const Color bronze = Color(0xFFCD7F32);
   
   // Streak colors
-  static const Color streakActive = Color(0xFFFFB404);  // Amarillo accent
-  static const Color streakInactive = Color(0xFFE5E7EB);
+  static const Color streakActive = Color(0xFFFFB404);
+  static const Color streakInactive = Color(0xFF4B5563);
 }
 
 /// App theme
@@ -128,7 +129,7 @@ class AppTheme {
       appBarTheme: AppBarTheme(
         elevation: 0,
         centerTitle: true,
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         titleTextStyle: GoogleFonts.inter(
           fontSize: 18,
@@ -205,22 +206,33 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+          borderSide: const BorderSide(color: AppColors.accent, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.error, width: 1),
         ),
+        labelStyle: GoogleFonts.inter(
+          color: AppColors.textSecondary,
+          fontSize: 14,
+        ),
+        floatingLabelStyle: GoogleFonts.inter(
+          color: AppColors.accent,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
         hintStyle: GoogleFonts.inter(
           color: AppColors.textLight,
           fontSize: 14,
         ),
+        prefixIconColor: AppColors.textSecondary,
+        suffixIconColor: AppColors.textSecondary,
       ),
       
       // Bottom Navigation Bar
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.surface,
-        selectedItemColor: AppColors.primary,
+        selectedItemColor: AppColors.accent,
         unselectedItemColor: AppColors.textLight,
         type: BottomNavigationBarType.fixed,
         elevation: 8,

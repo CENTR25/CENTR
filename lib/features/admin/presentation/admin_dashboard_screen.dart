@@ -39,7 +39,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               child: const Icon(Icons.star_rounded, color: AppColors.primary, size: 20),
             ),
             const SizedBox(width: 10),
-            const Text('North Star'),
+            const Text('CENTR'),
           ],
         ),
         actions: [

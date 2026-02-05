@@ -187,11 +187,11 @@ class AdminService {
     // For now, this is a placeholder
     // In production, use Supabase Auth email templates or SMTP service
     
-    final inviteLink = 'northstar://first-login?token=$token';
+    final inviteLink = 'centr://first-login?token=$token';
     
     print('📧 Invitation Email:');
     print('To: $email');
-    print('Subject: Invitación a North Star');
+    print('Subject: Invitación a CENTR');
     print('Link: $inviteLink');
     print('Temp Password: $tempPassword');
     

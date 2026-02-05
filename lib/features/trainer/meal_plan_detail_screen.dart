@@ -36,11 +36,14 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> wit
     final planAsync = ref.watch(mealPlanDetailProvider(widget.planId));
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(widget.planName),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
+            icon: const Icon(Icons.edit_rounded),
             onPressed: () => planAsync.value != null ? _showEditPlan(planAsync.value!) : null,
           ),
         ],
@@ -66,33 +69,57 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> wit
             children: [
               // Header Info
               Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  gradient: const LinearGradient(
+                    colors: [AppColors.warning, AppColors.warningDark],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
                   boxShadow: [
-                     BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+                    BoxShadow(
+                      color: AppColors.warning.withOpacity(0.3),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                    ),
                   ],
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.local_fire_department, color: AppColors.warning),
-                    const SizedBox(width: 8),
-                     Text(
-                      'Objetivo: ${plan['target_calories'] ?? '-'} kcal',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.local_fire_department_rounded, color: Colors.white, size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${plan['target_calories'] ?? '-'} kcal',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 22),
+                        ),
+                        Text(
+                          'OBJETIVO DIARIO',
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                        ),
+                      ],
                     ),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: AppColors.warning.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         plan['objective'] ?? 'General',
-                        style: const TextStyle(color: AppColors.warning, fontSize: 12, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
@@ -102,10 +129,17 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> wit
               // Days Tabs
               TabBar(
                 controller: _tabController,
-                 isScrollable: true,
+                isScrollable: true,
                 labelColor: AppColors.warning,
-                unselectedLabelColor: AppColors.textSecondary,
+                unselectedLabelColor: AppColors.textLight,
                 indicatorColor: AppColors.warning,
+                indicatorWeight: 3,
+                indicatorSize: TabBarIndicatorSize.label,
+                overlayColor: WidgetStateProperty.all(AppColors.warning.withOpacity(0.05)),
+                dividerColor: Colors.transparent,
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 tabs: List.generate(daysCount, (i) => Tab(text: 'Día ${i + 1}')),
               ),
 
@@ -129,15 +163,28 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> wit
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.restaurant_menu, size: 48, color: Colors.grey.shade300),
-                            const SizedBox(height: 16),
-                            Text('Sin comidas para este día', style: TextStyle(color: AppColors.textSecondary)),
-                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(32),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white.withOpacity(0.05)),
+                              ),
+                              child: Icon(Icons.restaurant_menu_rounded, size: 48, color: Colors.white.withOpacity(0.1)),
+                            ),
+                            const SizedBox(height: 24),
+                            Text('Sin comidas para este día', style: TextStyle(color: AppColors.textLight, fontSize: 16)),
+                            const SizedBox(height: 24),
                             ElevatedButton.icon(
                               onPressed: () => _showAddMeal(dayNum),
-                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Agregar comida'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.warning,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                              icon: const Icon(Icons.add_rounded),
+                              label: const Text('Agregar comida', style: TextStyle(fontWeight: FontWeight.bold)),
                             ),
                           ],
                         ),
@@ -168,7 +215,10 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> wit
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddMeal(_currentDay),
         backgroundColor: AppColors.warning,
-        child: const Icon(Icons.add),
+        foregroundColor: Colors.white,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Icon(Icons.add_rounded, size: 32),
       ),
     );
   }
@@ -235,35 +285,78 @@ class _MealItemCard extends StatelessWidget {
       'snack': Colors.green,
     }[time] ?? Colors.grey;
 
-    return Card(
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
       child: ListTile(
+        contentPadding: const EdgeInsets.all(12),
         leading: item['image_url'] != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: CachedNetworkImage(
-                  imageUrl: item['image_url'],
-                  width: 50,
-                  height: 50,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(color: Colors.grey[200]),
-                  errorWidget: (context, url, error) => const Icon(Icons.error),
+            ? Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  image: DecorationImage(
+                    image: CachedNetworkImageProvider(item['image_url']),
+                    fit: BoxFit.cover,
+                  ),
                 ),
               )
-            : CircleAvatar(
-                backgroundColor: color.withOpacity(0.1),
-                child: Icon(Icons.restaurant, color: color, size: 20),
+            : Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(Icons.restaurant_rounded, color: color, size: 28),
               ),
-        title: Text(item['meal_title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          item['meal_title'] ?? '',
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(timeLabel, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
-            if (item['calories'] != null) Text('${item['calories']} kcal'),
-            if (item['meal_description'] != null) Text(item['meal_description'], maxLines: 2, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    timeLabel.toUpperCase(),
+                    style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 9, letterSpacing: 0.5),
+                  ),
+                ),
+                if (item['calories'] != null) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    '${item['calories']} kcal',
+                    style: TextStyle(color: AppColors.textLight, fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+            if (item['meal_description'] != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                item['meal_description'],
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: AppColors.textLight.withOpacity(0.8), fontSize: 13),
+              ),
+            ],
           ],
         ),
         trailing: IconButton(
-          icon: const Icon(Icons.delete_outline, color: AppColors.error),
+          icon: Icon(Icons.delete_outline_rounded, color: AppColors.error.withOpacity(0.8)),
           onPressed: onDelete,
         ),
       ),
@@ -368,37 +461,53 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                   Text('Agregar Comida - Día ${widget.day}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                   Text(
+                     'Nueva Comida - Día ${widget.day}', 
+                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                   ),
                    TextButton.icon(
                      onPressed: _showFoodBankSearch,
-                     icon: const Icon(Icons.search),
-                     label: const Text('Buscar en Banco'),
+                     style: TextButton.styleFrom(foregroundColor: AppColors.warning),
+                     icon: const Icon(Icons.search_rounded),
+                     label: const Text('BANCO', style: TextStyle(fontWeight: FontWeight.bold)),
                    )
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               
               // Image Picker
               GestureDetector(
                 onTap: _pickImage,
                 child: Container(
-                  height: 150,
+                  height: 160,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[300]!),
+                    color: Colors.white.withOpacity(0.03),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.05)),
                     image: _imageFile != null
                         ? DecorationImage(image: FileImage(_imageFile!), fit: BoxFit.cover)
                         : null,
@@ -406,19 +515,28 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
                   child: _imageFile == null
                       ? Column(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
-                            SizedBox(height: 8),
-                            Text('Agregar foto (opcional)', style: TextStyle(color: Colors.grey)),
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.05),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.add_a_photo_rounded, size: 32, color: AppColors.warning),
+                            ),
+                            const SizedBox(height: 12),
+                            Text('Agregar foto', style: TextStyle(color: Colors.white.withOpacity(0.5))),
                           ],
                         )
                       : null,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
 
               DropdownButtonFormField<String>(
                 value: _time,
+                dropdownColor: AppColors.surface,
+                style: const TextStyle(color: Colors.white),
                 items: const [
                   DropdownMenuItem(value: 'breakfast', child: Text('Desayuno')),
                   DropdownMenuItem(value: 'lunch', child: Text('Almuerzo')),
@@ -426,33 +544,58 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
                   DropdownMenuItem(value: 'dinner', child: Text('Cena')),
                 ],
                 onChanged: (v) => setState(() => _time = v!),
-                decoration: const InputDecoration(labelText: 'Momento del día'),
+                decoration: InputDecoration(
+                  labelText: 'Momento del día',
+                  labelStyle: TextStyle(color: AppColors.textLight),
+                  prefixIcon: const Icon(Icons.schedule_rounded, color: AppColors.warning),
+                ),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Nombre de la comida', hintText: 'Ej: Pollo con arroz'),
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Nombre de la comida', 
+                  hintText: 'Ej: Pollo con arroz',
+                  prefixIcon: const Icon(Icons.restaurant_rounded, color: AppColors.warning),
+                ),
                 validator: (v) => v?.isEmpty == true ? 'Requerido' : null,
               ),
               const SizedBox(height: 16),
                TextFormField(
                 controller: _calController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Calorías (aprox)', hintText: 'Ej: 500'),
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Calorías (aprox)', 
+                  hintText: 'Ej: 500',
+                  prefixIcon: const Icon(Icons.local_fire_department_rounded, color: AppColors.warning),
+                ),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _descController,
-                maxLines: 4,
-                decoration: const InputDecoration(labelText: 'Descripción / Ingredientes / Macros'),
+                maxLines: 3,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Descripción / Ingredientes',
+                  prefixIcon: const Icon(Icons.notes_rounded, color: AppColors.warning),
+                ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
+                height: 54,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _save,
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
-                  child: _isLoading ? const CircularProgressIndicator() : const Text('Guardar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.warning,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: _isLoading 
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                    : const Text('GUARDAR COMIDA', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
                 ),
               ),
             ],
@@ -493,56 +636,114 @@ class _FoodBankSearchSheetState extends ConsumerState<_FoodBankSearchSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.8,
-      padding: const EdgeInsets.all(16),
+      height: MediaQuery.of(context).size.height * 0.85,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: Column(
         children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           Row(
             children: [
-              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
-              const Expanded(child: Text('Banco de Alimentos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18), textAlign: TextAlign.center)),
-              const SizedBox(width: 48), // balance space
+              IconButton(
+                onPressed: () => Navigator.pop(context), 
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20)
+              ),
+              const Expanded(
+                child: Text(
+                  'Banco de Alimentos', 
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white), 
+                  textAlign: TextAlign.center
+                )
+              ),
+              const SizedBox(width: 48),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           TextField(
             controller: _searchController,
+            style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              hintText: 'Buscar comida (ej: pollo, avena...)',
-              prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              hintText: 'Ej: Pollo, avena, pasta...',
+              prefixIcon: const Icon(Icons.search_rounded, color: AppColors.warning),
               filled: true,
-              fillColor: Colors.grey.shade50,
+              fillColor: Colors.white.withOpacity(0.05),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
             ),
             onChanged: (val) {
-               // Debounce could be good, but for now direct call if length > 2
                if (val.length > 2) _search(val);
             },
             onSubmitted: _search,
             autofocus: true,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Expanded(
             child: _isLoading 
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(child: CircularProgressIndicator(color: AppColors.warning))
               : _results.isEmpty 
-                  ? Center(child: Text('Busca una comida para ver resultados', style: TextStyle(color: Colors.grey.shade400)))
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.search_off_rounded, size: 64, color: Colors.white.withOpacity(0.1)),
+                          const SizedBox(height: 16),
+                          Text('Busca una comida para ver resultados', style: TextStyle(color: Colors.white.withOpacity(0.3))),
+                        ],
+                      )
+                    )
                   : ListView.builder(
                       itemCount: _results.length,
                       itemBuilder: (context, index) {
                         final item = _results[index];
-                        return ListTile(
-                          title: Text(item['meal_title'] ?? ''),
-                          subtitle: Text(item['meal_description'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
-                          leading: item['image_url'] != null
-                             ? CircleAvatar(backgroundImage: NetworkImage(item['image_url']))
-                             : const CircleAvatar(child: Icon(Icons.restaurant, size: 16)),
-                          trailing: Text('${item['calories'] ?? 0} kcal'),
-                          onTap: () => Navigator.pop(context, item),
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.02),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.white.withOpacity(0.05)),
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            title: Text(item['meal_title'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            subtitle: Text(
+                              item['meal_description'] ?? '', 
+                              maxLines: 1, 
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: AppColors.textLight),
+                            ),
+                            leading: Container(
+                              width: 45,
+                              height: 45,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                color: Colors.white.withOpacity(0.05),
+                                image: item['image_url'] != null
+                                   ? DecorationImage(image: NetworkImage(item['image_url']), fit: BoxFit.cover)
+                                   : null,
+                              ),
+                              child: item['image_url'] == null 
+                                ? const Icon(Icons.restaurant_rounded, size: 20, color: AppColors.warning)
+                                : null,
+                            ),
+                            trailing: Text(
+                              '${item['calories'] ?? 0} kcal',
+                              style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold),
+                            ),
+                            onTap: () => Navigator.pop(context, item),
+                          ),
                         );
                       },
                     ),
@@ -647,38 +848,54 @@ class _EditMealPlanSheetState extends ConsumerState<_EditMealPlanSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.edit_rounded, color: AppColors.warning, size: 24),
                   ),
+                  const SizedBox(width: 16),
                   const Expanded(
                     child: Text(
                       'Editar Plan',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                   ),
                   TextButton(
                     onPressed: _isLoading ? null : _save,
+                    style: TextButton.styleFrom(foregroundColor: AppColors.warning),
                     child: _isLoading
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Guardar'),
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning))
+                        : const Text('GUARDAR', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
+            const Divider(height: 1, color: Colors.white10),
             Padding(
               padding: const EdgeInsets.all(24),
               child: Form(
@@ -690,13 +907,13 @@ class _EditMealPlanSheetState extends ConsumerState<_EditMealPlanSheet> {
                     GestureDetector(
                       onTap: _pickImage,
                       child: Container(
-                        height: 150,
+                        height: 160,
                         width: double.infinity,
                         margin: const EdgeInsets.only(bottom: 24),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
+                          color: Colors.white.withOpacity(0.03),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withOpacity(0.05)),
                           image: _selectedImage != null
                               ? DecorationImage(
                                   image: FileImage(_selectedImage!),
@@ -713,13 +930,13 @@ class _EditMealPlanSheetState extends ConsumerState<_EditMealPlanSheet> {
                             ? Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.add_photo_alternate_outlined, 
-                                       size: 40, color: Colors.grey.shade600),
+                                  Icon(Icons.add_photo_alternate_rounded, 
+                                       size: 40, color: Colors.white.withOpacity(0.2)),
                                   const SizedBox(height: 8),
                                   Text(
                                     'Cambiar portada',
                                     style: TextStyle(
-                                      color: Colors.grey.shade600,
+                                      color: Colors.white.withOpacity(0.4),
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -731,9 +948,10 @@ class _EditMealPlanSheetState extends ConsumerState<_EditMealPlanSheet> {
 
                     TextFormField(
                       controller: _nameController,
+                      style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
                         labelText: 'Nombre del plan',
-                        prefixIcon: Icon(Icons.restaurant_menu),
+                        prefixIcon: Icon(Icons.restaurant_menu_rounded, color: AppColors.warning),
                       ),
                       validator: (v) => v?.isEmpty == true ? 'Requerido' : null,
                     ),
@@ -741,18 +959,20 @@ class _EditMealPlanSheetState extends ConsumerState<_EditMealPlanSheet> {
                     TextFormField(
                       controller: _caloriesController,
                       keyboardType: TextInputType.number,
+                      style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
                         labelText: 'Calorías objetivo',
-                        prefixIcon: Icon(Icons.local_fire_department),
+                        prefixIcon: Icon(Icons.local_fire_department_rounded, color: AppColors.warning),
                       ),
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _descController,
                       maxLines: 3,
+                      style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
                         labelText: 'Descripción / Notas',
-                        prefixIcon: Icon(Icons.notes),
+                        prefixIcon: Icon(Icons.notes_rounded, color: AppColors.warning),
                       ),
                     ),
                     const SizedBox(height: 24),

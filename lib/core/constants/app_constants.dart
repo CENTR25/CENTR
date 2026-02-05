@@ -1,6 +1,6 @@
 /// App constants
 class AppConstants {
-  static const String appName = 'North Star';
+  static const String appName = 'CENTR';
   static const String appVersion = '1.0.0';
   
   // Subscription plans for trainers

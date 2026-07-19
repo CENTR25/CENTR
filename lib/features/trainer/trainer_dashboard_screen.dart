@@ -11,6 +11,10 @@ import '../../../services/auth_service.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/trainer_service.dart';
 import '../../../services/storage_service.dart';
+import '../../../services/news_service.dart';
+import '../../../services/notification_providers.dart';
+import '../../../models/notification_model.dart';
+import '../shared/notifications_sheet.dart';
 import 'student_detail_screen.dart';
 import 'routine_detail_screen.dart';
 import 'meal_plan_detail_screen.dart';
@@ -155,35 +159,42 @@ class _HomeView extends ConsumerWidget {
                           color: Colors.white,
                         ),
                       ),
-                      Text(
-                        'Vamos a entrenar 💪',
-                        style: TextStyle(
-                          color: AppColors.textLight,
-                          fontSize: 14,
-                        ),
-                      ),
                     ],
                   ),
                 ),
-                Stack(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 28),
-                      onPressed: () {},
-                    ),
-                    Positioned(
-                      right: 12,
-                      top: 12,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(
-                          color: AppColors.accent,
-                          shape: BoxShape.circle,
+                Consumer(
+                  builder: (context, ref, _) {
+                    final userId = user?.id;
+                    final unreadAsync = userId != null
+                        ? ref.watch(unreadCountProvider(userId))
+                        : null;
+                    final count = unreadAsync?.valueOrNull ?? 0;
+                    return Stack(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 28),
+                          onPressed: () {
+                            if (userId != null) {
+                              showNotificationsSheet(context, userId);
+                            }
+                          },
                         ),
-                      ),
-                    ),
-                  ],
+                        if (count > 0)
+                          Positioned(
+                            right: 12,
+                            top: 12,
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: const BoxDecoration(
+                                color: AppColors.accent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -448,65 +459,63 @@ class _QuickActionCard extends StatelessWidget {
 class _NotificationsDashboard extends ConsumerWidget {
   const _NotificationsDashboard();
 
+  NotificationCardType _mapType(NotificationType type) {
+    switch (type) {
+      case NotificationType.workoutCompleted:
+        return NotificationCardType.workoutCompleted;
+      case NotificationType.subscriptionExpiring:
+        return NotificationCardType.renewal;
+      case NotificationType.paymentReceived:
+        return NotificationCardType.monthlyReport;
+      default:
+        return NotificationCardType.weightRecord;
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final studentsAsync = ref.watch(myStudentsProvider);
+    final user = ref.watch(currentUserProvider);
+    final userId = user?.id;
+    if (userId == null) return _EmptyNotificationsCard();
+
+    final notificationsAsync = ref.watch(notificationsProvider(userId));
     
-    return studentsAsync.when(
-      data: (students) {
-        if (students.isEmpty) {
+    return notificationsAsync.when(
+      data: (notifications) {
+        if (notifications.isEmpty) {
           return _EmptyNotificationsCard();
         }
         
-        // Build notification cards from student data
-        List<Widget> notificationCards = [];
-        
-        for (var student in students) {
-          final profile = student['profiles'] as Map<String, dynamic>?;
-          final name = profile?['name'] ?? 'Sin nombre';
-          final lastLogin = profile?['last_login_at'];
-          
-          // Simular diferentes tipos de notificaciones basadas en datos
-          // En producción, esto vendría de tablas específicas
-          
-          // Notificación de peso (amarilla) - si el alumno tiene peso registrado
-          if (profile?['current_weight'] != null) {
-            notificationCards.add(
-              _NotificationCard(
-                type: NotificationCardType.weightRecord,
-                title: 'Pesaje registrado',
-                subtitle: '$name se pesó: ${profile?['current_weight']} kg',
-                date: lastLogin != null ? DateTime.tryParse(lastLogin) : null,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => StudentDetailScreen(studentId: student['id']),
-                    ),
-                  );
-                },
-              ),
-            );
-          }
-        }
-        
-        // Si no hay notificaciones, mostrar placeholder
-        if (notificationCards.isEmpty) {
-          return _EmptyNotificationsCard();
-        }
+        // Show up to 5 most recent
+        final recent = notifications.take(5).toList();
         
         return Column(
-          children: notificationCards,
+          children: recent.map((notif) {
+            return _NotificationCard(
+              type: _mapType(notif.type),
+              title: notif.title,
+              subtitle: notif.message,
+              date: notif.createdAt,
+              onTap: () {
+                if (!notif.isRead) {
+                  final service = ref.read(supabaseServiceProvider);
+                  service.markNotificationAsRead(notif.id);
+                  ref.invalidate(notificationsProvider);
+                  ref.invalidate(unreadCountProvider);
+                }
+              },
+            );
+          }).toList(),
         );
       },
       loading: () => const Center(
         child: Padding(
           padding: EdgeInsets.all(32),
-          child: CircularProgressIndicator(),
+          child: CircularProgressIndicator(color: AppColors.primaryLight),
         ),
       ),
       error: (e, _) => Center(
-        child: Text('Error: $e'),
+        child: Text('Error: $e', style: TextStyle(color: AppColors.textLight)),
       ),
     );
   }
@@ -562,6 +571,7 @@ enum NotificationCardType {
   monthlyReport,  // Verde
   weightRecord,   // Amarillo
   renewal,        // Rojo
+  workoutCompleted, // Azul
 }
 
 class _NotificationCard extends StatelessWidget {
@@ -589,6 +599,8 @@ class _NotificationCard extends StatelessWidget {
         return AppColors.notificationYellow;
       case NotificationCardType.renewal:
         return AppColors.notificationRed;
+      case NotificationCardType.workoutCompleted:
+        return AppColors.primary;
     }
   }
 
@@ -600,6 +612,8 @@ class _NotificationCard extends StatelessWidget {
         return 'PESAJE';
       case NotificationCardType.renewal:
         return 'VENCIMIENTO';
+      case NotificationCardType.workoutCompleted:
+        return 'ENTRENAMIENTO';
     }
   }
 
@@ -611,6 +625,8 @@ class _NotificationCard extends StatelessWidget {
         return Icons.monitor_weight_outlined;
       case NotificationCardType.renewal:
         return Icons.warning_amber_rounded;
+      case NotificationCardType.workoutCompleted:
+        return Icons.fitness_center_rounded;
     }
   }
 
@@ -913,12 +929,210 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+
+              const SizedBox(height: 24),
+
+              // News Section
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4.0),
+                    child: Text(
+                      'Novedades',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 160,
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final newsAsync = ref.watch(publishedNewsProvider);
+                        
+                        return newsAsync.when(
+                          data: (newsList) {
+                            if (newsList.isEmpty) {
+                              return Center(
+                                child: Text(
+                                  'No hay novedades recientes',
+                                  style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                                ),
+                              );
+                            }
+
+                            return ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              clipBehavior: Clip.none,
+                              itemCount: newsList.length,
+                              itemBuilder: (context, index) {
+                                final news = newsList[index];
+                                return _buildNewsCard(
+                                  title: news.title,
+                                  subtitle: news.content,
+                                  color: Color(int.parse(news.accentColor.replaceAll('#', '0xFF'))),
+                                  icon: _getIconData(news.iconName),
+                                  imageAsset: news.imageUrl,
+                                );
+                              },
+                            );
+                          },
+                          loading: () => const Center(child: CircularProgressIndicator()),
+                          error: (_, __) => const SizedBox(),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 100), // Bottom padding for FAB
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildNewsCard({
+    required String title,
+    required String subtitle,
+    required Color color,
+    required IconData icon,
+    String? imageAsset,
+  }) {
+    return Container(
+      width: 280,
+      margin: const EdgeInsets.only(right: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // Background Image or Gradient
+          if (imageAsset != null)
+            Positioned.fill(
+              child: Image.network(
+                imageAsset,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(color: color.withOpacity(0.1)),
+              ),
+            )
+          else
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      color.withOpacity(0.2),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            
+          // Content Overlay
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.8),
+                ],
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, color: color, size: 16),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'LEER MÁS',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 12,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getIconData(String name) {
+    switch (name) {
+      case 'newspaper': return Icons.newspaper_rounded;
+      case 'checkroom': return Icons.checkroom_rounded;
+      case 'restaurant': return Icons.restaurant_menu_rounded;
+      case 'timer': return Icons.timer_outlined;
+      case 'shopping_bag': return Icons.shopping_bag_rounded;
+      case 'star': return Icons.star_rounded;
+      case 'fitness_center': return Icons.fitness_center_rounded;
+      default: return Icons.newspaper_rounded;
+    }
   }
 }
 

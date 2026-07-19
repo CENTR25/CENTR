@@ -158,7 +158,7 @@ class _CreateTrainerSheetState extends ConsumerState<CreateTrainerSheet> {
     final tempPassword = _createdTrainer!['temp_password'] as String;
     final invitationToken = _createdTrainer!['invitation_token'] as String;
     final email = _emailController.text;
-    final inviteLink = 'northstar://first-login?token=$invitationToken';
+    final inviteLink = 'https://centr-v1.netlify.app/first-login?token=$invitationToken';
 
     return Column(
       children: [

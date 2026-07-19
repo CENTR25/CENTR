@@ -5,12 +5,7 @@ import '../models/user_model.dart';
 import 'supabase_service.dart';
 
 /// Auth state
-enum AuthStatus {
-  initial,
-  authenticated,
-  unauthenticated,
-  loading,
-}
+enum AuthStatus { initial, authenticated, unauthenticated, loading }
 
 /// Auth state class
 class AuthState {
@@ -18,14 +13,14 @@ class AuthState {
   final UserModel? user;
   final String? errorMessage;
   final bool isFirstLogin;
-  
+
   const AuthState({
     this.status = AuthStatus.initial,
     this.user,
     this.errorMessage,
     this.isFirstLogin = false,
   });
-  
+
   AuthState copyWith({
     AuthStatus? status,
     UserModel? user,
@@ -45,11 +40,11 @@ class AuthState {
 class AuthNotifier extends StateNotifier<AuthState> {
   final SupabaseClient _client;
   final SupabaseService _supabaseService;
-  
+
   AuthNotifier(this._client, this._supabaseService) : super(const AuthState()) {
     _initialize();
   }
-  
+
   void _initialize() {
     // Listen to auth state changes
     _client.auth.onAuthStateChange.listen((data) async {
@@ -60,7 +55,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         state = const AuthState(status: AuthStatus.unauthenticated);
       }
     });
-    
+
     // Check for existing session
     final session = _client.auth.currentSession;
     if (session != null) {
@@ -69,20 +64,24 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = const AuthState(status: AuthStatus.unauthenticated);
     }
   }
-  
+
   Future<void> _loadUserProfile(String userId) async {
     try {
       debugPrint('👤 LoadProfile: Cargando perfil para $userId');
       state = state.copyWith(status: AuthStatus.loading);
-      
+
+      final authUser = _client.auth.currentUser;
       final profile = await _supabaseService.getProfile(userId);
       debugPrint('👤 LoadProfile: Perfil obtenido: $profile');
-      
+
       if (profile != null) {
-        final user = UserModel.fromJson(profile);
-        debugPrint('👤 LoadProfile: Usuario parseado: ${user.email}, rol: ${user.role}');
+        final enrichedProfile = _enrichProfile(profile, authUser);
+        final user = UserModel.fromJson(enrichedProfile);
+        debugPrint(
+          '👤 LoadProfile: Usuario parseado: ${user.email}, rol: ${user.role}',
+        );
         final isFirstLogin = user.firstLoginAt == null;
-        
+
         // Record first login if applicable
         if (isFirstLogin) {
           debugPrint('👤 LoadProfile: Es primer login, registrando...');
@@ -90,13 +89,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         } else {
           await _supabaseService.updateLastLogin(userId);
         }
-        
+
         // Reload profile after updates
         final updatedProfile = await _supabaseService.getProfile(userId);
-        final updatedUser = updatedProfile != null 
-            ? UserModel.fromJson(updatedProfile) 
+        final updatedUser = updatedProfile != null
+            ? UserModel.fromJson(_enrichProfile(updatedProfile, authUser))
             : user;
-        
+
         debugPrint('✅ LoadProfile: Autenticado como ${updatedUser.role}');
         state = AuthState(
           status: AuthStatus.authenticated,
@@ -110,16 +109,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
         await _supabaseService.upsertProfile({
           'id': userId,
           'email': authUser.email,
+          'name': UserModel.resolveName({
+            'user_metadata': authUser.userMetadata,
+          }),
           'role': 'athlete', // Default role
           'is_active': true,
           'created_at': DateTime.now().toIso8601String(),
         });
-        
+
         final newProfile = await _supabaseService.getProfile(userId);
         if (newProfile != null) {
           state = AuthState(
             status: AuthStatus.authenticated,
-            user: UserModel.fromJson(newProfile),
+            user: UserModel.fromJson(_enrichProfile(newProfile, authUser)),
             isFirstLogin: true,
           );
         }
@@ -127,27 +129,49 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (e, stack) {
       debugPrint('💥 LoadProfile: Error: $e');
       debugPrint('💥 LoadProfile: Stack: $stack');
+
+      // A valid Auth session should not be sent back to /login only because
+      // the profile query failed temporarily or an old profile row is
+      // missing. Keep the user in the app with the Auth metadata as a
+      // temporary profile and let the next refresh hydrate the database data.
+      final authUser = _client.auth.currentUser;
+      if (authUser != null && authUser.id == userId) {
+        final fallbackProfile = _enrichProfile({
+          'id': userId,
+          'email': authUser.email ?? '',
+          'role': authUser.userMetadata?['role'] ?? 'student',
+          'is_active': true,
+          'created_at': DateTime.now().toIso8601String(),
+        }, authUser);
+
+        state = AuthState(
+          status: AuthStatus.authenticated,
+          user: UserModel.fromJson(fallbackProfile),
+        );
+        return;
+      }
+
       state = AuthState(
         status: AuthStatus.unauthenticated,
         errorMessage: e.toString(),
       );
     }
   }
-  
+
   /// Sign in with email and password
   Future<void> signInWithEmail(String email, String password) async {
     try {
       debugPrint('🔑 AuthService: Iniciando login...');
       state = state.copyWith(status: AuthStatus.loading);
-      
+
       final response = await _client.auth.signInWithPassword(
         email: email,
         password: password,
       );
-      
+
       debugPrint('✅ AuthService: Login exitoso, user: ${response.user?.email}');
       debugPrint('📦 AuthService: Session: ${response.session != null}');
-      
+
       // Profile loading is handled by auth state listener
     } on AuthException catch (e) {
       debugPrint('❌ AuthService: AuthException: ${e.message}');
@@ -163,7 +187,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
     }
   }
-  
+
   /// Sign up with email and password
   Future<void> signUpWithEmail({
     required String email,
@@ -173,17 +197,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }) async {
     try {
       state = state.copyWith(status: AuthStatus.loading);
-      
+
       final response = await _client.auth.signUp(
         email: email,
         password: password,
         data: {'name': name},
       );
-      
+
       if (response.user != null) {
         // If there's an invitation, update its status
         if (invitationId != null) {
-          await _supabaseService.updateInvitationStatus(invitationId, 'accepted');
+          await _supabaseService.updateInvitationStatus(
+            invitationId,
+            'accepted',
+          );
         }
       }
       // Profile creation is handled by auth state listener
@@ -199,7 +226,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
     }
   }
-  
+
   /// Sign out
   Future<void> signOut() async {
     try {
@@ -209,7 +236,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(errorMessage: 'Error al cerrar sesión');
     }
   }
-  
+
   /// Reset password
   Future<bool> resetPassword(String email) async {
     try {
@@ -219,7 +246,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       return false;
     }
   }
-  
+
   /// Clear error
   void clearError() {
     state = state.copyWith(errorMessage: null);
@@ -229,19 +256,48 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> refreshProfile() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
-    
+
     try {
       final profile = await _supabaseService.getProfile(userId);
       if (profile != null) {
-        final user = UserModel.fromJson(profile);
+        final user = UserModel.fromJson(
+          _enrichProfile(profile, _client.auth.currentUser),
+        );
         state = state.copyWith(user: user);
-        debugPrint('🔄 RefreshProfile: Perfil actualizado, hasCompletedOnboarding: ${user.hasCompletedOnboarding}');
+        debugPrint(
+          '🔄 RefreshProfile: Perfil actualizado, hasCompletedOnboarding: ${user.hasCompletedOnboarding}',
+        );
       }
     } catch (e) {
       debugPrint('⚠️ RefreshProfile: Error: $e');
     }
   }
-  
+
+  Map<String, dynamic> _enrichProfile(
+    Map<String, dynamic> profile,
+    User? authUser,
+  ) {
+    final enriched = Map<String, dynamic>.from(profile);
+    final metadata = authUser?.userMetadata;
+
+    if (metadata != null && metadata.isNotEmpty) {
+      enriched['user_metadata'] = metadata;
+    }
+    if ((enriched['email'] as String?)?.trim().isEmpty != false) {
+      enriched['email'] = authUser?.email ?? '';
+    }
+    if (UserModel.resolveName(enriched) == null && metadata != null) {
+      final metadataName = UserModel.resolveName({'user_metadata': metadata});
+      if (metadataName != null) enriched['name'] = metadataName;
+    }
+    if ((enriched['role'] as String?)?.trim().isEmpty != false &&
+        metadata?['role'] != null) {
+      enriched['role'] = metadata!['role'];
+    }
+
+    return enriched;
+  }
+
   /// Get localized auth error message
   String _getAuthErrorMessage(AuthException e) {
     switch (e.message) {

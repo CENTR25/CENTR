@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../models/exercise_model.dart';
+import '../../../services/exercise_media_service.dart';
 import '../../../services/trainer_service.dart';
+import '../../../widgets/exercise_gif_view.dart';
+import 'package:north_star/utils/exercise_category.dart';
 
 class RoutineDetailScreen extends ConsumerStatefulWidget {
   final String routineId;
@@ -14,7 +18,8 @@ class RoutineDetailScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<RoutineDetailScreen> createState() => _RoutineDetailScreenState();
+  ConsumerState<RoutineDetailScreen> createState() =>
+      _RoutineDetailScreenState();
 }
 
 class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
@@ -58,7 +63,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
             icon: const Icon(Icons.more_vert_rounded),
             onSelected: (value) {
               if (value == 'edit') {
-                 _showEditRoutineDetails(routineAsync.value!);
+                _showEditRoutineDetails(routineAsync.value!);
               } else if (value == 'delete') {
                 _deleteRoutine();
               }
@@ -97,14 +102,15 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
           }
 
           final daysPerWeek = routine['days_per_week'] ?? 3;
-          
+
           if (_tabController == null || _tabController!.length != daysPerWeek) {
             final oldController = _tabController;
             _tabController = TabController(
-              length: daysPerWeek, 
+              length: daysPerWeek,
               vsync: this,
-              initialIndex: (oldController != null && oldController.index < daysPerWeek) 
-                  ? oldController.index 
+              initialIndex:
+                  (oldController != null && oldController.index < daysPerWeek)
+                  ? oldController.index
                   : 0,
             );
             _tabController!.addListener(_handleTabSelection);
@@ -183,13 +189,22 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                 indicatorSize: TabBarIndicatorSize.label,
                 dividerColor: Colors.transparent,
                 labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-                tabs: List.generate(
-                  daysPerWeek,
-                  (index) {
-                    const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-                    return Tab(text: index < days.length ? days[index] : 'Día ${index + 1}');
-                  },
-                ),
+                tabs: List.generate(daysPerWeek, (index) {
+                  const days = [
+                    'Lunes',
+                    'Martes',
+                    'Miércoles',
+                    'Jueves',
+                    'Viernes',
+                    'Sábado',
+                    'Domingo',
+                  ];
+                  return Tab(
+                    text: index < days.length
+                        ? days[index]
+                        : 'Día ${index + 1}',
+                  );
+                }),
               ),
 
               // Exercises List
@@ -198,43 +213,65 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                   controller: _tabController!,
                   children: List.generate(daysPerWeek, (dayIndex) {
                     final dayNum = dayIndex + 1;
-                    final dayExercises = exercises.where((e) => e['day_number'] == dayNum).cast<Map<String, dynamic>>().toList();
+                    final dayExercises = exercises
+                        .where((e) => e['day_number'] == dayNum)
+                        .cast<Map<String, dynamic>>()
+                        .toList();
                     // Sort by order_index just in case
-                    dayExercises.sort((a, b) => (a['order_index'] as int? ?? 0).compareTo(b['order_index'] as int? ?? 0));
+                    dayExercises.sort(
+                      (a, b) => (a['order_index'] as int? ?? 0).compareTo(
+                        b['order_index'] as int? ?? 0,
+                      ),
+                    );
 
-                    final List<int> cardioDays = List<int>.from(routine['cardio_days'] ?? []);
+                    final List<int> cardioDays = List<int>.from(
+                      routine['cardio_days'] ?? [],
+                    );
                     final isCardioDay = cardioDays.contains(dayNum);
 
                     return Column(
                       children: [
                         // Cardio Switch
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.surface,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                              border: Border.all(
+                                color: AppColors.primary.withOpacity(0.3),
+                              ),
                             ),
                             child: Row(
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: isCardioDay ? AppColors.primary.withOpacity(0.2) : Colors.grey.withOpacity(0.1),
+                                    color: isCardioDay
+                                        ? AppColors.primary.withOpacity(0.2)
+                                        : Colors.grey.withOpacity(0.1),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
                                     Icons.directions_run_rounded,
-                                    color: isCardioDay ? AppColors.accent : Colors.grey,
+                                    color: isCardioDay
+                                        ? AppColors.accent
+                                        : Colors.grey,
                                     size: 24,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Cardio para este día',
@@ -245,7 +282,9 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                                         ),
                                       ),
                                       Text(
-                                        isCardioDay ? 'Marcado como día con cardio' : 'Sin cardio marcado',
+                                        isCardioDay
+                                            ? 'Marcado como día con cardio'
+                                            : 'Sin cardio marcado',
                                         style: TextStyle(
                                           color: AppColors.textLight,
                                           fontSize: 13,
@@ -256,9 +295,11 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                                 ),
                                 Switch(
                                   value: isCardioDay,
-                                  onChanged: (val) => _toggleCardio(routine, dayNum, val),
+                                  onChanged: (val) =>
+                                      _toggleCardio(routine, dayNum, val),
                                   activeColor: AppColors.accent,
-                                  activeTrackColor: AppColors.accent.withOpacity(0.4),
+                                  activeTrackColor: AppColors.accent
+                                      .withOpacity(0.4),
                                 ),
                               ],
                             ),
@@ -271,22 +312,35 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.fitness_center_rounded, size: 80, color: Colors.white.withOpacity(0.1)),
+                                  Icon(
+                                    Icons.fitness_center_rounded,
+                                    size: 80,
+                                    color: Colors.white.withOpacity(0.1),
+                                  ),
                                   const SizedBox(height: 20),
                                   Text(
                                     'Sin ejercicios para este día',
-                                    style: TextStyle(color: AppColors.textLight, fontSize: 16),
+                                    style: TextStyle(
+                                      color: AppColors.textLight,
+                                      fontSize: 16,
+                                    ),
                                   ),
                                   const SizedBox(height: 24),
                                   ElevatedButton.icon(
-                                    onPressed: () => _showAddExercise(context, dayNum),
+                                    onPressed: () =>
+                                        _showAddExercise(context, dayNum),
                                     icon: const Icon(Icons.add_rounded),
                                     label: const Text('Agregar ejercicio'),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.primary,
                                       foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                        vertical: 12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -298,13 +352,15 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                             child: ReorderableListView.builder(
                               padding: const EdgeInsets.all(16),
                               itemCount: dayExercises.length,
-                              onReorder: (oldIndex, newIndex) => _onReorder(dayExercises, oldIndex, newIndex),
+                              onReorder: (oldIndex, newIndex) =>
+                                  _onReorder(dayExercises, oldIndex, newIndex),
                               itemBuilder: (context, index) {
                                 final exercise = dayExercises[index];
                                 return _ExerciseCard(
                                   key: ValueKey(exercise['id']),
                                   exercise: exercise,
-                                  onDelete: () => _deleteExercise(exercise['id']),
+                                  onDelete: () =>
+                                      _deleteExercise(exercise['id']),
                                   onEdit: () => _showEditExercise(exercise),
                                 );
                               },
@@ -341,31 +397,42 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     );
   }
 
-  void _onReorder(List<Map<String, dynamic>> exercises, int oldIndex, int newIndex) async {
+  void _onReorder(
+    List<Map<String, dynamic>> exercises,
+    int oldIndex,
+    int newIndex,
+  ) async {
     if (oldIndex < newIndex) {
       newIndex -= 1;
     }
-    
+
     final item = exercises.removeAt(oldIndex);
     exercises.insert(newIndex, item);
-    
+
     try {
-        final service = ref.read(trainerServiceProvider);
-        for (int i = 0; i < exercises.length; i++) {
-           final ex = exercises[i];
-           if (ex['order_index'] != i) {
-             await service.updateRoutineExercise(ex['id'], {'order_index': i});
-           }
+      final service = ref.read(trainerServiceProvider);
+      for (int i = 0; i < exercises.length; i++) {
+        final ex = exercises[i];
+        if (ex['order_index'] != i) {
+          await service.updateRoutineExercise(ex['id'], {'order_index': i});
         }
-        ref.invalidate(routineDetailProvider(widget.routineId));
+      }
+      ref.invalidate(routineDetailProvider(widget.routineId));
     } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al reordenar: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al reordenar: $e')));
     }
   }
 
-  Future<void> _toggleCardio(Map<String, dynamic> routine, int dayNum, bool isActive) async {
+  Future<void> _toggleCardio(
+    Map<String, dynamic> routine,
+    int dayNum,
+    bool isActive,
+  ) async {
     final List<int> cardioDays = List<int>.from(routine['cardio_days'] ?? []);
-    
+
     if (isActive) {
       if (!cardioDays.contains(dayNum)) {
         cardioDays.add(dayNum);
@@ -383,7 +450,10 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al actualizar cardio: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Error al actualizar cardio: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }
@@ -394,13 +464,10 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _AddExerciseSheet(
-        routineId: widget.routineId,
-        dayNumber: dayNumber,
-      ),
+      builder: (context) =>
+          _AddExerciseSheet(routineId: widget.routineId, dayNumber: dayNumber),
     );
   }
-
 
   void _showEditExercise(Map<String, dynamic> exercise) {
     showModalBottomSheet(
@@ -417,7 +484,9 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
 
   void _showEditRoutineDetails(Map<String, dynamic> routine) {
     final titleController = TextEditingController(text: routine['title']);
-    final objectiveController = TextEditingController(text: routine['objective']);
+    final objectiveController = TextEditingController(
+      text: routine['objective'],
+    );
     String selectedLevel = routine['level'] ?? 'beginner';
     int selectedDays = routine['days_per_week'] ?? 3;
 
@@ -454,9 +523,18 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                     prefixIcon: Icon(Icons.trending_up),
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'beginner', child: Text('Principiante')),
-                    DropdownMenuItem(value: 'intermediate', child: Text('Intermedio')),
-                    DropdownMenuItem(value: 'advanced', child: Text('Avanzado')),
+                    DropdownMenuItem(
+                      value: 'beginner',
+                      child: Text('Principiante'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'intermediate',
+                      child: Text('Intermedio'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'advanced',
+                      child: Text('Avanzado'),
+                    ),
                   ],
                   onChanged: (val) {
                     if (val != null) setDialogState(() => selectedLevel = val);
@@ -470,7 +548,10 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                     prefixIcon: Icon(Icons.calendar_month),
                   ),
                   items: List.generate(7, (index) => index + 1)
-                      .map((d) => DropdownMenuItem(value: d, child: Text('$d días')))
+                      .map(
+                        (d) =>
+                            DropdownMenuItem(value: d, child: Text('$d días')),
+                      )
                       .toList(),
                   onChanged: (val) {
                     if (val != null) setDialogState(() => selectedDays = val);
@@ -499,20 +580,26 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                     'level': selectedLevel,
                     'days_per_week': selectedDays,
                   });
-                  
+
                   ref.invalidate(routineDetailProvider(widget.routineId));
                   ref.invalidate(myRoutinesProvider);
 
                   if (mounted) {
                     navigator.pop();
                     scaffoldMessenger.showSnackBar(
-                      const SnackBar(content: Text('Rutina actualizada con éxito'), backgroundColor: AppColors.success),
+                      const SnackBar(
+                        content: Text('Rutina actualizada con éxito'),
+                        backgroundColor: AppColors.success,
+                      ),
                     );
                   }
                 } catch (e) {
                   if (mounted) {
                     scaffoldMessenger.showSnackBar(
-                      SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: AppColors.error,
+                      ),
                     );
                   }
                 }
@@ -530,8 +617,10 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
       // Just a heuristic: Usually student routines have the name in parenthesis or appended.
       // But trainers might want to clone their own templates too.
     }
-    
-    final controller = TextEditingController(text: '${widget.routineTitle} (Copia)');
+
+    final controller = TextEditingController(
+      text: '${widget.routineTitle} (Copia)',
+    );
 
     showDialog(
       context: context,
@@ -564,24 +653,24 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
           ElevatedButton(
             onPressed: () async {
               if (controller.text.trim().isEmpty) return;
-              
+
               final scaffoldMessenger = ScaffoldMessenger.of(context);
               final navigator = Navigator.of(context);
-              
+
               try {
                 // Show loading
                 scaffoldMessenger.showSnackBar(
                   const SnackBar(content: Text('Guardando plantilla...')),
                 );
-                
+
                 final service = ref.read(trainerServiceProvider);
                 await service.saveRoutineAsTemplate(
                   sourceRoutineId: widget.routineId,
                   newTitle: controller.text.trim(),
                 );
-                
+
                 ref.invalidate(myRoutinesProvider); // Refresh dashboard list
-                
+
                 navigator.pop(); // Close dialog
                 scaffoldMessenger.showSnackBar(
                   const SnackBar(
@@ -591,7 +680,10 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                 );
               } catch (e) {
                 scaffoldMessenger.showSnackBar(
-                  SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+                  SnackBar(
+                    content: Text('Error: $e'),
+                    backgroundColor: AppColors.error,
+                  ),
                 );
               }
             },
@@ -607,7 +699,9 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Eliminar rutina'),
-        content: const Text('¿Estás seguro de eliminar esta rutina? Esta acción no se puede deshacer.'),
+        content: const Text(
+          '¿Estás seguro de eliminar esta rutina? Esta acción no se puede deshacer.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -625,25 +719,31 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     if (confirmed == true) {
       final scaffoldMessenger = ScaffoldMessenger.of(context);
       final navigator = Navigator.of(context);
-      
+
       try {
         final service = ref.read(trainerServiceProvider);
         await service.deleteRoutine(widget.routineId);
-        
+
         // Refresh lists and stats
         ref.invalidate(myRoutinesProvider);
         ref.invalidate(trainerStatsProvider);
-        
+
         if (mounted) {
           scaffoldMessenger.showSnackBar(
-            const SnackBar(content: Text('Rutina eliminada'), backgroundColor: AppColors.success),
+            const SnackBar(
+              content: Text('Rutina eliminada'),
+              backgroundColor: AppColors.success,
+            ),
           );
           navigator.pop(); // Go back to dashboard
         }
       } catch (e) {
         if (mounted) {
           scaffoldMessenger.showSnackBar(
-            SnackBar(content: Text('Error al eliminar: $e'), backgroundColor: AppColors.error),
+            SnackBar(
+              content: Text('Error al eliminar: $e'),
+              backgroundColor: AppColors.error,
+            ),
           );
         }
       }
@@ -678,13 +778,19 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
         ref.invalidate(routineDetailProvider(widget.routineId));
         if (mounted) {
           scaffoldMessenger.showSnackBar(
-            const SnackBar(content: Text('Ejercicio eliminado'), backgroundColor: AppColors.success),
+            const SnackBar(
+              content: Text('Ejercicio eliminado'),
+              backgroundColor: AppColors.success,
+            ),
           );
         }
       } catch (e) {
         if (mounted) {
           scaffoldMessenger.showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.error,
+            ),
           );
         }
       }
@@ -721,7 +827,11 @@ class _InfoChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -755,15 +865,15 @@ class _ExerciseCard extends StatelessWidget {
     // Parse reps for display
     String repsDisplay;
     if (repsTarget.toString().contains('|')) {
-       final parts = repsTarget.toString().split('|');
-       // If all are same, show one
-       if (parts.every((r) => r == parts[0])) {
-         repsDisplay = '$sets sets × ${parts[0]} reps';
-       } else {
-         repsDisplay = '$sets sets × Varias reps (${parts.join(", ")})';
-       }
+      final parts = repsTarget.toString().split('|');
+      // If all are same, show one
+      if (parts.every((r) => r == parts[0])) {
+        repsDisplay = '$sets sets × ${parts[0]} reps';
+      } else {
+        repsDisplay = '$sets sets × Varias reps (${parts.join(", ")})';
+      }
     } else {
-       repsDisplay = '$sets sets × $repsTarget reps';
+      repsDisplay = '$sets sets × $repsTarget reps';
     }
 
     return Card(
@@ -784,87 +894,128 @@ class _ExerciseCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-                Row(
-                   crossAxisAlignment: CrossAxisAlignment.start,
-                   children: [
-                       Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppColors.primary, AppColors.primaryDark],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${(exercise['order_index'] as int? ?? 0) + 1}',
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-                            ),
-                          ),
-                       ),
-                       const SizedBox(width: 12),
-                       Expanded(
-                         child: Column(
-                           crossAxisAlignment: CrossAxisAlignment.start,
-                           children: [
-                               Text(
-                                 name, 
-                                 style: const TextStyle(
-                                   fontWeight: FontWeight.bold, 
-                                   fontSize: 18,
-                                   color: Colors.white,
-                                 )
-                               ),
-                               Text(
-                                 muscleGroup, 
-                                 style: const TextStyle(
-                                   color: AppColors.textLight, 
-                                   fontSize: 13,
-                                 )
-                               ),
-                           ]
-                         )
-                       ),
-                       Icon(Icons.drag_indicator_rounded, color: Colors.white.withOpacity(0.2)),
-                   ] 
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppColors.primary, AppColors.primaryDark],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${(exercise['order_index'] as int? ?? 0) + 1}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
                   ),
-                  child: Row(
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                          Expanded(child: _DetailIconInfo(icon: Icons.repeat_one_rounded, label: repsDisplay)),
-                          const SizedBox(width: 16),
-                          Expanded(child: _DetailIconInfo(icon: Icons.timer_outlined, label: '${rest}s descanso')),
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          muscleGroup,
+                          style: const TextStyle(
+                            color: AppColors.textLight,
+                            fontSize: 13,
+                          ),
+                        ),
                       ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.drag_indicator_rounded,
+                    color: Colors.white.withOpacity(0.2),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _DetailIconInfo(
+                        icon: Icons.repeat_one_rounded,
+                        label: repsDisplay,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _DetailIconInfo(
+                        icon: Icons.timer_outlined,
+                        label: '${rest}s descanso',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (comment != null && comment.isNotEmpty) ...[
+                const Divider(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.comment_outlined,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        comment,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onDelete,
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 16,
+                    color: AppColors.error,
+                  ),
+                  label: const Text(
+                    'Eliminar',
+                    style: TextStyle(color: AppColors.error),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
-                if (comment != null && comment.isNotEmpty) ...[
-                    const Divider(height: 16),
-                    Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                            const Icon(Icons.comment_outlined, size: 16, color: AppColors.textSecondary),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(comment, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontStyle: FontStyle.italic))),
-                        ],
-                    )
-                ],
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                      onPressed: onDelete, 
-                      icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.error), 
-                      label: const Text('Eliminar', style: TextStyle(color: AppColors.error)),
-                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                  ),
-                )
+              ),
             ],
           ),
         ),
@@ -874,31 +1025,31 @@ class _ExerciseCard extends StatelessWidget {
 }
 
 class _DetailIconInfo extends StatelessWidget {
-    final IconData icon;
-    final String label;
-    
-    const _DetailIconInfo({required this.icon, required this.label});
-    
-    @override
-    Widget build(BuildContext context) {
-        return Row(
-           children: [
-               Icon(icon, size: 18, color: AppColors.accent),
-               const SizedBox(width: 6),
-               Expanded(
-                 child: Text(
-                   label, 
-                   style: const TextStyle(
-                     color: Colors.white, 
-                     fontSize: 14, 
-                     fontWeight: FontWeight.w500,
-                   ),
-                   overflow: TextOverflow.ellipsis,
-                 )
-               ),
-           ],
-        );
-    }
+  final IconData icon;
+  final String label;
+
+  const _DetailIconInfo({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.accent),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // Add/Edit Exercise Sheet
@@ -926,7 +1077,7 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
   int _rest = 60;
   String _comments = '';
   bool _isLoading = false;
-  
+
   // Search state
   String _searchQuery = '';
   String? _selectedMuscleGroup;
@@ -945,14 +1096,16 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
     _sets = ex['sets'] ?? 3;
     _rest = ex['rest_seconds'] ?? 60;
     _comments = ex['comment'] ?? '';
-    
+
     final repsTarget = ex['reps_target']?.toString() ?? '10-12';
     if (repsTarget.contains('|')) {
       _useSameReps = false;
       _individualReps = repsTarget.split('|');
       // Ensure specific list length matches sets
       if (_individualReps.length < _sets) {
-        _individualReps.addAll(List.filled(_sets - _individualReps.length, '10'));
+        _individualReps.addAll(
+          List.filled(_sets - _individualReps.length, '10'),
+        );
       }
     } else {
       _useSameReps = true;
@@ -967,7 +1120,9 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
       _sets = newSets;
       // Adjust individual reps list size
       if (_individualReps.length < newSets) {
-        _individualReps.addAll(List.filled(newSets - _individualReps.length, '10'));
+        _individualReps.addAll(
+          List.filled(newSets - _individualReps.length, '10'),
+        );
       } else {
         _individualReps = _individualReps.sublist(0, newSets);
       }
@@ -980,7 +1135,9 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.9,
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
@@ -1009,27 +1166,43 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    isEditing ? Icons.edit_rounded : Icons.add_rounded, 
-                    color: AppColors.accent, 
-                    size: 24
+                    isEditing ? Icons.edit_rounded : Icons.add_rounded,
+                    color: AppColors.accent,
+                    size: 24,
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
                     isEditing ? 'Editar Ejercicio' : 'Agregar Ejercicio',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 TextButton(
-                  onPressed: _isLoading || _selectedExerciseId == null ? null : _saveExercise,
+                  onPressed: _isLoading || _selectedExerciseId == null
+                      ? null
+                      : _saveExercise,
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.accent,
                     disabledForegroundColor: Colors.grey,
                   ),
                   child: _isLoading
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent))
-                      : Text(isEditing ? 'ACTUALIZAR' : 'GUARDAR', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.accent,
+                          ),
+                        )
+                      : Text(
+                          isEditing ? 'ACTUALIZAR' : 'GUARDAR',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                 ),
               ],
             ),
@@ -1045,18 +1218,27 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                   // --- Exercise Selection Section ---
                   // Only show current exercise info if editing, or allow changing it?
                   // Usually changing the exercise itself is rare, better to delete and add new.
-                  // But for flexibility let's allow it, OR just lock it. 
+                  // But for flexibility let's allow it, OR just lock it.
                   // Let's allow searching/changing to match user flexibility request.
-                  
-                  const Text('1. Buscar Ejercicio', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                  const Text(
+                    '1. Buscar Ejercicio',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
                   const SizedBox(height: 16),
-                  
+
                   // Search Bar
                   TextField(
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       hintText: 'Buscar por nombre...',
-                      prefixIcon: const Icon(Icons.search_rounded, color: AppColors.accent),
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        color: AppColors.accent,
+                      ),
                       filled: true,
                       fillColor: Colors.white.withOpacity(0.03),
                       border: OutlineInputBorder(
@@ -1076,13 +1258,15 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                         _FilterChip(
                           label: 'Todos',
                           selected: _selectedMuscleGroup == null,
-                          onSelected: () => setState(() => _selectedMuscleGroup = null),
+                          onSelected: () =>
+                              setState(() => _selectedMuscleGroup = null),
                         ),
-                        ...['Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Abdominales'].map((group) => 
-                          _FilterChip(
+                        ...ExerciseCategory.routineFilters.map(
+                          (group) => _FilterChip(
                             label: group,
                             selected: _selectedMuscleGroup == group,
-                            onSelected: () => setState(() => _selectedMuscleGroup = group),
+                            onSelected: () =>
+                                setState(() => _selectedMuscleGroup = group),
                           ),
                         ),
                       ],
@@ -1104,14 +1288,22 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                         selectedExerciseId: _selectedExerciseId,
                         searchQuery: _searchQuery,
                         muscleGroupFilter: _selectedMuscleGroup,
-                        onSelect: (id) => setState(() => _selectedExerciseId = id),
+                        onSelect: (id) =>
+                            setState(() => _selectedExerciseId = id),
                       ),
                     ),
                   ),
 
                   const SizedBox(height: 24),
 
-                  const Text('2. Configuración', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                  const Text(
+                    '2. Configuración',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
                   const SizedBox(height: 20),
 
                   // Sets Slider
@@ -1119,7 +1311,13 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Series (Sets)'),
-                      Text('$_sets', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(
+                        '$_sets',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                     ],
                   ),
                   Slider(
@@ -1139,7 +1337,8 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                       Checkbox(
                         value: _useSameReps,
                         activeColor: AppColors.primary,
-                        onChanged: (val) => setState(() => _useSameReps = val ?? true),
+                        onChanged: (val) =>
+                            setState(() => _useSameReps = val ?? true),
                       ),
                       const Text('Mismas repeticiones para todas las series'),
                     ],
@@ -1163,13 +1362,20 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Row(
                             children: [
-                              Text('Serie ${index + 1}:', style: const TextStyle(fontWeight: FontWeight.w500)),
+                              Text(
+                                'Serie ${index + 1}:',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                               const SizedBox(width: 16),
                               Expanded(
                                 child: TextFormField(
                                   // Use Key to force rebuild if individual reps change drastically
-                                  key: ValueKey('rep_input_$index'), 
-                                  initialValue: _individualReps.length > index ? _individualReps[index] : '',
+                                  key: ValueKey('rep_input_$index'),
+                                  initialValue: _individualReps.length > index
+                                      ? _individualReps[index]
+                                      : '',
                                   keyboardType: TextInputType.number,
                                   decoration: const InputDecoration(
                                     hintText: 'Reps',
@@ -1196,7 +1402,13 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Descanso'),
-                      Text('${_rest}s', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(
+                        '${_rest}s',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                     ],
                   ),
                   Slider(
@@ -1239,7 +1451,7 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
 
     try {
       final service = ref.read(trainerServiceProvider);
-      
+
       // Determine final reps string format
       // "12-15" (Standard) or "12|10|8|6" (Individual)
       String finalReps;
@@ -1251,16 +1463,13 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
 
       if (widget.existingExercise != null) {
         // UPDATE
-        await service.updateRoutineExercise(
-          widget.existingExercise!['id'], 
-          {
-            'exercise_id': _selectedExerciseId,
-            'sets': _sets,
-            'reps_target': finalReps,
-            'rest_seconds': _rest,
-            'comment': _comments.isNotEmpty ? _comments : null,
-          }
-        );
+        await service.updateRoutineExercise(widget.existingExercise!['id'], {
+          'exercise_id': _selectedExerciseId,
+          'sets': _sets,
+          'reps_target': finalReps,
+          'rest_seconds': _rest,
+          'comment': _comments.isNotEmpty ? _comments : null,
+        });
       } else {
         // CREATE
         await service.addExerciseToRoutine(
@@ -1280,15 +1489,22 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(widget.existingExercise != null ? 'Ejercicio actualizado' : 'Ejercicio agregado'), 
-            backgroundColor: AppColors.success
+            content: Text(
+              widget.existingExercise != null
+                  ? 'Ejercicio actualizado'
+                  : 'Ejercicio agregado',
+            ),
+            backgroundColor: AppColors.success,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -1302,7 +1518,11 @@ class _FilterChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onSelected;
 
-  const _FilterChip({required this.label, required this.selected, required this.onSelected});
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1340,23 +1560,25 @@ class _ExerciseSelector extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final exercisesAsync = ref.watch(exercisesProvider);
+    final mediaService = ref.read(exerciseMediaServiceProvider);
 
     return exercisesAsync.when(
       data: (exercises) {
         // Filter list locally
         final filtered = exercises.where((ex) {
           final name = (ex['name'] as String? ?? '').toLowerCase();
-          final group = (ex['muscle_group'] as String? ?? '');
-          
           final matchesSearch = name.contains(searchQuery.toLowerCase());
-          final matchesGroup = muscleGroupFilter == null || group == muscleGroupFilter;
-          
+          final matchesGroup = ExerciseCategory.matches(ex, muscleGroupFilter);
+
           return matchesSearch && matchesGroup;
         }).toList();
 
         if (filtered.isEmpty) {
           return const Center(
-            child: Text('No se encontraron ejercicios', style: TextStyle(color: Colors.grey)),
+            child: Text(
+              'No se encontraron ejercicios',
+              style: TextStyle(color: Colors.grey),
+            ),
           );
         }
 
@@ -1365,16 +1587,37 @@ class _ExerciseSelector extends ConsumerWidget {
           itemBuilder: (context, index) {
             final exercise = filtered[index];
             final isSelected = selectedExerciseId == exercise['id'];
+            final exerciseModel = ExerciseModel.fromMap(exercise);
+            final gifUrl = mediaService.resolveGifUrl(
+              exerciseModel.gifUrl,
+              mediaId: exerciseModel.mediaId,
+            );
 
             return ListTile(
               dense: true,
               selected: isSelected,
               selectedTileColor: AppColors.primary.withOpacity(0.1),
-              leading: isSelected 
-                ? const Icon(Icons.check_circle, color: AppColors.primary)
-                : const Icon(Icons.circle_outlined, color: Colors.grey),
-              title: Text(exercise['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w500)),
-              subtitle: Text(exercise['muscle_group'] ?? '', style: const TextStyle(fontSize: 12)),
+              leading: _ExerciseGifThumb(
+                gifUrl: gifUrl,
+                isSelected: isSelected,
+              ),
+              title: Text(
+                exercise['name'] ?? '',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              subtitle: Text(
+                exercise['muscle_group'] ?? '',
+                style: const TextStyle(fontSize: 12),
+              ),
+              trailing: IconButton(
+                tooltip: 'Previsualizar ejercicio',
+                icon: const Icon(
+                  Icons.visibility_outlined,
+                  color: AppColors.primary,
+                ),
+                onPressed: () =>
+                    _showExercisePreview(context, exerciseModel, gifUrl),
+              ),
               onTap: () => onSelect(exercise['id']),
             );
           },
@@ -1386,11 +1629,180 @@ class _ExerciseSelector extends ConsumerWidget {
   }
 }
 
+class _ExerciseGifThumb extends StatelessWidget {
+  final String? gifUrl;
+  final bool isSelected;
+
+  const _ExerciseGifThumb({required this.gifUrl, required this.isSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            width: 58,
+            height: 58,
+            child: gifUrl == null
+                ? Container(
+                    color: Colors.white.withOpacity(0.06),
+                    child: const Icon(
+                      Icons.fitness_center,
+                      color: Colors.white38,
+                      size: 24,
+                    ),
+                  )
+                : ExerciseGifView(
+                    url: gifUrl!,
+                    width: 58,
+                    height: 58,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      color: Colors.white.withOpacity(0.06),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      color: Colors.white.withOpacity(0.06),
+                      child: const Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white38,
+                      ),
+                    ),
+                  ),
+          ),
+        ),
+        if (isSelected)
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.55),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.check_circle,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+void _showExercisePreview(
+  BuildContext context,
+  ExerciseModel exercise,
+  String? gifUrl,
+) {
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => Dialog(
+      backgroundColor: AppColors.surface,
+      insetPadding: const EdgeInsets.all(20),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      exercise.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    icon: const Icon(Icons.close, color: Colors.white70),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: gifUrl == null
+                    ? Container(
+                        width: double.infinity,
+                        height: 240,
+                        color: Colors.white.withOpacity(0.06),
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.fitness_center,
+                              color: Colors.white38,
+                              size: 48,
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Este ejercicio no tiene GIF',
+                              style: TextStyle(color: Colors.white54),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ExerciseGifView(
+                        url: gifUrl,
+                        width: double.infinity,
+                        height: 240,
+                        fit: BoxFit.contain,
+                        placeholder: (_, __) => const SizedBox(
+                          height: 240,
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                        errorWidget: (_, __, ___) => const SizedBox(
+                          height: 240,
+                          child: Center(
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              color: Colors.white54,
+                              size: 48,
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                exercise.instructionsEs,
+                maxLines: 5,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white70, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 // Provider for routine detail
-final routineDetailProvider = FutureProvider.family<Map<String, dynamic>?, String>((ref, routineId) async {
-  final service = ref.watch(trainerServiceProvider);
-  return service.getRoutine(routineId);
-});
+final routineDetailProvider =
+    FutureProvider.family<Map<String, dynamic>?, String>((
+      ref,
+      routineId,
+    ) async {
+      final service = ref.watch(trainerServiceProvider);
+      return service.getRoutine(routineId);
+    });
 
 // Add this class at the end of the file
 class _AssignToStudentsSheet extends ConsumerStatefulWidget {
@@ -1399,10 +1811,12 @@ class _AssignToStudentsSheet extends ConsumerStatefulWidget {
   const _AssignToStudentsSheet({super.key, required this.routineId});
 
   @override
-  ConsumerState<_AssignToStudentsSheet> createState() => _AssignToStudentsSheetState();
+  ConsumerState<_AssignToStudentsSheet> createState() =>
+      _AssignToStudentsSheetState();
 }
 
-class _AssignToStudentsSheetState extends ConsumerState<_AssignToStudentsSheet> {
+class _AssignToStudentsSheetState
+    extends ConsumerState<_AssignToStudentsSheet> {
   final Set<String> _selectedStudentIds = {};
   bool _isLoading = false;
 
@@ -1439,21 +1853,43 @@ class _AssignToStudentsSheetState extends ConsumerState<_AssignToStudentsSheet> 
                     color: AppColors.primary.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.person_add_rounded, color: AppColors.primaryLight, size: 24),
+                  child: const Icon(
+                    Icons.person_add_rounded,
+                    color: AppColors.primaryLight,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 const Expanded(
                   child: Text(
                     'Asignar a Alumnos',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 TextButton(
-                  onPressed: _selectedStudentIds.isEmpty || _isLoading ? null : _assign,
-                  style: TextButton.styleFrom(foregroundColor: AppColors.primaryLight),
-                  child: _isLoading 
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryLight))
-                    : Text('ASIGNAR (${_selectedStudentIds.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  onPressed: _selectedStudentIds.isEmpty || _isLoading
+                      ? null
+                      : _assign,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primaryLight,
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primaryLight,
+                          ),
+                        )
+                      : Text(
+                          'ASIGNAR (${_selectedStudentIds.length})',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                 ),
               ],
             ),
@@ -1467,9 +1903,16 @@ class _AssignToStudentsSheetState extends ConsumerState<_AssignToStudentsSheet> 
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.people_outline_rounded, size: 48, color: Colors.white.withOpacity(0.1)),
+                        Icon(
+                          Icons.people_outline_rounded,
+                          size: 48,
+                          color: Colors.white.withOpacity(0.1),
+                        ),
                         const SizedBox(height: 16),
-                        Text('No tienes alumnos asignados', style: TextStyle(color: AppColors.textLight)),
+                        Text(
+                          'No tienes alumnos asignados',
+                          style: TextStyle(color: AppColors.textLight),
+                        ),
                       ],
                     ),
                   );
@@ -1488,10 +1931,14 @@ class _AssignToStudentsSheetState extends ConsumerState<_AssignToStudentsSheet> 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primary.withOpacity(0.05) : Colors.transparent,
+                        color: isSelected
+                            ? AppColors.primary.withOpacity(0.05)
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isSelected ? AppColors.primary.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+                          color: isSelected
+                              ? AppColors.primary.withOpacity(0.3)
+                              : Colors.white.withOpacity(0.05),
                         ),
                       ),
                       child: CheckboxListTile(
@@ -1505,25 +1952,48 @@ class _AssignToStudentsSheetState extends ConsumerState<_AssignToStudentsSheet> 
                             }
                           });
                         },
-                        title: Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        subtitle: Text(email, style: TextStyle(color: AppColors.textLight, fontSize: 13)),
+                        title: Text(
+                          name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          email,
+                          style: TextStyle(
+                            color: AppColors.textLight,
+                            fontSize: 13,
+                          ),
+                        ),
                         secondary: CircleAvatar(
                           backgroundColor: AppColors.primary.withOpacity(0.15),
                           child: Text(
                             name.isNotEmpty ? name[0].toUpperCase() : 'A',
-                            style: const TextStyle(color: AppColors.primaryLight, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              color: AppColors.primaryLight,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         activeColor: AppColors.primaryLight,
-                        checkboxShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        checkboxShape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     );
                   },
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
               error: (e, s) => Center(child: Text('Error: $e')),
             ),
           ),
@@ -1540,12 +2010,17 @@ class _AssignToStudentsSheetState extends ConsumerState<_AssignToStudentsSheet> 
         athleteIds: _selectedStudentIds.toList(),
         routineId: widget.routineId,
       );
-      
+
+      ref.invalidate(myStudentsProvider);
+      ref.invalidate(routineDetailProvider(widget.routineId));
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Rutina asignada a ${_selectedStudentIds.length} alumnos'),
+            content: Text(
+              'Rutina asignada a ${_selectedStudentIds.length} alumnos',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -1553,7 +2028,10 @@ class _AssignToStudentsSheetState extends ConsumerState<_AssignToStudentsSheet> 
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -1561,5 +2039,3 @@ class _AssignToStudentsSheetState extends ConsumerState<_AssignToStudentsSheet> 
     }
   }
 }
-
-

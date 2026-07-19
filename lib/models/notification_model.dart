@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+import '../core/theme/app_theme.dart';
+
 /// Notification type
 enum NotificationType {
   firstLogin,
@@ -5,6 +8,8 @@ enum NotificationType {
   paymentReceived,
   subscriptionExpiring,
   streakAchievement,
+  workoutCompleted,
+  broadcast,
   general;
   
   String get displayName {
@@ -19,8 +24,54 @@ enum NotificationType {
         return 'Suscripción por Vencer';
       case NotificationType.streakAchievement:
         return 'Logro de Racha';
+      case NotificationType.workoutCompleted:
+        return 'Entrenamiento Completado';
+      case NotificationType.broadcast:
+        return 'Mensaje del Entrenador';
       case NotificationType.general:
         return 'General';
+    }
+  }
+
+  IconData get iconData {
+    switch (this) {
+      case NotificationType.firstLogin:
+        return Icons.login_rounded;
+      case NotificationType.newStudent:
+        return Icons.person_add_rounded;
+      case NotificationType.paymentReceived:
+        return Icons.payment_rounded;
+      case NotificationType.subscriptionExpiring:
+        return Icons.warning_amber_rounded;
+      case NotificationType.streakAchievement:
+        return Icons.local_fire_department_rounded;
+      case NotificationType.workoutCompleted:
+        return Icons.fitness_center_rounded;
+      case NotificationType.broadcast:
+        return Icons.campaign_rounded;
+      case NotificationType.general:
+        return Icons.notifications_rounded;
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case NotificationType.firstLogin:
+        return AppColors.info;
+      case NotificationType.newStudent:
+        return AppColors.success;
+      case NotificationType.paymentReceived:
+        return AppColors.success;
+      case NotificationType.subscriptionExpiring:
+        return AppColors.warning;
+      case NotificationType.streakAchievement:
+        return AppColors.accent;
+      case NotificationType.workoutCompleted:
+        return AppColors.primary;
+      case NotificationType.broadcast:
+        return AppColors.primaryLight;
+      case NotificationType.general:
+        return AppColors.textLight;
     }
   }
 }

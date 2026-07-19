@@ -187,7 +187,7 @@ class AdminService {
     // For now, this is a placeholder
     // In production, use Supabase Auth email templates or SMTP service
     
-    final inviteLink = 'centr://first-login?token=$token';
+    final inviteLink = 'https://centr-v1.netlify.app/first-login?token=$token';
     
     print('📧 Invitation Email:');
     print('To: $email');

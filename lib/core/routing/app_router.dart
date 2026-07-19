@@ -18,19 +18,19 @@ class AppRoutes {
   static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
   static const String firstLogin = '/first-login';
-  
+
   // Admin routes
   static const String adminDashboard = '/admin';
   static const String adminTrainers = '/admin/trainers';
   static const String adminTrainerDetail = '/admin/trainers/:id';
   static const String adminSubscriptions = '/admin/subscriptions';
   static const String adminNotifications = '/admin/notifications';
-  
+
   // Trainer routes
   static const String trainerDashboard = '/trainer';
   static const String trainerStudents = '/trainer/students';
   static const String trainerRoutines = '/trainer/routines';
-  
+
   // Student routes
   static const String studentDashboard = '/student';
   static const String studentOnboarding = '/student/onboarding';
@@ -42,7 +42,7 @@ class AppRoutes {
 final routerProvider = Provider<GoRouter>((ref) {
   // Use read instead of watch to avoid rebuilding GoRouter on auth changes
   final authNotifier = ref.read(authProvider.notifier);
-  
+
   return GoRouter(
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
@@ -52,22 +52,24 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Read current state from provider directly
       // We rely on refreshListenable to trigger this callback
       final authState = ref.read(authProvider);
-      
+
       final isAuthenticated = authState.status == AuthStatus.authenticated;
-      final isLoading = authState.status == AuthStatus.loading || 
-                        authState.status == AuthStatus.initial;
-      final isLoginRoute = state.matchedLocation == AppRoutes.login ||
-                           state.matchedLocation == AppRoutes.register ||
-                           state.matchedLocation == AppRoutes.forgotPassword;
+      final isLoading =
+          authState.status == AuthStatus.loading ||
+          authState.status == AuthStatus.initial;
+      final isProfileLoading = isAuthenticated && authState.user == null;
+      final isLoginRoute =
+          state.matchedLocation == AppRoutes.login ||
+          state.matchedLocation == AppRoutes.register ||
+          state.matchedLocation == AppRoutes.forgotPassword;
       final isSplash = state.matchedLocation == AppRoutes.splash;
-      
+
       // Show loading/splash while checking auth
-      if (isLoading) {
+      if (isLoading || isProfileLoading) {
         if (isSplash) return null;
-        // If we are already on a loading screen or acceptable initial screen, stay there
-        return null;
+        return AppRoutes.splash;
       }
-      
+
       // Not authenticated
       if (!isAuthenticated) {
         if (isLoginRoute) {
@@ -75,22 +77,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
         return AppRoutes.login;
       }
-      
+
       // Authenticated - redirect to role-based dashboard if on auth/splash pages
       if (isLoginRoute || isSplash) {
-        if (authState.user?.role == UserRole.student && authState.user?.hasCompletedOnboarding == false) {
+        if (authState.user?.role == UserRole.student &&
+            authState.user?.hasCompletedOnboarding == false) {
           return AppRoutes.studentOnboarding;
         }
         return _getDashboardRoute(authState.user?.role);
       }
-      
+
       // Enforce onboarding for students
-      if (isAuthenticated && authState.user?.role == UserRole.student && 
-          authState.user?.hasCompletedOnboarding == false && 
+      if (isAuthenticated &&
+          authState.user?.role == UserRole.student &&
+          authState.user?.hasCompletedOnboarding == false &&
           state.matchedLocation != AppRoutes.studentOnboarding) {
         return AppRoutes.studentOnboarding;
       }
-      
+
       return null;
     },
     routes: [
@@ -99,7 +103,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.splash,
         builder: (context, state) => const LoadingScreen(),
       ),
-      
+
       // Auth routes
       GoRoute(
         path: AppRoutes.login,
@@ -107,13 +111,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.register,
-        builder: (context, state) => const LoginScreen(), // Or RegisterScreen if separate
+        builder: (context, state) =>
+            const LoginScreen(), // Or RegisterScreen if separate
       ),
       GoRoute(
         path: AppRoutes.forgotPassword,
-        builder: (context, state) => const LoginScreen(), // Or ForgotPasswordScreen
+        builder: (context, state) =>
+            const LoginScreen(), // Or ForgotPasswordScreen
       ),
-      
+
       // First login (invitation)
       GoRoute(
         path: AppRoutes.firstLogin,
@@ -122,19 +128,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           return FirstLoginScreen(token: token);
         },
       ),
-      
+
       // Admin routes
       GoRoute(
         path: AppRoutes.adminDashboard,
         builder: (context, state) => const AdminDashboardScreen(),
       ),
-      
-      // Trainer routes  
+
+      // Trainer routes
       GoRoute(
         path: AppRoutes.trainerDashboard,
         builder: (context, state) => const TrainerDashboardScreen(),
       ),
-      
+
       // Student routes
       GoRoute(
         path: AppRoutes.studentDashboard,

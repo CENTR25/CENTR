@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
@@ -193,7 +194,7 @@ class StorageService {
     return url;
   }
 
-  /// Upload check-in photo
+  /// Upload check-in photo (File - mobile)
   Future<String> uploadCheckInPhoto(File file, String userId) async {
     final extension = file.path.split('.').last;
     final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -203,6 +204,25 @@ class StorageService {
     await _client.storage.from(_bucketName).upload(
           path,
           file,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+            upsert: true,
+          ),
+        );
+
+    final url = _client.storage.from(_bucketName).getPublicUrl(path);
+    return url;
+  }
+
+  /// Upload check-in photo from bytes (web-compatible)
+  Future<String> uploadCheckInPhotoBytes(Uint8List bytes, String extension, String userId) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = '${userId}_$timestamp.$extension';
+    final path = 'check_ins/$fileName';
+
+    await _client.storage.from(_bucketName).upload(
+          path,
+          bytes as dynamic, // works on web (Uint8List) and native (File)
           fileOptions: FileOptions(
             contentType: _getContentType(extension),
             upsert: true,

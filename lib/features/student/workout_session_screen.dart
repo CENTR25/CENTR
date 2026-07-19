@@ -28,7 +28,7 @@ class WorkoutSessionScreen extends ConsumerStatefulWidget {
 }
 
 class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> 
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   
   // Workout state
   late List<Map<String, dynamic>> _orderedExercises;
@@ -44,8 +44,11 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   // Timers
   Timer? _restTimer;
   Timer? _countdownTimer;
-  Timer? _elapsedTimer; // For updating elapsed time display
+  Timer? _elapsedTimer;
   int _restSecondsRemaining = 0;
+  
+  // Background tracking (fix timer drift)
+  DateTime? _backgroundEnterTime;
   
   // Time tracking
   final Stopwatch _totalStopwatch = Stopwatch();
@@ -70,6 +73,12 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   // History
   Map<String, dynamic>? _lastSession;
   bool _isLoadingHistory = true;
+  
+  // Just-completed set tracking (for rest view)
+  int? _justCompletedExerciseIndex;
+  int? _justCompletedSet;
+  double? _justCompletedWeight;
+  int? _justCompletedReps;
 
   @override
   void initState() {
@@ -88,11 +97,40 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     
     _startInitialCountdown();
     
+    // Register lifecycle observer for background/foreground handling
+    WidgetsBinding.instance.addObserver(this);
+    
     // Initialize Notification Service
     NotificationService().init();
     
     // Fetch history
     _fetchLastSession();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      // App going to background - store timestamp
+      _backgroundEnterTime = DateTime.now();
+    } else if (state == AppLifecycleState.resumed && _backgroundEnterTime != null) {
+      // App returning - calculate elapsed time in background and adjust timer
+      final elapsed = DateTime.now().difference(_backgroundEnterTime!);
+      final elapsedSeconds = elapsed.inSeconds;
+      _backgroundEnterTime = null;
+
+      if (_isResting && !_isPaused && mounted) {
+        final corrected = _restSecondsRemaining - elapsedSeconds;
+        if (corrected <= 0) {
+          // Timer expired while in background
+          _restTimer?.cancel();
+          _endRest();
+        } else {
+          setState(() {
+            _restSecondsRemaining = corrected;
+          });
+        }
+      }
+    }
   }
 
   Future<void> _fetchLastSession() async {
@@ -127,6 +165,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     _repsController.dispose();
     _repsFocusNode.dispose();
     NotificationService().cancelAll();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -163,7 +202,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     _updateWeightController();
   }
 
-  Map<String, dynamic> _getLastLog() {
+  /// Get last session's log for a specific exercise and set
+  Map<String, dynamic> _getLastLogFor(int exerciseIndex, int setIndex) {
     if (_lastSession == null) return {};
     
     try {
@@ -173,8 +213,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       if (setLogs == null && repsLogs == null) return {};
 
       // Keys are strings in JSON: "0": {"1": 50.0}
-      final exIndexStr = _currentExerciseIndex.toString();
-      final setIndexStr = _currentSet.toString();
+      final exIndexStr = exerciseIndex.toString();
+      final setIndexStr = setIndex.toString();
 
       final weightMap = setLogs?[exIndexStr] as Map<String, dynamic>?;
       final repsMap = repsLogs?[exIndexStr] as Map<String, dynamic>?;
@@ -190,6 +230,11 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       debugPrint('Error parsing last log: $e');
       return {};
     }
+  }
+  
+  /// Get last session's log for current exercise and set
+  Map<String, dynamic> _getLastLog() {
+    return _getLastLogFor(_currentExerciseIndex, _currentSet);
   }
 
   String _getCurrentTargetReps() {
@@ -328,6 +373,12 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     final weight = double.tryParse(_weightController.text) ?? 0.0;
     final reps = int.tryParse(_repsController.text) ?? 0;
     
+    // Track just-completed values for rest view display
+    _justCompletedExerciseIndex = _currentExerciseIndex;
+    _justCompletedSet = _currentSet;
+    _justCompletedWeight = weight;
+    _justCompletedReps = reps;
+    
     // Record weight
     if (!_recordedWeights.containsKey(_currentExerciseIndex)) {
       _recordedWeights[_currentExerciseIndex] = {};
@@ -444,7 +495,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     final exercise = _orderedExercises[_currentExerciseIndex];
     final exerciseData = exercise['exercises'] as Map<String, dynamic>;
     final name = exerciseData['name'] ?? 'Ejercicio';
-    final videoUrl = exerciseData['video_url'] as String?;
     final totalSets = (exercise['sets'] as int?) ?? 3;
     final notes = exercise['comment'];
     final restSeconds = (exercise['rest_seconds'] as int?) ?? 60;
@@ -490,10 +540,11 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                             name,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.5,
                             ),
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
@@ -553,81 +604,44 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
-                    // Video/Image Container
-                    Container(
-                      height: 200,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                        border: Border.all(color: Colors.white.withOpacity(0.1)),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: videoUrl != null
-                          ? _VideoPlayerWidget(url: videoUrl)
-                          : Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        Colors.white.withOpacity(0.05),
-                                        Colors.white.withOpacity(0.02),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Icon(
-                                  Icons.fitness_center_rounded,
-                                  size: 64,
-                                  color: Colors.white.withOpacity(0.1),
-                                ),
-                              ],
-                            ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
                     // History Info
                     _HistoryInfoRow(
                       lastLog: _getLastLog(),
                       isLoading: _isLoadingHistory,
                     ),
-                          
+                       
                     // Inputs
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _InputStatBox(
-                            label: 'PESO (kg)',
-                            controller: _weightController,
-                            focusNode: _weightFocusNode,
-                            color: AppColors.studentColor,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _InputStatBox(
-                            label: 'REPS',
-                            controller: _repsController,
-                            focusNode: _repsFocusNode,
-                            color: AppColors.success,
-                            isInteger: true,
-                          ),
-                        ),
-                      ],
+                    Builder(
+                      builder: (context) {
+                        final lastLog = _getLastLog();
+                        final prevWeight = lastLog['weight'] as num?;
+                        final prevReps = lastLog['reps'] as num?;
+                        
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: _InputStatBox(
+                                label: 'PESO (kg)',
+                                controller: _weightController,
+                                focusNode: _weightFocusNode,
+                                color: AppColors.studentColor,
+                                previousValue: prevWeight?.toDouble(),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _InputStatBox(
+                                label: 'REPS',
+                                controller: _repsController,
+                                focusNode: _repsFocusNode,
+                                color: AppColors.success,
+                                isInteger: true,
+                                previousValue: prevReps?.toDouble(),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
 
                     if (notes != null && notes.isNotEmpty) ...[
@@ -981,7 +995,127 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                 ],
               ),
               
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+
+              // "Acabas de hacer..." label
+              if (_justCompletedExerciseIndex != null && _justCompletedSet != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Acabas de hacer…',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+              // Progress summary from just-completed set
+              if (_justCompletedExerciseIndex != null && _justCompletedSet != null)
+                Builder(
+                  builder: (context) {
+                    final prevLog = _getLastLogFor(_justCompletedExerciseIndex!, _justCompletedSet!);
+                    final prevWeight = prevLog['weight'] as num?;
+                    final prevReps = prevLog['reps'] as num?;
+                    
+                    final weightImproved = prevWeight != null && 
+                        _justCompletedWeight != null && 
+                        _justCompletedWeight! > prevWeight;
+                    final repsImproved = prevReps != null && 
+                        _justCompletedReps != null && 
+                        _justCompletedReps! > prevReps;
+                    final hasAnyImprovement = weightImproved || repsImproved;
+                    
+                    return Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 32),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: hasAnyImprovement 
+                          ? AppColors.success.withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: hasAnyImprovement 
+                          ? Border.all(color: AppColors.success.withValues(alpha: 0.5), width: 2)
+                          : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Weight
+                          Column(
+                            children: [
+                              Text(
+                                '${_justCompletedWeight?.toStringAsFixed(1) ?? "-"} kg',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              if (weightImproved)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 14),
+                                    Text(
+                                      '+${((_justCompletedWeight! - prevWeight) / prevWeight * 100).toStringAsFixed(0)}%',
+                                      style: const TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                )
+                              else if (prevWeight != null)
+                                Text(
+                                  'Ant: ${prevWeight}kg',
+                                  style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(width: 24),
+                          Container(
+                            width: 1,
+                            height: 30,
+                            color: Colors.white24,
+                          ),
+                          const SizedBox(width: 24),
+                          // Reps
+                          Column(
+                            children: [
+                              Text(
+                                '${_justCompletedReps ?? "-"} reps',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              if (repsImproved)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.arrow_upward_rounded, color: AppColors.success, size: 14),
+                                    Text(
+                                      '+${((_justCompletedReps! - prevReps) / prevReps * 100).toStringAsFixed(0)}%',
+                                      style: const TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                )
+                              else if (prevReps != null)
+                                Text(
+                                  'Ant: $prevReps reps',
+                                  style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              
+              const SizedBox(height: 16),
               
               // Next up info
               Container(
@@ -1591,12 +1725,13 @@ class _ModernStatItem extends StatelessWidget {
   }
 }
 
-class _InputStatBox extends StatelessWidget {
+class _InputStatBox extends StatefulWidget {
   final String label;
   final TextEditingController controller;
   final FocusNode focusNode;
   final Color color;
   final bool isInteger;
+  final double? previousValue;
 
   const _InputStatBox({
     required this.label,
@@ -1604,13 +1739,52 @@ class _InputStatBox extends StatelessWidget {
     required this.focusNode,
     required this.color,
     this.isInteger = false,
+    this.previousValue,
   });
 
   @override
+  State<_InputStatBox> createState() => _InputStatBoxState();
+}
+
+class _InputStatBoxState extends State<_InputStatBox> {
+  double? _currentValue;
+  
+  @override
+  void initState() {
+    super.initState();
+    _currentValue = double.tryParse(widget.controller.text);
+    widget.controller.addListener(_onValueChanged);
+  }
+  
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onValueChanged);
+    super.dispose();
+  }
+  
+  void _onValueChanged() {
+    final newValue = double.tryParse(widget.controller.text);
+    if (newValue != _currentValue) {
+      setState(() => _currentValue = newValue);
+    }
+  }
+  
+  // Calculate improvement percentage
+  double? _getImprovementPercent() {
+    if (widget.previousValue == null || widget.previousValue == 0) return null;
+    if (_currentValue == null || _currentValue! <= widget.previousValue!) return null;
+    
+    return ((_currentValue! - widget.previousValue!) / widget.previousValue!) * 100;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final improvement = _getImprovementPercent();
+    final hasImprovement = improvement != null && improvement > 0;
+    
     return Container(
-      height: 100,
-      padding: const EdgeInsets.all(16),
+      height: 110, // Slightly taller to accommodate badge
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -1621,11 +1795,18 @@ class _InputStatBox extends StatelessWidget {
           ],
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(
+          color: hasImprovement 
+            ? AppColors.success.withOpacity(0.4) 
+            : Colors.white.withOpacity(0.05),
+          width: hasImprovement ? 2 : 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
+            color: hasImprovement 
+              ? AppColors.success.withOpacity(0.15)
+              : Colors.black.withOpacity(0.2),
+            blurRadius: hasImprovement ? 15 : 10,
             offset: const Offset(0, 4),
           ),
         ],
@@ -1635,9 +1816,9 @@ class _InputStatBox extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            label,
+            widget.label,
             style: TextStyle(
-              color: color,
+              color: widget.color,
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.0,
@@ -1646,14 +1827,14 @@ class _InputStatBox extends StatelessWidget {
           Expanded(
             child: Center(
               child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                keyboardType: TextInputType.numberWithOptions(decimal: !isInteger),
+                controller: widget.controller,
+                focusNode: widget.focusNode,
+                keyboardType: TextInputType.numberWithOptions(decimal: !widget.isInteger),
                 textAlign: TextAlign.center,
-                cursorColor: color,
+                cursorColor: widget.color,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 32, // Larger text
+                  fontSize: 32,
                   fontWeight: FontWeight.w900,
                   height: 1.0,
                 ),
@@ -1667,6 +1848,50 @@ class _InputStatBox extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
+            ),
+          ),
+          // Progress indicator
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: hasImprovement
+              ? _ProgressBadge(percentage: improvement)
+              : const SizedBox(height: 16),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Badge showing improvement percentage with green arrow
+class _ProgressBadge extends StatelessWidget {
+  final double percentage;
+  
+  const _ProgressBadge({required this.percentage});
+  
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.success.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.arrow_upward_rounded,
+            color: AppColors.success,
+            size: 12,
+          ),
+          const SizedBox(width: 2),
+          Text(
+            '+${percentage.toStringAsFixed(0)}%',
+            style: const TextStyle(
+              color: AppColors.success,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],

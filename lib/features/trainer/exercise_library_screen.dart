@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/trainer_service.dart';
 import '../../../services/storage_service.dart';
+import 'package:north_star/utils/exercise_category.dart';
 
 class ExerciseLibraryScreen extends ConsumerStatefulWidget {
   const ExerciseLibraryScreen({super.key});
 
   @override
-  ConsumerState<ExerciseLibraryScreen> createState() => _ExerciseLibraryScreenState();
+  ConsumerState<ExerciseLibraryScreen> createState() =>
+      _ExerciseLibraryScreenState();
 }
 
 class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen>
@@ -53,7 +56,9 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen>
               icon: const Icon(Icons.filter_list),
               initialValue: _selectedMuscleGroup,
               onSelected: (value) {
-                setState(() => _selectedMuscleGroup = value == 'Todos' ? null : value);
+                setState(
+                  () => _selectedMuscleGroup = value == 'Todos' ? null : value,
+                );
               },
               itemBuilder: (context) => [
                 const PopupMenuItem(value: 'Todos', child: Text('Todos')),
@@ -99,10 +104,7 @@ class _ExerciseList extends ConsumerWidget {
   final String? muscleGroup;
   final bool customOnly;
 
-  const _ExerciseList({
-    this.muscleGroup,
-    this.customOnly = false,
-  });
+  const _ExerciseList({this.muscleGroup, this.customOnly = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -114,12 +116,16 @@ class _ExerciseList extends ConsumerWidget {
 
         // Filter by muscle group
         if (muscleGroup != null) {
-          filtered = filtered.where((e) => e['muscle_group'] == muscleGroup).toList();
+          filtered = filtered
+              .where((e) => ExerciseCategory.matches(e, muscleGroup))
+              .toList();
         }
 
         // Filter custom only
         if (customOnly) {
-          filtered = filtered.where((e) => e['created_by_trainer'] != null).toList();
+          filtered = filtered
+              .where((e) => e['created_by_trainer'] != null)
+              .toList();
         }
 
         if (filtered.isEmpty) {
@@ -127,7 +133,11 @@ class _ExerciseList extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.fitness_center, size: 64, color: Colors.grey.shade300),
+                Icon(
+                  Icons.fitness_center,
+                  size: 64,
+                  color: Colors.grey.shade300,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   customOnly ? 'No has creado ejercicios' : 'Sin ejercicios',
@@ -140,9 +150,79 @@ class _ExerciseList extends ConsumerWidget {
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: filtered.length,
+          itemCount: filtered.length + 1, // Add 1 for the banner
           itemBuilder: (context, index) {
-            final exercise = filtered[index];
+            if (index == 0) {
+              // Check if any custom exercise needs media
+              final needsMedia = filtered.any(
+                (e) =>
+                    (e['created_by_trainer'] != null) &&
+                    (e['video_url'] == null) &&
+                    ((e['image_urls'] as List?)?.isEmpty ?? true),
+              );
+
+              if (needsMedia) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primary.withOpacity(0.1),
+                        Colors.blue.withOpacity(0.1),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.primary.withOpacity(0.2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.video_library_rounded,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '¡Dale vida a tus ejercicios!',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Agrega videos y fotos para que tus alumnos entiendan mejor la técnica.',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            }
+
+            final exercise = filtered[index - 1];
             return _ExerciseCard(exercise: exercise);
           },
         );
@@ -208,14 +288,10 @@ class _ExerciseCard extends StatelessWidget {
                   color: AppColors.primary.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  muscleIcon,
-                  color: AppColors.primary,
-                  size: 32,
-                ),
+                child: Icon(muscleIcon, color: AppColors.primary, size: 32),
               ),
               const SizedBox(width: 16),
-              
+
               // Content
               Expanded(
                 child: Column(
@@ -239,7 +315,7 @@ class _ExerciseCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    
+
                     // Metadata Badges Row
                     Row(
                       children: [
@@ -273,7 +349,7 @@ class _ExerciseCard extends StatelessWidget {
                   ],
                 ),
               ),
-              
+
               const Icon(Icons.chevron_right, color: Colors.grey),
             ],
           ),
@@ -282,7 +358,10 @@ class _ExerciseCard extends StatelessWidget {
     );
   }
 
-  void _showExerciseDetail(BuildContext context, Map<String, dynamic> exercise) {
+  void _showExerciseDetail(
+    BuildContext context,
+    Map<String, dynamic> exercise,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -328,10 +407,7 @@ class _IconBadge extends StatelessWidget {
   final IconData icon;
   final Color color;
 
-  const _IconBadge({
-    required this.icon,
-    required this.color,
-  });
+  const _IconBadge({required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -341,11 +417,7 @@ class _IconBadge extends StatelessWidget {
         color: color.withOpacity(0.1),
         shape: BoxShape.circle,
       ),
-      child: Icon(
-        icon,
-        size: 14,
-        color: color,
-      ),
+      child: Icon(icon, size: 14, color: color),
     );
   }
 }
@@ -362,8 +434,10 @@ class _ExerciseDetailSheet extends StatefulWidget {
 
 class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
   VideoPlayerController? _videoController;
+  YoutubePlayerController? _youtubeController;
   late PageController _pageController;
   int _currentImageIndex = 0;
+  bool _isYoutubeVideo = false;
 
   @override
   void initState() {
@@ -375,16 +449,35 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
   void _initVideo() {
     final videoUrl = widget.exercise['video_url'] as String?;
     if (videoUrl != null && videoUrl.isNotEmpty) {
-      _videoController = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
-        ..initialize().then((_) {
-          setState(() {});
-        });
+      if (videoUrl.contains('youtube.com') || videoUrl.contains('youtu.be')) {
+        // YouTube video
+        _isYoutubeVideo = true;
+        final videoId = YoutubePlayerController.convertUrlToId(videoUrl);
+        if (videoId != null) {
+          _youtubeController = YoutubePlayerController.fromVideoId(
+            videoId: videoId,
+            params: const YoutubePlayerParams(
+              showControls: true,
+              showFullscreenButton: true,
+              mute: false,
+            ),
+          );
+        }
+      } else {
+        // Regular video URL
+        _isYoutubeVideo = false;
+        _videoController = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
+          ..initialize().then((_) {
+            setState(() {});
+          });
+      }
     }
   }
 
   @override
   void dispose() {
     _videoController?.dispose();
+    _youtubeController?.close();
     _pageController.dispose();
     super.dispose();
   }
@@ -413,7 +506,8 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
     final name = widget.exercise['name'] ?? 'Ejercicio';
     final muscleGroup = widget.exercise['muscle_group'] ?? '';
     final instructions = widget.exercise['instructions'] ?? 'Sin instrucciones';
-    final imageUrls = (widget.exercise['image_urls'] as List?)?.cast<String>() ?? [];
+    final imageUrls =
+        (widget.exercise['image_urls'] as List?)?.cast<String>() ?? [];
     final muscleIcon = _getMuscleIcon(muscleGroup);
 
     return Container(
@@ -484,9 +578,35 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Video Player
-                  if (_videoController != null && _videoController!.value.isInitialized) ...[
-                     Container(
+                  // YouTube Video Player
+                  if (_isYoutubeVideo && _youtubeController != null) ...[
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: YoutubePlayer(controller: _youtubeController!),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // Regular Video Player
+                  if (!_isYoutubeVideo &&
+                      _videoController != null &&
+                      _videoController!.value.isInitialized) ...[
+                    Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
@@ -519,10 +639,15 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                                   decoration: BoxDecoration(
                                     color: Colors.white.withOpacity(0.3),
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
                                   ),
                                   child: Icon(
-                                    _videoController!.value.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                    _videoController!.value.isPlaying
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
                                     color: Colors.white,
                                     size: 40,
                                   ),
@@ -550,7 +675,11 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.description_outlined, size: 20, color: AppColors.textSecondary),
+                            Icon(
+                              Icons.description_outlined,
+                              size: 20,
+                              color: AppColors.textSecondary,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Instrucciones',
@@ -580,7 +709,11 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                   if (imageUrls.isNotEmpty) ...[
                     Row(
                       children: [
-                        Icon(Icons.photo_library_outlined, size: 20, color: AppColors.textSecondary),
+                        Icon(
+                          Icons.photo_library_outlined,
+                          size: 20,
+                          color: AppColors.textSecondary,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Galería de imágenes',
@@ -598,14 +731,18 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                       child: PageView.builder(
                         controller: _pageController,
                         itemCount: imageUrls.length,
-                        onPageChanged: (index) => setState(() => _currentImageIndex = index),
+                        onPageChanged: (index) =>
+                            setState(() => _currentImageIndex = index),
                         itemBuilder: (context, index) {
                           return GestureDetector(
-                            onTap: () => _showFullImage(context, imageUrls[index]),
+                            onTap: () =>
+                                _showFullImage(context, imageUrls[index]),
                             child: Hero(
                               tag: 'exercise_img_$index',
                               child: Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 8),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
@@ -623,7 +760,10 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) => Container(
                                       color: Colors.grey.shade100,
-                                      child: const Icon(Icons.broken_image, color: Colors.grey),
+                                      child: const Icon(
+                                        Icons.broken_image,
+                                        color: Colors.grey,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -664,20 +804,20 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
   }
 
   void _showFullImage(BuildContext context, String imageUrl) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (context) => Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
           backgroundColor: Colors.black,
-          iconTheme: const IconThemeData(color: Colors.white),
-        ),
-        body: Center(
-          child: InteractiveViewer(
-            child: Image.network(imageUrl),
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            iconTheme: const IconThemeData(color: Colors.white),
+          ),
+          body: Center(
+            child: InteractiveViewer(child: Image.network(imageUrl)),
           ),
         ),
       ),
-    ));
+    );
   }
 
   void _showEditExercise(BuildContext context, Map<String, dynamic> exercise) {
@@ -693,24 +833,26 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
 // Create/Edit Exercise Sheet
 class _CreateExerciseSheet extends ConsumerStatefulWidget {
   final Map<String, dynamic>? exerciseToEdit;
-  
+
   const _CreateExerciseSheet({this.exerciseToEdit});
 
   @override
-  ConsumerState<_CreateExerciseSheet> createState() => _CreateExerciseSheetState();
+  ConsumerState<_CreateExerciseSheet> createState() =>
+      _CreateExerciseSheetState();
 }
 
 class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _instructionsController = TextEditingController();
+  final _youtubeUrlController = TextEditingController();
   String _selectedMuscleGroup = 'Pecho';
   File? _selectedVideo;
   List<File> _selectedImages = [];
   bool _isLoading = false;
 
   final _picker = ImagePicker();
-  
+
   bool get _isEditMode => widget.exerciseToEdit != null;
   String get _title => _isEditMode ? 'Editar Ejercicio' : 'Crear Ejercicio';
 
@@ -719,15 +861,26 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
     super.initState();
     if (_isEditMode) {
       _nameController.text = widget.exerciseToEdit!['name'] ?? '';
-      _instructionsController.text = widget.exerciseToEdit!['instructions'] ?? '';
+      _instructionsController.text =
+          widget.exerciseToEdit!['instructions'] ?? '';
       _selectedMuscleGroup = widget.exerciseToEdit!['muscle_group'] ?? 'Pecho';
+      // Load existing YouTube URL
+      final existingVideoUrl = widget.exerciseToEdit!['video_url'] as String?;
+      if (existingVideoUrl != null && _isYoutubeUrl(existingVideoUrl)) {
+        _youtubeUrlController.text = existingVideoUrl;
+      }
     }
+  }
+
+  bool _isYoutubeUrl(String url) {
+    return url.contains('youtube.com') || url.contains('youtu.be');
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _instructionsController.dispose();
+    _youtubeUrlController.dispose();
     super.dispose();
   }
 
@@ -735,7 +888,9 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -754,14 +909,21 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
                 Expanded(
                   child: Text(
                     _title,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),
                 TextButton(
                   onPressed: _isLoading ? null : _saveExercise,
                   child: _isLoading
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Text('Guardar'),
                 ),
               ],
@@ -790,11 +952,15 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
                     const SizedBox(height: 16),
 
                     // Muscle Group
-                    const Text('Grupo muscular', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Text(
+                      'Grupo muscular',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                     const SizedBox(height: 8),
                     _MuscleGroupSelector(
                       selectedGroup: _selectedMuscleGroup,
-                      onSelect: (group) => setState(() => _selectedMuscleGroup = group),
+                      onSelect: (group) =>
+                          setState(() => _selectedMuscleGroup = group),
                     ),
                     const SizedBox(height: 16),
 
@@ -811,22 +977,72 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
                     const SizedBox(height: 24),
 
                     // Video
-                    const Text('Video (opcional)', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    _VideoSelector(
-                      selectedVideo: _selectedVideo,
-                      onSelect: (file) => setState(() => _selectedVideo = file),
-                      onRemove: () => setState(() => _selectedVideo = null),
+                    const Text(
+                      'Video (opcional)',
+                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
+                    const SizedBox(height: 8),
+
+                    // YouTube URL field
+                    TextFormField(
+                      controller: _youtubeUrlController,
+                      decoration: InputDecoration(
+                        labelText: 'URL de YouTube',
+                        border: const OutlineInputBorder(),
+                        hintText: 'https://youtube.com/watch?v=...',
+                        prefixIcon: const Icon(
+                          Icons.play_circle_outline,
+                          color: Colors.red,
+                        ),
+                        suffixIcon: _youtubeUrlController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () => setState(
+                                  () => _youtubeUrlController.clear(),
+                                ),
+                              )
+                            : null,
+                      ),
+                      onChanged: (_) => setState(() {}),
+                      validator: (v) {
+                        if (v != null && v.isNotEmpty) {
+                          if (!_isYoutubeUrl(v)) {
+                            return 'Ingresa una URL válida de YouTube';
+                          }
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Or upload local video
+                    if (_youtubeUrlController.text.isEmpty) ...[
+                      const Text(
+                        'O subir video local:',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                      const SizedBox(height: 8),
+                      _VideoSelector(
+                        selectedVideo: _selectedVideo,
+                        onSelect: (file) =>
+                            setState(() => _selectedVideo = file),
+                        onRemove: () => setState(() => _selectedVideo = null),
+                      ),
+                    ],
                     const SizedBox(height: 24),
 
                     // Images
-                    const Text('Imágenes (opcional)', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Text(
+                      'Imágenes (opcional)',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                     const SizedBox(height: 8),
                     _ImageSelector(
                       selectedImages: _selectedImages,
-                      onAdd: (file) => setState(() => _selectedImages.add(file)),
-                      onRemove: (index) => setState(() => _selectedImages.removeAt(index)),
+                      onAdd: (file) =>
+                          setState(() => _selectedImages.add(file)),
+                      onRemove: (index) =>
+                          setState(() => _selectedImages.removeAt(index)),
                     ),
                   ],
                 ),
@@ -846,13 +1062,13 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
     try {
       final service = ref.read(trainerServiceProvider);
       final storageService = ref.read(storageServiceProvider);
-      
+
       String exerciseId;
 
       if (_isEditMode) {
         // Edit mode: update existing exercise
         exerciseId = widget.exerciseToEdit!['id'] as String;
-        
+
         await service.updateExercise(
           exerciseId,
           name: _nameController.text,
@@ -869,21 +1085,36 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
         exerciseId = exerciseData['id'] as String;
       }
 
-      // Upload video if selected
+      // Upload video if selected (or use YouTube URL)
       String? videoUrl;
-      if (_selectedVideo != null) {
-        videoUrl = await storageService.uploadExerciseVideo(_selectedVideo!, exerciseId);
+      final youtubeUrl = _youtubeUrlController.text.trim();
+      if (youtubeUrl.isNotEmpty) {
+        // Use YouTube URL directly
+        videoUrl = youtubeUrl;
+      } else if (_selectedVideo != null) {
+        // Upload local video
+        videoUrl = await storageService.uploadExerciseVideo(
+          _selectedVideo!,
+          exerciseId,
+        );
       }
 
       // Upload images if selected
       List<String> imageUrls = [];
       if (_selectedImages.isNotEmpty) {
-        imageUrls = await storageService.uploadExerciseImages(_selectedImages, exerciseId);
+        imageUrls = await storageService.uploadExerciseImages(
+          _selectedImages,
+          exerciseId,
+        );
       }
 
       // Update exercise with URLs
       if (videoUrl != null || imageUrls.isNotEmpty) {
-        await service.updateExerciseMedia(exerciseId, videoUrl: videoUrl, imageUrls: imageUrls);
+        await service.updateExerciseMedia(
+          exerciseId,
+          videoUrl: videoUrl,
+          imageUrls: imageUrls,
+        );
       }
 
       // Refresh list
@@ -893,7 +1124,9 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_isEditMode ? 'Ejercicio actualizado' : 'Ejercicio creado'),
+            content: Text(
+              _isEditMode ? 'Ejercicio actualizado' : 'Ejercicio creado',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -901,7 +1134,10 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -1010,7 +1246,11 @@ class _ImageSelector extends StatelessWidget {
                             color: AppColors.error,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.close, size: 16, color: Colors.white),
+                          child: const Icon(
+                            Icons.close,
+                            size: 16,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -1059,7 +1299,10 @@ class _MuscleGroupSelector extends StatelessWidget {
     {'name': 'Pecho', 'icon': Icons.shield_rounded}, // Chest
     {'name': 'Espalda', 'icon': Icons.layers}, // Back
     {'name': 'Piernas', 'icon': Icons.directions_run}, // Running for legs
-    {'name': 'Hombros', 'icon': Icons.accessibility}, // Accessibility usually shows upper body
+    {
+      'name': 'Hombros',
+      'icon': Icons.accessibility,
+    }, // Accessibility usually shows upper body
     {'name': 'Brazos', 'icon': Icons.fitness_center}, // Dumbbell for arms
     {'name': 'Core', 'icon': Icons.grid_view}, // Grid for abs
   ];

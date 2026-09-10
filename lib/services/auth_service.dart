@@ -112,7 +112,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           'name': UserModel.resolveName({
             'user_metadata': authUser.userMetadata,
           }),
-          'role': 'athlete', // Default role
+          'role': 'student', // Default role
           'is_active': true,
           'created_at': DateTime.now().toIso8601String(),
         });

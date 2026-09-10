@@ -3,6 +3,22 @@
 -- Requiere columnas existentes: profiles.role ('admin'|'trainer'|'student'),
 -- trainers.user_id, athletes.user_id, athletes.trainer_id, supplement_logs.athlete_id.
 
+-- ==================== LIMPIEZA ====================
+-- Existian politicas viejas/duplicadas con RLS apagado (p.ej. profiles_select
+-- solo-propio-perfil, que romperia los joins de la app). Se eliminan todas
+-- y se recrean coherentes abajo.
+do $$
+declare p record;
+begin
+  for p in
+    select policyname, tablename from pg_policies
+    where schemaname = 'public'
+      and tablename in ('profiles','athletes','invitations','invitation_tokens','trainer_subscriptions','supplement_logs')
+  loop
+    execute format('drop policy %I on public.%I', p.policyname, p.tablename);
+  end loop;
+end $$;
+
 -- ==================== FUNCIONES AUXILIARES ====================
 -- Schema privado: no queda expuesto por la API (PostgREST solo expone public).
 -- SECURITY DEFINER evita recursion infinita al consultar profiles desde sus propias politicas.

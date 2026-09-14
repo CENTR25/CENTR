@@ -14,7 +14,6 @@ class StudentMealPlanScreen extends ConsumerStatefulWidget {
 
 class _StudentMealPlanScreenState extends ConsumerState<StudentMealPlanScreen> with SingleTickerProviderStateMixin {
   TabController? _tabController;
-  int _currentDay = 1;
 
   @override
   void dispose() {
@@ -48,12 +47,7 @@ class _StudentMealPlanScreenState extends ConsumerState<StudentMealPlanScreen> w
           final items = (plan['meal_plan_items'] as List?) ?? [];
           const daysCount = 7;
 
-          if (_tabController == null) {
-            _tabController = TabController(length: daysCount, vsync: this);
-            _tabController!.addListener(() {
-              setState(() => _currentDay = _tabController!.index + 1);
-            });
-          }
+          _tabController ??= TabController(length: daysCount, vsync: this);
 
           return Column(
             children: [
@@ -126,8 +120,9 @@ class _StudentMealPlanScreenState extends ConsumerState<StudentMealPlanScreen> w
                       );
                     }
 
-                    // Tick only makes sense for today's meals
-                    final isTodayTab = dayNum == DateTime.now().weekday;
+                    // Plan days ("Día 1..N") have no weekday mapping — only the
+                    // student knows which day they're doing, so allow ticking
+                    // on any tab; completions are always logged against today.
                     final completions = ref
                         .watch(todayMealCompletionsProvider)
                         .valueOrNull ??
@@ -144,7 +139,7 @@ class _StudentMealPlanScreenState extends ConsumerState<StudentMealPlanScreen> w
                           item: item,
                           isDone:
                               itemId != null && completions.contains(itemId),
-                          onToggle: isTodayTab && itemId != null
+                          onToggle: itemId != null
                               ? (done) async {
                                   await ref
                                       .read(studentServiceProvider)

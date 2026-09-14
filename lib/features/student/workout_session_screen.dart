@@ -49,11 +49,17 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   
   // Background tracking (fix timer drift)
   DateTime? _backgroundEnterTime;
+  Duration _stopwatchAtBackground = Duration.zero;
   
   // Time tracking
   final Stopwatch _totalStopwatch = Stopwatch();
   final Stopwatch _restStopwatch = Stopwatch();
   Duration _totalRestTime = Duration.zero;
+  // Stopwatch freezes while iOS/Android suspend the app (locked screen between
+  // sets), so background time is accumulated separately on resume.
+  Duration _backgroundTime = Duration.zero;
+
+  Duration get _totalElapsed => _totalStopwatch.elapsed + _backgroundTime;
   
   // Audio
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -112,11 +118,26 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       // App going to background - store timestamp
       _backgroundEnterTime = DateTime.now();
+      _stopwatchAtBackground = _totalStopwatch.elapsed;
     } else if (state == AppLifecycleState.resumed && _backgroundEnterTime != null) {
       // App returning - calculate elapsed time in background and adjust timer
       final elapsed = DateTime.now().difference(_backgroundEnterTime!);
       final elapsedSeconds = elapsed.inSeconds;
       _backgroundEnterTime = null;
+
+      // The stopwatches don't tick while the OS suspends the app: credit only
+      // the frozen portion (zero for brief `inactive` blips where they kept
+      // running) to the total, and to rest capped at the countdown remainder.
+      final ticked = _totalStopwatch.elapsed - _stopwatchAtBackground;
+      final frozen = elapsed - ticked;
+      if (_totalStopwatch.isRunning && frozen > Duration.zero) {
+        _backgroundTime += frozen;
+        if (_isResting && !_isPaused) {
+          _totalRestTime += Duration(
+            seconds: frozen.inSeconds.clamp(0, _restSecondsRemaining),
+          );
+        }
+      }
 
       if (_isResting && !_isPaused && mounted) {
         final corrected = _restSecondsRemaining - elapsedSeconds;
@@ -435,7 +456,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       'routine_id': widget.routine['id'],
       'day_number': widget.dayNumber,
       'started_at': _startTime?.toIso8601String() ?? DateTime.now().toIso8601String(),
-      'duration_seconds': _totalStopwatch.elapsed.inSeconds,
+      'duration_seconds': _totalElapsed.inSeconds,
       'sets_completed': setsCompleted,
       'is_completed': isCompleted,
       'set_logs': _recordedWeights.map((k, v) => MapEntry(k.toString(), v.map((k2, v2) => MapEntry(k2.toString(), v2)))),
@@ -785,7 +806,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
 
   void _showExitDialog() {
     _togglePause(); // Pause while showing dialog
-    final elapsed = _totalStopwatch.elapsed;
+    final elapsed = _totalElapsed;
     final completedSets = (_currentExerciseIndex * 4) + _currentSet - 1; // Approximate
     
     showDialog(
@@ -1247,7 +1268,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   }
 
   Widget _buildSummaryView() {
-    final totalTime = _totalStopwatch.elapsed;
+    final totalTime = _totalElapsed;
     final workoutTime = totalTime - _totalRestTime;
 
     return Scaffold(

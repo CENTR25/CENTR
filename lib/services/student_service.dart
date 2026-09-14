@@ -210,6 +210,36 @@ class StudentService {
     if (updateData.isNotEmpty) {
       await _client.from('profiles').update(updateData).eq('id', userId);
     }
+
+    // Persist weight history so charts (student + trainer) have data
+    if (weight != null) {
+      final athleteId = await _getAthleteId();
+      if (athleteId != null) {
+        final now = DateTime.now();
+        await _client.from('body_progress').insert({
+          'athlete_id': athleteId,
+          'date':
+              '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
+          'body_weight': weight,
+        });
+      }
+    }
+  }
+
+  /// Weight history for the current athlete (oldest first)
+  Future<List<Map<String, dynamic>>> getMyWeightHistory({int limit = 30}) async {
+    final athleteId = await _getAthleteId();
+    if (athleteId == null) return [];
+
+    final response = await _client
+        .from('body_progress')
+        .select('date, body_weight, created_at')
+        .eq('athlete_id', athleteId)
+        .not('body_weight', 'is', null)
+        .order('created_at', ascending: false)
+        .limit(limit);
+
+    return List<Map<String, dynamic>>.from(response).reversed.toList();
   }
 
   /// Update profile info
@@ -610,6 +640,53 @@ class StudentService {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  // ==================== MEAL COMPLETIONS ====================
+
+  String get _todayDateStr {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  /// IDs of meal_plan_items the athlete already ticked today
+  Future<Set<String>> getTodayMealCompletions() async {
+    final athleteId = await _getAthleteId();
+    if (athleteId == null) return {};
+
+    final response = await _client
+        .from('meal_completions')
+        .select('meal_plan_item_id')
+        .eq('athlete_id', athleteId)
+        .eq('completed_on', _todayDateStr);
+
+    return {
+      for (final row in response) row['meal_plan_item_id'] as String,
+    };
+  }
+
+  /// Tick or untick a meal for today
+  Future<void> toggleMealCompletion(
+    String mealPlanItemId,
+    bool completed,
+  ) async {
+    final athleteId = await _getAthleteId();
+    if (athleteId == null) throw Exception('No athlete record');
+
+    if (completed) {
+      await _client.from('meal_completions').upsert({
+        'athlete_id': athleteId,
+        'meal_plan_item_id': mealPlanItemId,
+        'completed_on': _todayDateStr,
+      }, onConflict: 'athlete_id,meal_plan_item_id,completed_on');
+    } else {
+      await _client
+          .from('meal_completions')
+          .delete()
+          .eq('athlete_id', athleteId)
+          .eq('meal_plan_item_id', mealPlanItemId)
+          .eq('completed_on', _todayDateStr);
+    }
+  }
+
   // ==================== SUPPLEMENTS ====================
 
   /// Get my assigned supplements (configuration)
@@ -888,6 +965,19 @@ final checkInStatusProvider = FutureProvider<CheckInStatus>((ref) async {
   final service = ref.read(studentServiceProvider);
   return service.getCheckInStatus();
 });
+
+/// Provider for the meals the athlete already ticked today
+final todayMealCompletionsProvider = FutureProvider<Set<String>>((ref) async {
+  final service = ref.read(studentServiceProvider);
+  return service.getTodayMealCompletions();
+});
+
+/// Provider for the athlete's weight history (body_progress, oldest first)
+final myWeightHistoryProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+      final service = ref.read(studentServiceProvider);
+      return service.getMyWeightHistory();
+    });
 
 /// Provider for last N workout sessions of an athlete for a given routine/day
 /// (used to show history in exercise screen - currently last 3)

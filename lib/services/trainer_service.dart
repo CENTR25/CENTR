@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'storage_service.dart';
+import '../core/constants/app_constants.dart';
 
 /// Service for trainer-specific operations
 class TrainerService {
@@ -75,8 +76,7 @@ class TrainerService {
     if (trainerId == null) throw Exception('No trainer record found');
 
     // Generate a shareable link with trainer ID encoded
-    // In production, this should be a deep link or web URL
-    return 'https://centr-v1.netlify.app/register?trainer=$trainerId';
+    return '${AppConstants.inviteBaseUrl}?trainer=$trainerId';
   }
 
   /// Get student details with progress
@@ -88,13 +88,28 @@ class TrainerService {
           profiles(*),
           athlete_routines(*, routines(*)),
           athlete_meal_plans(*, meal_plans(*)),
-          workout_logs(*, routine_exercises(*, exercises(*))),
+          workout_sessions(*),
           body_progress(*),
           streaks(*),
           daily_steps(*)
         ''')
         .eq('id', studentId)
         .maybeSingle();
+
+    if (response == null) return null;
+
+    // check_ins keys on the profile user_id, not athlete_id, so it can't be
+    // embedded in the query above
+    final userId = response['user_id'] as String?;
+    if (userId != null) {
+      final checkIns = await _client
+          .from('check_ins')
+          .select()
+          .eq('user_id', userId)
+          .order('created_at', ascending: false)
+          .limit(20);
+      response['check_ins'] = List<Map<String, dynamic>>.from(checkIns);
+    }
 
     return response;
   }
@@ -627,6 +642,59 @@ class TrainerService {
     }
   }
 
+  /// Clone a routine and assign the copy to one student, so the trainer can
+  /// edit it without touching the shared/base routine.
+  /// Returns the new routine id.
+  Future<String> personalizeRoutineForStudent({
+    required String athleteId,
+    required String routineId,
+    String? newTitle,
+  }) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) throw Exception('No trainer record found');
+
+    final source = await getRoutine(routineId);
+    if (source == null) throw Exception('Routine not found');
+
+    final newRoutine = await _client
+        .from('routines')
+        .insert({
+          'trainer_id': trainerId,
+          'title': newTitle ?? source['title'],
+          'objective': source['objective'],
+          'level': source['level'],
+          'days_per_week': source['days_per_week'],
+          'description': source['description'],
+          'image_url': source['image_url'],
+          'cardio_days': source['cardio_days'],
+          'is_template': false,
+        })
+        .select()
+        .single();
+    final newRoutineId = newRoutine['id'] as String;
+
+    final exercises = (source['routine_exercises'] as List? ?? []);
+    if (exercises.isNotEmpty) {
+      await _client.from('routine_exercises').insert([
+        for (final ex in exercises)
+          {
+            'routine_id': newRoutineId,
+            'exercise_id': ex['exercise_id'],
+            'day_number': ex['day_number'],
+            'sets': ex['sets'],
+            'reps_target': ex['reps_target'],
+            'rest_seconds': ex['rest_seconds'],
+            'order_index': ex['order_index'],
+            'superset_group': ex['superset_group'],
+            'comment': ex['comment'],
+          },
+      ]);
+    }
+
+    await assignRoutineToStudent(athleteId: athleteId, routineId: newRoutineId);
+    return newRoutineId;
+  }
+
   // ==================== MEAL PLANS ====================
 
   /// Get all meal plans created by current trainer
@@ -783,6 +851,59 @@ class TrainerService {
     });
   }
 
+  /// Clone a meal plan and assign the copy to one student, so the trainer
+  /// can edit it without touching the shared/base plan.
+  /// Returns the new meal plan id.
+  Future<String> personalizeMealPlanForStudent({
+    required String athleteId,
+    required String mealPlanId,
+    String? newTitle,
+  }) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) throw Exception('No trainer record found');
+
+    final source = await getMealPlan(mealPlanId);
+    if (source == null) throw Exception('Meal plan not found');
+
+    final newPlan = await _client
+        .from('meal_plans')
+        .insert({
+          'trainer_id': trainerId,
+          'title': newTitle ?? source['title'],
+          'description': source['description'],
+          'target_calories': source['target_calories'],
+          'target_macros': source['target_macros'],
+          'image_url': source['image_url'],
+          'is_template': false,
+          'cloned_from': mealPlanId,
+        })
+        .select()
+        .single();
+    final newPlanId = newPlan['id'] as String;
+
+    final items = (source['meal_plan_items'] as List? ?? []);
+    if (items.isNotEmpty) {
+      await _client.from('meal_plan_items').insert([
+        for (final item in items)
+          {
+            'meal_plan_id': newPlanId,
+            'meal_title': item['meal_title'],
+            'meal_description': item['meal_description'],
+            'time_of_day': item['time_of_day'],
+            'day_number': item['day_number'],
+            'calories': item['calories'],
+            'macros': item['macros'],
+            'order_index': item['order_index'],
+            'image_url': item['image_url'],
+            'sort_order': item['sort_order'],
+          },
+      ]);
+    }
+
+    await assignMealPlanToStudent(athleteId: athleteId, mealPlanId: newPlanId);
+    return newPlanId;
+  }
+
   // ==================== STATS ====================
 
   /// Get trainer stats
@@ -815,12 +936,14 @@ class TrainerService {
     };
   }
 
-  /// Get student history (workout logs)
+  /// Get student history (completed workout sessions — the table the
+  /// student app actually writes; workout_logs is never populated)
   Future<List<Map<String, dynamic>>> getStudentHistory(String studentId) async {
     final response = await _client
-        .from('workout_logs')
-        .select('*, routine_exercises(*, routines(*), exercises(*))')
+        .from('workout_sessions')
+        .select('*, routines(title)')
         .eq('athlete_id', studentId)
+        .eq('is_completed', true)
         .order('created_at', ascending: false);
 
     return List<Map<String, dynamic>>.from(response);

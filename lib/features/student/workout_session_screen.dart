@@ -407,9 +407,15 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   }
 
   void _completeWorkout() {
+    // Stop everything: without this the timers keep running on the summary view
+    _restTimer?.cancel();
+    _countdownTimer?.cancel();
+    _elapsedTimer?.cancel();
+    _restStopwatch.stop();
     _totalStopwatch.stop();
     setState(() {
       _isCompleted = true;
+      _isResting = false;
     });
 
     // Save completed workout

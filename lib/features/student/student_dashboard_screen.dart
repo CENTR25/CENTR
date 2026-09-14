@@ -594,13 +594,16 @@ class _HomeContent extends ConsumerWidget {
             _buildFlatLink(
               icon: Icons.medication_outlined,
               label: 'SUPLEMENTOS',
-              onTap: () {
-                final dailyAsync = ref.read(mySupplementsProvider);
-                dailyAsync.whenData((s) {
-                  final daily = s['daily'] ?? '';
-                  final chemical = s['chemical'] ?? '';
-                  _showSupplementChecklist(context, daily, chemical);
-                });
+              onTap: () async {
+                // Await the future so the first tap works even if the
+                // provider hasn't resolved yet
+                final s = await ref.read(mySupplementsProvider.future);
+                if (!context.mounted) return;
+                _showSupplementChecklist(
+                  context,
+                  s['daily'] ?? '',
+                  s['chemical'] ?? '',
+                );
               },
             ),
             const Divider(color: Colors.white10, height: 1),
@@ -612,7 +615,11 @@ class _HomeContent extends ConsumerWidget {
                   context: context,
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
-                  builder: (_) => _buildNewsSheet(context, ref),
+                  // Consumer so the sheet rebuilds when the news load
+                  builder: (_) => Consumer(
+                    builder: (sheetContext, sheetRef, _) =>
+                        _buildNewsSheet(sheetContext, sheetRef),
+                  ),
                 );
               },
             ),

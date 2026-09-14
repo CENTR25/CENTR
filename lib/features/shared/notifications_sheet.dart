@@ -54,13 +54,14 @@ class _NotificationsSheetState extends ConsumerState<NotificationsSheet> {
   }
 
   String _timeAgo(DateTime dateTime) {
+    final local = dateTime.toLocal();
     final now = DateTime.now();
-    final diff = now.difference(dateTime);
+    final diff = now.difference(local);
     if (diff.inMinutes < 1) return 'Ahora';
     if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
     if (diff.inHours < 24) return 'Hace ${diff.inHours}h';
     if (diff.inDays < 7) return 'Hace ${diff.inDays}d';
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    return '${local.day}/${local.month}/${local.year}';
   }
 
   @override

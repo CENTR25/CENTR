@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/constants/meal_times.dart';
 import '../../services/student_service.dart';
 
 class StudentMealPlanScreen extends ConsumerStatefulWidget {
@@ -105,11 +106,10 @@ class _StudentMealPlanScreenState extends ConsumerState<StudentMealPlanScreen> w
                     final dayNum = dayIndex + 1;
                     final dayItems = items.where((i) => i['day_number'] == dayNum).toList();
 
-                    // Sort order: Breakfast, Lunch, Snack, Dinner
+                    // Sort by moment of the day (6 slots supported by the DB)
                     dayItems.sort((a, b) {
-                      final order = {'breakfast': 0, 'lunch': 1, 'snack': 2, 'dinner': 3};
-                      final aOrder = order[a['time_of_day']] ?? 99;
-                      final bOrder = order[b['time_of_day']] ?? 99;
+                      final aOrder = kMealTimeOrder[a['time_of_day']] ?? 99;
+                      final bOrder = kMealTimeOrder[b['time_of_day']] ?? 99;
                       return aOrder.compareTo(bOrder);
                     });
 
@@ -126,12 +126,35 @@ class _StudentMealPlanScreenState extends ConsumerState<StudentMealPlanScreen> w
                       );
                     }
 
+                    // Tick only makes sense for today's meals
+                    final isTodayTab = dayNum == DateTime.now().weekday;
+                    final completions = ref
+                        .watch(todayMealCompletionsProvider)
+                        .valueOrNull ??
+                        {};
+
                     return ListView.separated(
                       padding: const EdgeInsets.all(16),
                       itemCount: dayItems.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
-                        return _StudentMealItemCard(item: dayItems[index]);
+                        final item = dayItems[index];
+                        final itemId = item['id'] as String?;
+                        return _StudentMealItemCard(
+                          item: item,
+                          isDone:
+                              itemId != null && completions.contains(itemId),
+                          onToggle: isTodayTab && itemId != null
+                              ? (done) async {
+                                  await ref
+                                      .read(studentServiceProvider)
+                                      .toggleMealCompletion(itemId, done);
+                                  ref.invalidate(
+                                    todayMealCompletionsProvider,
+                                  );
+                                }
+                              : null,
+                        );
                       },
                     );
                   }),
@@ -149,25 +172,20 @@ class _StudentMealPlanScreenState extends ConsumerState<StudentMealPlanScreen> w
 
 class _StudentMealItemCard extends StatelessWidget {
   final Map<String, dynamic> item;
+  final bool isDone;
+  final ValueChanged<bool>? onToggle;
 
-  const _StudentMealItemCard({required this.item});
+  const _StudentMealItemCard({
+    required this.item,
+    this.isDone = false,
+    this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
     final time = item['time_of_day'] ?? 'meal';
-    final timeLabel = {
-      'breakfast': 'Desayuno',
-      'lunch': 'Almuerzo',
-      'dinner': 'Cena',
-      'snack': 'Merienda',
-    }[time] ?? 'Comida';
-
-    final color = {
-      'breakfast': Colors.orange,
-      'lunch': Colors.red,
-      'dinner': Colors.blue,
-      'snack': Colors.green,
-    }[time] ?? Colors.grey;
+    final timeLabel = kMealTimeLabels[time] ?? 'Comida';
+    final color = kMealTimeColors[time] ?? Colors.grey;
 
     return Card(
       child: Column(
@@ -200,7 +218,23 @@ class _StudentMealItemCard extends StatelessWidget {
                     child: Icon(Icons.restaurant, color: color, size: 20),
                   )
                 : null,
-            title: Text(item['meal_title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(
+              item['meal_title'] ?? '',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                decoration: isDone ? TextDecoration.lineThrough : null,
+              ),
+            ),
+            trailing: onToggle != null
+                ? Checkbox(
+                    value: isDone,
+                    activeColor: AppColors.success,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    onChanged: (v) => onToggle!(v ?? false),
+                  )
+                : null,
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

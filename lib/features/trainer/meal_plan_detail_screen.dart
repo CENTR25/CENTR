@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/constants/meal_times.dart';
 import '../../services/trainer_service.dart';
 import '../../services/storage_service.dart';
 
@@ -150,11 +151,10 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> wit
                     final dayNum = dayIndex + 1;
                     final dayItems = items.where((i) => i['day_number'] == dayNum).toList();
                     
-                    // Sort order: Breakfast, Lunch, Snack, Dinner
+                    // Sort by moment of the day (6 slots supported by the DB)
                     dayItems.sort((a, b) {
-                       final order = {'breakfast': 0, 'lunch': 1, 'snack': 2, 'dinner': 3};
-                       final aOrder = order[a['time_of_day']] ?? 99;
-                       final bOrder = order[b['time_of_day']] ?? 99;
+                       final aOrder = kMealTimeOrder[a['time_of_day']] ?? 99;
+                       final bOrder = kMealTimeOrder[b['time_of_day']] ?? 99;
                        return aOrder.compareTo(bOrder);
                     });
 
@@ -271,19 +271,8 @@ class _MealItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final time = item['time_of_day'] ?? 'meal';
-    final timeLabel = {
-      'breakfast': 'Desayuno',
-      'lunch': 'Almuerzo',
-      'dinner': 'Cena',
-      'snack': 'Merienda',
-    }[time] ?? 'Comida';
-    
-    final color = {
-      'breakfast': Colors.orange,
-      'lunch': Colors.red,
-      'dinner': Colors.blue,
-      'snack': Colors.green,
-    }[time] ?? Colors.grey;
+    final timeLabel = kMealTimeLabels[time] ?? 'Comida';
+    final color = kMealTimeColors[time] ?? Colors.grey;
 
     return Container(
       decoration: BoxDecoration(
@@ -437,8 +426,10 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
         if (selectedItem['time_of_day'] != null) {
           // Verify if it maps to our values
           final t = selectedItem['time_of_day'];
-          if (['breakfast', 'lunch', 'dinner', 'snack'].contains(t)) {
+          if (kMealTimeOrder.containsKey(t)) {
              _time = t;
+          } else if (t == 'snack') {
+             _time = 'afternoon_snack'; // legacy value from old food bank rows
           }
         }
         // If macros exist, maybe append to description for now or just log them
@@ -539,9 +530,20 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
                 style: const TextStyle(color: Colors.white),
                 items: const [
                   DropdownMenuItem(value: 'breakfast', child: Text('Desayuno')),
+                  DropdownMenuItem(
+                    value: 'morning_snack',
+                    child: Text('Colación (mañana)'),
+                  ),
                   DropdownMenuItem(value: 'lunch', child: Text('Almuerzo')),
-                  DropdownMenuItem(value: 'snack', child: Text('Merienda')),
+                  DropdownMenuItem(
+                    value: 'afternoon_snack',
+                    child: Text('Merienda'),
+                  ),
                   DropdownMenuItem(value: 'dinner', child: Text('Cena')),
+                  DropdownMenuItem(
+                    value: 'evening_snack',
+                    child: Text('Colación (noche)'),
+                  ),
                 ],
                 onChanged: (v) => setState(() => _time = v!),
                 decoration: InputDecoration(

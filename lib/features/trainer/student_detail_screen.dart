@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/trainer_service.dart';
 import 'routine_detail_screen.dart';
+import 'meal_plan_detail_screen.dart';
 import 'assignment_sheets.dart';
 import 'student_history_screen.dart';
 
@@ -125,7 +126,21 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 const SizedBox(height: 32),
                 
                 // Stats Section
-                const _SectionHeaderNoAction(title: 'Estadísticas'),
+                _SectionHeader(
+                  title: 'Estadísticas',
+                  action: 'Ver historial',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => StudentHistoryScreen(
+                          studentId: widget.studentId,
+                          studentName: name,
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 12),
                 _buildStatsRow(student),
                 
@@ -176,6 +191,24 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                           ),
                         );
                       },
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => _personalizeRoutine(
+                        context,
+                        activeRoutine['routine_id'] as String,
+                        activeRoutine['routines']?['title'] as String? ??
+                            'Rutina',
+                        name,
+                      ),
+                      icon: const Icon(Icons.copy_rounded, size: 16),
+                      label: const Text('Personalizar para este alumno'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.primaryLight,
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ),
                 ] else ...[
@@ -301,7 +334,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                         child: const Icon(Icons.restaurant_rounded, color: AppColors.warning, size: 28),
                       ),
                       title: Text(
-                        activeMealPlan['meal_plans']?['name'] ?? 'Plan Alimenticio',
+                        activeMealPlan['meal_plans']?['title'] ?? 'Plan Alimenticio',
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                        subtitle: Text(
@@ -310,8 +343,35 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                        ),
                        trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.2), size: 16),
                        onTap: () {
-                         // Open Meal Plan Detail
+                         Navigator.push(
+                           context,
+                           MaterialPageRoute(
+                             builder: (context) => MealPlanDetailScreen(
+                               planId: activeMealPlan['meal_plan_id'],
+                               planName: activeMealPlan['meal_plans']?['title'] ??
+                                   'Plan Alimenticio',
+                             ),
+                           ),
+                         );
                        },
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => _personalizeMealPlan(
+                        context,
+                        activeMealPlan['meal_plan_id'] as String,
+                        activeMealPlan['meal_plans']?['title'] as String? ??
+                            'Plan Alimenticio',
+                        name,
+                      ),
+                      icon: const Icon(Icons.copy_rounded, size: 16),
+                      label: const Text('Personalizar para este alumno'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.primaryLight,
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ),
                 ] else ...[
@@ -325,35 +385,16 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 const SizedBox(height: 32),
 
                 // Weight Progress Section
-                _SectionHeader(
-                  title: 'Progreso de Peso',
-                  action: 'Ver todo',
-                  onTap: () {
-                    // TODO: Navigate to full weight history
-                  },
-                ),
+                const _SectionHeaderNoAction(title: 'Progreso de Peso'),
                 const SizedBox(height: 8),
                 _buildWeightChart(student),
 
                 const SizedBox(height: 32),
 
                 // Check-ins Section
-                _SectionHeader(
-                  title: 'Fotos Check-in',
-                  action: 'Ver todas',
-                  onTap: () {
-                    // TODO: Navigate to full gallery
-                  },
-                ),
+                const _SectionHeaderNoAction(title: 'Fotos Check-in'),
                 const SizedBox(height: 8),
                 _buildCheckInsGallery(student),
-
-                const SizedBox(height: 32),
-
-                // Stats Section
-                const _SectionHeaderNoAction(title: 'Estadísticas'),
-                const SizedBox(height: 12),
-                _buildStatsRow(student),
               ],
             ),
           );
@@ -368,6 +409,110 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     if (dateStr == null) return '-';
     final date = DateTime.parse(dateStr);
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Future<void> _personalizeRoutine(
+    BuildContext context,
+    String routineId,
+    String routineTitle,
+    String studentName,
+  ) async {
+    final confirmed = await _confirmPersonalize(
+      context,
+      'Se creará una copia de "$routineTitle" solo para $studentName. '
+      'Los cambios que hagas en la copia no afectan la rutina original.',
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final service = ref.read(trainerServiceProvider);
+      final newId = await service.personalizeRoutineForStudent(
+        athleteId: widget.studentId,
+        routineId: routineId,
+        newTitle: '$routineTitle — $studentName',
+      );
+      ref.invalidate(studentDetailProvider(widget.studentId));
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RoutineDetailScreen(
+            routineId: newId,
+            routineTitle: '$routineTitle — $studentName',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  Future<void> _personalizeMealPlan(
+    BuildContext context,
+    String mealPlanId,
+    String planTitle,
+    String studentName,
+  ) async {
+    final confirmed = await _confirmPersonalize(
+      context,
+      'Se creará una copia de "$planTitle" solo para $studentName. '
+      'Los cambios que hagas en la copia no afectan el plan original.',
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final service = ref.read(trainerServiceProvider);
+      final newId = await service.personalizeMealPlanForStudent(
+        athleteId: widget.studentId,
+        mealPlanId: mealPlanId,
+        newTitle: '$planTitle — $studentName',
+      );
+      ref.invalidate(studentDetailProvider(widget.studentId));
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MealPlanDetailScreen(
+            planId: newId,
+            planName: '$planTitle — $studentName',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  Future<bool?> _confirmPersonalize(BuildContext context, String message) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Personalizar', style: TextStyle(color: Colors.white)),
+        content: Text(
+          message,
+          style: TextStyle(color: AppColors.textLight),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Crear copia'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showAssignRoutineSheet(BuildContext context) {
@@ -415,16 +560,21 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
 
     // Sort by date and get last 7 entries
     final sortedProgress = List<Map<String, dynamic>>.from(bodyProgress);
-    sortedProgress.sort((a, b) => 
+    sortedProgress.sort((a, b) =>
       DateTime.parse(a['created_at']).compareTo(DateTime.parse(b['created_at']))
     );
-    final recentProgress = sortedProgress.take(7).toList();
+    final recentProgress = sortedProgress.length > 7
+        ? sortedProgress.sublist(sortedProgress.length - 7)
+        : sortedProgress;
 
-    // Create spots for chart
+    // Create spots for chart (column is body_weight)
     final spots = <FlSpot>[];
     for (int i = 0; i < recentProgress.length; i++) {
-      final weight = (recentProgress[i]['weight'] as num?)?.toDouble() ?? 0;
-      spots.add(FlSpot(i.toDouble(), weight));
+      final weight = (recentProgress[i]['body_weight'] as num?)?.toDouble();
+      if (weight != null) spots.add(FlSpot(i.toDouble(), weight));
+    }
+    if (spots.isEmpty) {
+      return const SizedBox.shrink();
     }
 
     // Calculate min/max for Y axis
@@ -579,8 +729,10 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
   }
 
   Widget _buildActivityHistory(Map<String, dynamic> student) {
-    final workoutLogs = (student['workout_logs'] as List?) ?? [];
-    
+    // The app records workouts in workout_sessions (workout_logs is legacy
+    // and never written)
+    final workoutSessions = (student['workout_sessions'] as List?) ?? [];
+
     // Get last 7 days activity
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -608,11 +760,16 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(7, (index) {
               final date = today.subtract(Duration(days: 6 - index));
-              final dateStr = date.toIso8601String().split('T')[0];
-              
-              final hasWorkout = workoutLogs.any((log) {
-                final logDateStr = (log['created_at'] as String?)?.split('T')[0];
-                return logDateStr == dateStr;
+
+              final hasWorkout = workoutSessions.any((session) {
+                if (session['is_completed'] != true) return false;
+                final startedStr =
+                    (session['started_at'] ?? session['created_at']) as String?;
+                if (startedStr == null) return false;
+                final started = DateTime.parse(startedStr).toLocal();
+                return started.year == date.year &&
+                    started.month == date.month &&
+                    started.day == date.day;
               });
 
               final dayName = ['L', 'M', 'M', 'J', 'V', 'S', 'D'][date.weekday - 1];
@@ -658,8 +815,10 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
 
   Widget _buildStatsRow(Map<String, dynamic> student) {
     final streaks = (student['streaks'] as List?) ?? [];
-    final workoutLogs = (student['workout_logs'] as List?) ?? [];
-    
+    final completedWorkouts = ((student['workout_sessions'] as List?) ?? [])
+        .where((s) => s['is_completed'] == true)
+        .length;
+
     // Get current streak
     int currentStreak = 0;
     if (streaks.isNotEmpty) {
@@ -696,7 +855,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         Expanded(
           child: _StatCard(
             icon: Icons.fitness_center,
-            value: '${workoutLogs.length}',
+            value: '$completedWorkouts',
             label: 'Entrenamientos',
             color: AppColors.success,
           ),

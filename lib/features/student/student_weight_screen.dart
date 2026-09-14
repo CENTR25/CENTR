@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/student_service.dart';
 
@@ -33,6 +34,7 @@ class _StudentWeightScreenState extends ConsumerState<StudentWeightScreen> {
     try {
       await ref.read(studentServiceProvider).logMetrics(weight: weight);
       _weightController.clear();
+      ref.invalidate(myWeightHistoryProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -40,8 +42,6 @@ class _StudentWeightScreenState extends ConsumerState<StudentWeightScreen> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.pop(context); // Optional: close screen or refresh
-        // To refresh stats, we might need a provider that auto-refreshes
       }
     } catch (e) {
       if (mounted) {
@@ -125,26 +125,129 @@ class _StudentWeightScreenState extends ConsumerState<StudentWeightScreen> {
 
             const SizedBox(height: 32),
             
-            // History/Chart placeholder
+            // History chart
             const Text(
               'Historial Reciente',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Container(
-              height: 200,
-              padding: const EdgeInsets.all(16),
+              height: 220,
+              padding: const EdgeInsets.fromLTRB(8, 24, 24, 12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
               ),
-              child: const Center(
-                child: Text('Gráfica de progreso próximamente'),
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final historyAsync = ref.watch(myWeightHistoryProvider);
+                  return historyAsync.when(
+                    data: (history) => _buildChart(history),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (_, __) => const Center(
+                      child: Text(
+                        'No se pudo cargar el historial',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildChart(List<Map<String, dynamic>> history) {
+    if (history.isEmpty) {
+      return const Center(
+        child: Text(
+          'Registrá tu peso para ver tu progreso',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
+    }
+
+    final recent = history.length > 15
+        ? history.sublist(history.length - 15)
+        : history;
+    final spots = <FlSpot>[];
+    for (var i = 0; i < recent.length; i++) {
+      final w = (recent[i]['body_weight'] as num?)?.toDouble();
+      if (w != null) spots.add(FlSpot(i.toDouble(), w));
+    }
+    if (spots.isEmpty) {
+      return const Center(
+        child: Text(
+          'Sin datos de peso',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
+    }
+
+    final weights = spots.map((s) => s.y);
+    final minY = (weights.reduce((a, b) => a < b ? a : b) - 2);
+    final maxY = weights.reduce((a, b) => a > b ? a : b) + 2;
+
+    return LineChart(
+      LineChartData(
+        minY: minY,
+        maxY: maxY,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (_) => FlLine(
+            color: Colors.white.withValues(alpha: 0.05),
+            strokeWidth: 1,
+          ),
+        ),
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 42,
+              getTitlesWidget: (value, meta) => Text(
+                '${value.toInt()}kg',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ),
+          bottomTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: AppColors.primary,
+            barWidth: 3,
+            dotData: const FlDotData(show: true),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.primary.withValues(alpha: 0.2),
+                  AppColors.primary.withValues(alpha: 0),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

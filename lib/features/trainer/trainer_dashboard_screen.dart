@@ -14,7 +14,6 @@ import '../../../services/storage_service.dart';
 import '../../../services/news_service.dart';
 import '../../../services/notification_providers.dart';
 import '../../../models/notification_model.dart';
-import '../shared/notifications_sheet.dart';
 import 'student_detail_screen.dart';
 import 'routine_detail_screen.dart';
 import 'meal_plan_detail_screen.dart';
@@ -161,40 +160,6 @@ class _HomeView extends ConsumerWidget {
                       ),
                     ],
                   ),
-                ),
-                Consumer(
-                  builder: (context, ref, _) {
-                    final userId = user?.id;
-                    final unreadAsync = userId != null
-                        ? ref.watch(unreadCountProvider(userId))
-                        : null;
-                    final count = unreadAsync?.valueOrNull ?? 0;
-                    return Stack(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 28),
-                          onPressed: () {
-                            if (userId != null) {
-                              showNotificationsSheet(context, userId);
-                            }
-                          },
-                        ),
-                        if (count > 0)
-                          Positioned(
-                            right: 12,
-                            top: 12,
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              decoration: const BoxDecoration(
-                                color: AppColors.accent,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
                 ),
               ],
             ),
@@ -503,6 +468,16 @@ class _NotificationsDashboard extends ConsumerWidget {
                   ref.invalidate(notificationsProvider);
                   ref.invalidate(unreadCountProvider);
                 }
+                // Abrir el alumno relacionado si la notificación lo trae
+                final athleteId = notif.data?['athlete_id'] as String?;
+                if (athleteId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => StudentDetailScreen(studentId: athleteId),
+                    ),
+                  );
+                }
               },
             );
           }).toList(),
@@ -726,10 +701,11 @@ class _NotificationCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDate(DateTime dateTime) {
+    final date = dateTime.toLocal();
     final now = DateTime.now();
     final diff = now.difference(date);
-    
+
     if (diff.inDays == 0) {
       return 'Hoy';
     } else if (diff.inDays == 1) {
@@ -775,9 +751,12 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
       final supabaseService = ref.read(supabaseServiceProvider);
       
       // Enviar notificación a cada alumno
+      // notifications.user_id referencia profiles(id), no athletes(id)
       for (var student in students) {
+        final profileId = student['user_id'] as String?;
+        if (profileId == null) continue;
         await supabaseService.createNotification(
-          userId: student['id'] as String,
+          userId: profileId,
           type: 'broadcast',
           title: _titleController.text.trim(),
           message: _messageController.text.trim(),

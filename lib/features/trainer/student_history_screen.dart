@@ -33,6 +33,7 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen> {
       ),
       body: historyAsync.when(
         data: (logs) {
+          if (logs.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -54,6 +55,7 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen> {
                 ],
               ),
             );
+          }
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -78,23 +80,15 @@ class _WorkoutLogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Parse log data
-    final routineName = log['routine_exercises']?['routines']?['title'] ?? 'Rutina desconocida'; // This might need adjustment based on join
-    // Actually, workout_logs is usually per exercise set. We might want to group them by session (date).
-    // If the API returns raw logs, we might need to group them here or in the service.
-    
-    // Assuming the service returns grouped sessions or we display raw list for now.
-    // Let's assume for now we list "Workout Sessions" if we had a sessions table, 
-    // but the current schema seems to have `workout_logs` per exercise/set?
-    // Let's check schema in trainer_service.dart again.
-    // `workout_logs(*, routine_exercises(*, exercises(*)))`
-    // This returns individual set logs.
-    
-    final exerciseName = log['routine_exercises']?['exercises']?['name'] ?? 'Ejercicio';
-    final weight = log['weight_kg'];
-    final reps = log['reps_completed'];
-    final rpe = log['rpe'];
-    final date = DateTime.parse(log['created_at']);
+    // Each row is a completed workout_sessions record
+    final routineName = log['routines']?['title'] ?? 'Rutina';
+    final dayNumber = log['day_number'] as int?;
+    final setsCompleted = log['sets_completed'] as int? ?? 0;
+    final durationSeconds = log['duration_seconds'] as int? ?? 0;
+    // toLocal(): the DB stores UTC; show the phone's local date/time
+    final date = DateTime.parse(
+      (log['started_at'] ?? log['created_at']) as String,
+    ).toLocal();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -108,48 +102,30 @@ class _WorkoutLogCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
-                  style: TextStyle(fontSize: 12, color: AppColors.textLight, fontWeight: FontWeight.w500),
-                ),
-                if (rpe != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getRpeColor(rpe).withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _getRpeColor(rpe).withOpacity(0.3)),
-                    ),
-                    child: Text('RPE $rpe', style: TextStyle(color: _getRpeColor(rpe), fontSize: 10, fontWeight: FontWeight.bold)),
-                  ),
-              ],
+            Text(
+              '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
+              style: TextStyle(fontSize: 12, color: AppColors.textLight, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 12),
              Text(
-              exerciseName,
+              dayNumber != null ? '$routineName — Día $dayNumber' : routineName,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                _StatBadge(icon: Icons.repeat_rounded, text: '$reps reps'),
+                _StatBadge(icon: Icons.repeat_rounded, text: '$setsCompleted series'),
                 const SizedBox(width: 20),
-                _StatBadge(icon: Icons.fitness_center_rounded, text: '${weight}kg'),
+                _StatBadge(
+                  icon: Icons.timer_rounded,
+                  text: '${(durationSeconds / 60).round()} min',
+                ),
               ],
             ),
           ],
         ),
       ),
     );
-  }
-
-  Color _getRpeColor(int rpe) {
-    if (rpe < 6) return AppColors.success;
-    if (rpe < 8) return AppColors.warning;
-    return AppColors.error;
   }
 }
 

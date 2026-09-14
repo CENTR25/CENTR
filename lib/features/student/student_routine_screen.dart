@@ -17,6 +17,47 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen>
     with TickerProviderStateMixin {
   TabController? _tabController;
 
+  /// True if the last completed session for this routine/day was today
+  /// (local time).
+  bool _completedToday(Map<String, dynamic>? lastSession) {
+    final startedStr =
+        (lastSession?['started_at'] ?? lastSession?['created_at']) as String?;
+    if (startedStr == null) return false;
+    final started = DateTime.parse(startedStr).toLocal();
+    final now = DateTime.now();
+    return started.year == now.year &&
+        started.month == now.month &&
+        started.day == now.day;
+  }
+
+  Future<bool?> _confirmRetrain(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'Ya entrenaste hoy',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Ya completaste el entrenamiento de hoy. ¿Querés volver a entrar '
+          'igualmente (por ejemplo, para corregir un registro)?',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Entrenar de nuevo'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _tabController?.dispose();
@@ -304,7 +345,20 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen>
                                   height: 50,
                                   child: ElevatedButton.icon(
                                     onPressed: isToday
-                                        ? () {
+                                        ? () async {
+                                            // Block accidental double workouts:
+                                            // if today's session is already
+                                            // completed, ask before re-entering
+                                            final last = lastSessionAsync
+                                                .valueOrNull;
+                                            if (_completedToday(last)) {
+                                              final retry =
+                                                  await _confirmRetrain(
+                                                    context,
+                                                  );
+                                              if (retry != true) return;
+                                            }
+                                            if (!context.mounted) return;
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(

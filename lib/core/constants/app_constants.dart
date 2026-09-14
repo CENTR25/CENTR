@@ -10,6 +10,10 @@ class AppConstants {
   static const String roleAdmin = 'admin';
   static const String roleTrainer = 'trainer';
   static const String roleStudent = 'student';
+
+  // Base URL for student invite links.
+  // When the app gets its own domain (e.g. prgs.com.ar) only this changes.
+  static const String inviteBaseUrl = 'https://centr-v1.netlify.app/register';
 }
 
 /// Supabase configuration

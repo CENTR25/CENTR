@@ -114,6 +114,18 @@ class TrainerService {
     return response;
   }
 
+  /// Log a weight entry for a student (trainer-initiated)
+  Future<void> logStudentWeight(String athleteId, double weight) async {
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    await _client.from('body_progress').insert({
+      'athlete_id': athleteId,
+      'date': dateStr,
+      'body_weight': weight,
+    });
+  }
+
   /// Update athlete supplements
   Future<void> updateAthleteSupplements(
     String athleteId,

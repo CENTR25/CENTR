@@ -58,6 +58,11 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   // Stopwatch freezes while iOS/Android suspend the app (locked screen between
   // sets), so background time is accumulated separately on resume.
   Duration _backgroundTime = Duration.zero;
+  // Frozen snapshot captured at completion — null while the workout is live.
+  // _buildSummaryView must read this, not the live getter, so the stats never
+  // advance after the completion card appears.
+  Duration? _completedElapsed;
+  Duration? _completedRestTime;
 
   Duration get _totalElapsed => _totalStopwatch.elapsed + _backgroundTime;
   
@@ -115,6 +120,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Nothing to track once the workout is done — the summary shows frozen values.
+    if (_isCompleted) return;
+
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       // App going to background - store timestamp
       _backgroundEnterTime = DateTime.now();
@@ -428,6 +436,12 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   }
 
   void _completeWorkout() {
+    // Snapshot elapsed values BEFORE stopping anything so the summary card
+    // always shows the exact moment of completion (fixes timer advancing after
+    // the "¡Entrenamiento Completado!" card appears).
+    final frozenTotal = _totalElapsed;
+    final frozenRest = _totalRestTime;
+
     // Stop everything: without this the timers keep running on the summary view
     _restTimer?.cancel();
     _countdownTimer?.cancel();
@@ -435,6 +449,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     _restStopwatch.stop();
     _totalStopwatch.stop();
     setState(() {
+      _completedElapsed = frozenTotal;
+      _completedRestTime = frozenRest;
       _isCompleted = true;
       _isResting = false;
     });
@@ -1268,8 +1284,12 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   }
 
   Widget _buildSummaryView() {
-    final totalTime = _totalElapsed;
-    final workoutTime = totalTime - _totalRestTime;
+    // Always use the frozen snapshot captured at completion — never the live
+    // getter — so the stats remain fixed regardless of any subsequent
+    // setState calls (lifecycle observer, history fetch completion, etc.).
+    final totalTime = _completedElapsed ?? _totalElapsed;
+    final restTime = _completedRestTime ?? _totalRestTime;
+    final workoutTime = totalTime - restTime;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -1324,7 +1344,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                   ),
                   _StatCard(
                     icon: Icons.pause_circle,
-                    value: _formatDuration(_totalRestTime),
+                    value: _formatDuration(restTime),
                     label: 'Descansos',
                   ),
                 ],

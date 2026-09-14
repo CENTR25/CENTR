@@ -12,6 +12,7 @@ import 'student_weight_screen.dart';
 import 'student_check_in_screen.dart';
 import 'student_routine_screen.dart';
 import 'student_recipes_screen.dart';
+import 'student_check_in_history_screen.dart';
 
 class StudentDashboardScreen extends ConsumerStatefulWidget {
   const StudentDashboardScreen({super.key});
@@ -224,18 +225,20 @@ class _StudentDashboardScreenState
           // Menu Items
           ListTile(
             leading: const Icon(
-              Icons.person_outline_rounded,
+              Icons.camera_alt_rounded,
               color: Colors.white,
             ),
             title: const Text(
-              'Mi Perfil',
+              'Historial de Check-ins',
               style: TextStyle(color: Colors.white),
             ),
             onTap: () {
-              Navigator.pop(context); // Close drawer
-              // Navigate to profile
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Perfil próximamente')),
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const StudentCheckInHistoryScreen(),
+                ),
               );
             },
           ),
@@ -578,7 +581,33 @@ class _HomeContent extends ConsumerWidget {
                 MaterialPageRoute(builder: (_) => const StudentCheckInScreen()),
               ),
             ),
-            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const StudentCheckInHistoryScreen(),
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.accent.withValues(alpha: 0.7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                ),
+                child: const Text(
+                  'VER HISTORIAL',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
             _buildMainActionButton(
               icon: Icons.monitor_weight_rounded,
               label: 'REGISTRAR PESO',

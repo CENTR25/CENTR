@@ -389,6 +389,21 @@ class StudentService {
     }
   }
 
+  /// Get all check-ins for the current student (newest first)
+  Future<List<Map<String, dynamic>>> getMyCheckIns({int limit = 50}) async {
+    final userId = currentUserId;
+    if (userId == null) return [];
+
+    final response = await _client
+        .from('check_ins')
+        .select('id, created_at, photo_url, photo_urls, comment')
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
   /// Get last check-in date for current user
   Future<DateTime?> getLastCheckInDate() async {
     final userId = currentUserId;
@@ -977,6 +992,13 @@ final myWeightHistoryProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
       final service = ref.read(studentServiceProvider);
       return service.getMyWeightHistory();
+    });
+
+/// Provider for the student's full check-in history (newest first)
+final myCheckInsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+      final service = ref.read(studentServiceProvider);
+      return service.getMyCheckIns();
     });
 
 /// Provider for last N workout sessions of an athlete for a given routine/day

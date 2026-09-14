@@ -385,7 +385,11 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 const SizedBox(height: 32),
 
                 // Weight Progress Section
-                const _SectionHeaderNoAction(title: 'Progreso de Peso'),
+                _SectionHeader(
+                  title: 'Progreso de Peso',
+                  action: 'Agregar',
+                  onTap: () => _showAddWeightDialog(context),
+                ),
                 const SizedBox(height: 8),
                 _buildWeightChart(student),
 
@@ -530,6 +534,75 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => AssignMealPlanSheet(studentId: widget.studentId),
+    );
+  }
+
+  void _showAddWeightDialog(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'Registrar Peso',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          autofocus: true,
+          style: const TextStyle(color: Colors.white, fontSize: 24),
+          decoration: const InputDecoration(
+            hintText: '0.0',
+            hintStyle: TextStyle(color: Colors.white30),
+            suffixText: 'kg',
+            suffixStyle: TextStyle(color: Colors.white54),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final weight = double.tryParse(
+                controller.text.trim().replaceAll(',', '.'),
+              );
+              if (weight == null || weight <= 0) return;
+              Navigator.pop(ctx);
+              try {
+                await ref
+                    .read(trainerServiceProvider)
+                    .logStudentWeight(widget.studentId, weight);
+                ref.invalidate(studentDetailProvider(widget.studentId));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Peso registrado: ${weight}kg'),
+                      backgroundColor: AppColors.success,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
     );
   }
 

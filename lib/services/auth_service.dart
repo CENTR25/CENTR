@@ -46,10 +46,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   void _initialize() {
-    // Listen to auth state changes
+    // Listen to auth state changes.
+    // Skip a full profile reload on TOKEN_REFRESHED when we already have a
+    // hydrated authenticated state — a token refresh does not change the user
+    // profile and the reload would briefly set AuthStatus.loading, which (with
+    // GoRouter's refreshListenable) used to flash the loading screen on every
+    // background session renewal and on iOS swipe-back navigation.
     _client.auth.onAuthStateChange.listen((data) async {
       final session = data.session;
       if (session != null) {
+        final alreadyAuthenticated =
+            state.status == AuthStatus.authenticated && state.user != null;
+        final isTokenRefresh =
+            data.event == AuthChangeEvent.tokenRefreshed;
+        if (alreadyAuthenticated && isTokenRefresh) return;
         await _loadUserProfile(session.user.id);
       } else {
         state = const AuthState(status: AuthStatus.unauthenticated);

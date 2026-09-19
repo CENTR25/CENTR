@@ -64,11 +64,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           state.matchedLocation == AppRoutes.forgotPassword;
       final isSplash = state.matchedLocation == AppRoutes.splash;
 
-      // Show loading/splash while checking auth
-      if (isLoading || isProfileLoading) {
-        if (isSplash) return null;
-        return AppRoutes.splash;
-      }
+      // While auth is resolving (initial load, sign-in, or Supabase background
+      // token refresh) stay on the current route. On first launch the initial
+      // location is '/' (splash) so the user naturally waits there. If auth
+      // resolves while the user is already inside the app we must not redirect
+      // them away — doing so causes the swipe-back loading-screen flash.
+      if (isLoading || isProfileLoading) return null;
 
       // Not authenticated
       if (!isAuthenticated) {

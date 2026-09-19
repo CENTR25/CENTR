@@ -59,7 +59,7 @@ class _FirstLoginScreenState extends ConsumerState<FirstLoginScreen> {
                 const SizedBox(height: 8),
 
                 Text(
-                  'Bienvenido a CENTR. Establece una contraseña segura para tu cuenta.',
+                  'Bienvenido a Progress. Establece una contraseña segura para tu cuenta.',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 14,

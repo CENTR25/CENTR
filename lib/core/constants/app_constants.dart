@@ -1,6 +1,6 @@
 /// App constants
 class AppConstants {
-  static const String appName = 'CENTR';
+  static const String appName = 'Progress';
   static const String appVersion = '1.0.0';
   
   // Subscription plans for trainers
@@ -12,8 +12,9 @@ class AppConstants {
   static const String roleStudent = 'student';
 
   // Base URL for student invite links.
-  // When the app gets its own domain (e.g. prgs.com.ar) only this changes.
-  static const String inviteBaseUrl = 'https://centr-v1.netlify.app/register';
+  // Points to the Cloudflare-deployed web app's /register route.
+  // Update when the app gets its own domain.
+  static const String inviteBaseUrl = 'https://centr.xavierbenavidesm.workers.dev/register';
 }
 
 /// Supabase configuration

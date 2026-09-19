@@ -468,14 +468,34 @@ class _HomeContent extends ConsumerWidget {
                             ),
                             if (count > 0)
                               Positioned(
-                                right: 2,
-                                top: 2,
+                                right: 0,
+                                top: 0,
                                 child: Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
                                     color: AppColors.studentColor,
-                                    shape: BoxShape.circle,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: AppColors.background,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 18,
+                                    minHeight: 18,
+                                  ),
+                                  child: Text(
+                                    count > 99 ? '99+' : '$count',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1.2,
+                                    ),
+                                    textAlign: TextAlign.center,
                                   ),
                                 ),
                               ),

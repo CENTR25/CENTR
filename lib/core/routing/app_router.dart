@@ -5,6 +5,7 @@ import 'package:north_star/services/auth_service.dart';
 import 'package:north_star/models/user_model.dart';
 import 'package:north_star/features/auth/presentation/login_screen.dart';
 import 'package:north_star/features/auth/presentation/first_login_screen.dart';
+import 'package:north_star/features/auth/presentation/student_register_screen.dart';
 import 'package:north_star/features/admin/presentation/admin_dashboard_screen.dart';
 import 'package:north_star/features/trainer/trainer_dashboard_screen.dart';
 import 'package:north_star/features/student/student_dashboard_screen.dart';
@@ -61,7 +62,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoginRoute =
           state.matchedLocation == AppRoutes.login ||
           state.matchedLocation == AppRoutes.register ||
-          state.matchedLocation == AppRoutes.forgotPassword;
+          state.matchedLocation == AppRoutes.forgotPassword ||
+          state.matchedLocation == AppRoutes.firstLogin;
       final isSplash = state.matchedLocation == AppRoutes.splash;
 
       // While auth is resolving (initial load, sign-in, or Supabase background
@@ -112,13 +114,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.register,
-        builder: (context, state) =>
-            const LoginScreen(), // Or RegisterScreen if separate
+        builder: (context, state) {
+          final trainerId = state.uri.queryParameters['trainer'];
+          return StudentRegisterScreen(trainerId: trainerId);
+        },
       ),
       GoRoute(
         path: AppRoutes.forgotPassword,
         builder: (context, state) =>
-            const LoginScreen(), // Or ForgotPasswordScreen
+            const LoginScreen(), // ForgotPasswordScreen not yet implemented
       ),
 
       // First login (invitation)

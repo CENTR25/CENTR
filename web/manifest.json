@@ -1,6 +1,6 @@
 {
-    "name": "CENTR",
-    "short_name": "CENTR",
+    "name": "Progress",
+    "short_name": "Progress",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#78278A",

@@ -220,9 +220,13 @@ class StorageService {
     final fileName = '${userId}_$timestamp.$extension';
     final path = 'check_ins/$fileName';
 
-    await _client.storage.from(_bucketName).upload(
+    // uploadBinary is the web-safe path for raw bytes. upload() takes a
+    // dart:io File and calls postFile on it, so passing a Uint8List there
+    // (as the old `bytes as dynamic` did) throws at runtime on web — which
+    // broke every check-in photo submit from the browser.
+    await _client.storage.from(_bucketName).uploadBinary(
           path,
-          bytes as dynamic, // works on web (Uint8List) and native (File)
+          bytes,
           fileOptions: FileOptions(
             contentType: _getContentType(extension),
             upsert: true,

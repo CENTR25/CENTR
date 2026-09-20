@@ -461,11 +461,14 @@ class StudentService {
     final now = DateTime.now();
     final todayStr = now.toIso8601String().split('T')[0];
 
-    // 1. Get current streak record
+    // 1. Get current streak record. Filter by type too — streaks are keyed on
+    // (athlete_id, type), so without it maybeSingle() would throw once an
+    // athlete has more than one streak row.
     final currentRecord = await _client
         .from('streaks')
         .select()
         .eq('athlete_id', athleteId)
+        .eq('type', 'workout')
         .maybeSingle();
 
     int newStreak = 1;

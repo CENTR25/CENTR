@@ -1923,7 +1923,7 @@ class _AssignToStudentsSheetState
                   itemBuilder: (context, index) {
                     final student = students[index];
                     final profile = student['profiles'];
-                    final name = profile?['name'] ?? 'Sin nombre';
+                    final name = student['name'] ?? 'Sin nombre';
                     final email = profile?['email'] ?? '';
                     final studentId = student['id'];
                     final isSelected = _selectedStudentIds.contains(studentId);

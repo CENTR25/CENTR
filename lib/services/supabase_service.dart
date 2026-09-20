@@ -59,9 +59,11 @@ class SupabaseService {
     if (profile != null) {
       final athlete = await _client
           .from('athletes')
-          .select('trainer_id')
+          .select('trainer_id, name')
           .eq('user_id', userId)
           .maybeSingle();
+      final displayName =
+          athlete?['name'] as String? ?? profile['email'] as String? ?? '';
       final trainerRecordId = athlete?['trainer_id'] as String?;
       final trainer = trainerRecordId == null
           ? null
@@ -77,8 +79,7 @@ class SupabaseService {
           userId: trainerUserId,
           type: 'firstLogin',
           title: '¡Nuevo alumno activo!',
-          message:
-              '${profile['name'] ?? profile['email']} ha iniciado sesión por primera vez.',
+          message: '$displayName ha iniciado sesión por primera vez.',
           data: {'student_id': userId},
         );
       }
@@ -94,8 +95,7 @@ class SupabaseService {
           userId: admin['id'] as String,
           type: 'firstLogin',
           title: 'Usuario activo',
-          message:
-              '${profile['name'] ?? profile['email']} ha ingresado por primera vez.',
+          message: '$displayName ha ingresado por primera vez.',
           data: {'user_id': userId},
         );
       }

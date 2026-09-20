@@ -41,7 +41,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
           }
           
           final profile = student['profiles'] as Map<String, dynamic>?;
-          final name = profile?['name'] ?? 'Sin nombre';
+          final name = student['name'] ?? 'Sin nombre';
           final email = profile?['email'] ?? 'Sin correo';
           
           // Extract active routine
@@ -896,10 +896,10 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     int currentStreak = 0;
     if (streaks.isNotEmpty) {
       final streakData = streaks.first as Map<String, dynamic>;
-      currentStreak = (streakData['current_streak'] as int?) ?? 0;
-      
+      currentStreak = (streakData['current_count'] as int?) ?? 0;
+
       // Live calculation for trainer view accuracy
-      final lastWorkoutStr = streakData['last_workout_date'] as String?;
+      final lastWorkoutStr = streakData['last_activity_date'] as String?;
       if (lastWorkoutStr != null) {
         final lastWorkoutDate = DateTime.parse(lastWorkoutStr);
         final now = DateTime.now();

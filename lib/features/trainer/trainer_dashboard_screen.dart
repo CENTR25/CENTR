@@ -1197,7 +1197,7 @@ class _StudentsView extends ConsumerWidget {
             itemBuilder: (context, index) {
               final student = students[index];
               final profile = student['profiles'] as Map<String, dynamic>?;
-              final name = profile?['name'] ?? 'Sin nombre';
+              final name = student['name'] ?? 'Sin nombre';
               final email = profile?['email'] ?? 'Sin correo';
 
               return Container(
@@ -1241,10 +1241,10 @@ class _StudentsView extends ConsumerWidget {
                           int currentStreak = 0;
                           if (streaks.isNotEmpty) {
                             final streakData = streaks.first as Map<String, dynamic>;
-                            currentStreak = (streakData['current_streak'] as int?) ?? 0;
-                            
+                            currentStreak = (streakData['current_count'] as int?) ?? 0;
+
                             // Live calculation
-                            final lastWorkoutStr = streakData['last_workout_date'] as String?;
+                            final lastWorkoutStr = streakData['last_activity_date'] as String?;
                             if (lastWorkoutStr != null) {
                               final lastWorkoutDate = DateTime.parse(lastWorkoutStr);
                               final now = DateTime.now();

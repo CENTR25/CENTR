@@ -112,10 +112,10 @@ class StudentService {
         .maybeSingle();
 
     if (response == null)
-      return {'current_streak': 0, 'last_workout_date': null};
+      return {'current_count': 0, 'last_activity_date': null};
 
     // Live calculation to check if streak is still valid
-    final lastWorkoutStr = response['last_workout_date'] as String?;
+    final lastWorkoutStr = response['last_activity_date'] as String?;
     if (lastWorkoutStr == null) return response;
 
     final lastWorkoutDate = DateTime.parse(lastWorkoutStr);
@@ -130,7 +130,7 @@ class StudentService {
 
     if (workoutDate.isBefore(yesterday) && workoutDate != today) {
       // Streak lost in real-time display
-      return {...response, 'current_streak': 0};
+      return {...response, 'current_count': 0};
     }
 
     return response;
@@ -242,18 +242,12 @@ class StudentService {
     return List<Map<String, dynamic>>.from(response).reversed.toList();
   }
 
-  /// Update profile info
-  Future<void> updateProfile({String? name, String? avatarUrl}) async {
+  /// Update profile info (display name lives on athletes, not profiles)
+  Future<void> updateProfile({String? name}) async {
     final userId = currentUserId;
-    if (userId == null) return;
+    if (userId == null || name == null) return;
 
-    await _client
-        .from('profiles')
-        .update({
-          if (name != null) 'name': name,
-          if (avatarUrl != null) 'avatar_url': avatarUrl,
-        })
-        .eq('id', userId);
+    await _client.from('athletes').update({'name': name}).eq('user_id', userId);
   }
 
   /// Perform a check-in
@@ -477,7 +471,7 @@ class StudentService {
     int newStreak = 1;
 
     if (currentRecord != null) {
-      final lastWorkoutStr = currentRecord['last_workout_date'] as String?;
+      final lastWorkoutStr = currentRecord['last_activity_date'] as String?;
       if (lastWorkoutStr == todayStr) {
         // Already updated today
         return;
@@ -498,7 +492,7 @@ class StudentService {
 
         if (workoutDay == yesterday) {
           // Continuous streak
-          newStreak = (currentRecord['current_streak'] as int? ?? 0) + 1;
+          newStreak = (currentRecord['current_count'] as int? ?? 0) + 1;
         } else {
           // Skipped one or more days, start over
           newStreak = 1;
@@ -506,13 +500,16 @@ class StudentService {
       }
     }
 
-    // 2. Upsert
+    // 2. Upsert (streaks is keyed by athlete_id + type)
+    final bestCount = currentRecord?['best_count'] as int? ?? 0;
     await _client.from('streaks').upsert({
       'athlete_id': athleteId,
-      'current_streak': newStreak,
-      'last_workout_date': todayStr,
+      'type': 'workout',
+      'current_count': newStreak,
+      'best_count': newStreak > bestCount ? newStreak : bestCount,
+      'last_activity_date': todayStr,
       'updated_at': now.toIso8601String(),
-    }, onConflict: 'athlete_id');
+    }, onConflict: 'athlete_id,type');
 
     debugPrint(
       '🔥 Streak updated for $athleteId: $newStreak (last: $todayStr)',
@@ -566,7 +563,7 @@ class StudentService {
     try {
       final athlete = await _client
           .from('athletes')
-          .select('user_id, trainer_id, profiles(name)')
+          .select('user_id, trainer_id, name')
           .eq('id', athleteId)
           .maybeSingle();
       if (athlete == null) return;
@@ -582,10 +579,7 @@ class StudentService {
       final trainerUserId = trainer?['user_id'] as String?;
       if (trainerUserId == null) return;
 
-      final profile = athlete['profiles'];
-      final studentName = profile is Map
-          ? profile['name'] as String? ?? 'Alumno'
-          : 'Alumno';
+      final studentName = athlete['name'] as String? ?? 'Alumno';
       final studentUserId = athlete['user_id'] as String? ?? athleteId;
       final durationMinutes = durationSeconds != null
           ? (durationSeconds / 60).round()

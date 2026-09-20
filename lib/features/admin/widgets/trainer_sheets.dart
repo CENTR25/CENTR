@@ -382,8 +382,7 @@ class _EditTrainerSheetState extends ConsumerState<EditTrainerSheet> {
   @override
   void initState() {
     super.initState();
-    final profile = widget.trainer['profiles'] as Map<String, dynamic>;
-    _nameController = TextEditingController(text: profile['name'] ?? '');
+    _nameController = TextEditingController(text: widget.trainer['name'] ?? '');
     _specialtyController = TextEditingController(text: widget.trainer['specialty'] ?? '');
   }
 

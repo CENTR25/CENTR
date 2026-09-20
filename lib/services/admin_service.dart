@@ -52,18 +52,17 @@ class AdminService {
     await _client.from('profiles').insert({
       'id': userId,
       'email': email,
-      'name': name,
       'role': 'trainer',
-      'photo_url': photoUrl,
+      'is_active': true,
       'created_at': DateTime.now().toIso8601String(),
     });
 
-    // 3. Create trainer record
+    // 3. Create trainer record (name/photo live on trainers, not profiles)
     final trainerResponse = await _client.from('trainers').insert({
       'user_id': userId,
+      'name': name,
       'specialty': specialty,
-      'is_active': true,
-      'has_logged_in': false,
+      'profile_photo': photoUrl,
       'created_at': DateTime.now().toIso8601String(),
     }).select().single();
 
@@ -102,10 +101,11 @@ class AdminService {
 
     final userId = trainer['user_id'] as String;
 
-    // Update trainer table
+    // Update trainer table (name/photo live on trainers, not profiles)
     final trainerUpdates = <String, dynamic>{};
+    if (name != null) trainerUpdates['name'] = name;
     if (specialty != null) trainerUpdates['specialty'] = specialty;
-    if (isActive != null) trainerUpdates['is_active'] = isActive;
+    if (photoUrl != null) trainerUpdates['profile_photo'] = photoUrl;
 
     if (trainerUpdates.isNotEmpty) {
       await _client.from('trainers').update(trainerUpdates).eq('id', trainerId);
@@ -113,17 +113,24 @@ class AdminService {
 
     // Update profile table
     final profileUpdates = <String, dynamic>{};
-    if (name != null) profileUpdates['name'] = name;
-    if (photoUrl != null) profileUpdates['photo_url'] = photoUrl;
+    if (isActive != null) profileUpdates['is_active'] = isActive;
 
     if (profileUpdates.isNotEmpty) {
       await _client.from('profiles').update(profileUpdates).eq('id', userId);
     }
   }
 
-  /// Deactivate trainer (soft delete)
+  /// Deactivate trainer (soft delete) — active flag lives on profiles
   Future<void> deactivateTrainer(String trainerId) async {
-    await _client.from('trainers').update({'is_active': false}).eq('id', trainerId);
+    final trainer = await _client
+        .from('trainers')
+        .select('user_id')
+        .eq('id', trainerId)
+        .single();
+    await _client
+        .from('profiles')
+        .update({'is_active': false})
+        .eq('id', trainer['user_id'] as String);
   }
 
   /// Delete trainer permanently (only if no students)
@@ -222,7 +229,6 @@ class AdminService {
     }
 
     final userId = tokenData['user_id'] as String;
-    final trainerId = tokenData['trainers']['id'] as String;
 
     // Update password
     await _client.auth.admin.updateUserById(
@@ -230,8 +236,11 @@ class AdminService {
       attributes: AdminUserAttributes(password: newPassword),
     );
 
-    // Mark trainer as logged in
-    await _client.from('trainers').update({'has_logged_in': true}).eq('id', trainerId);
+    // Mark first login on the profile (trainers has no has_logged_in column)
+    await _client
+        .from('profiles')
+        .update({'first_login_at': DateTime.now().toIso8601String()})
+        .eq('id', userId);
 
     // Mark token as used
     await _client.from('invitation_tokens').update({'is_used': true}).eq('token', token);
@@ -316,8 +325,12 @@ class AdminService {
   /// Get admin dashboard stats
   Future<Map<String, dynamic>> getAdminStats() async {
     final trainers = await getAllTrainers();
-    final activeTrainers = trainers.where((t) => t['is_active'] == true).length;
-    final pendingLogin = trainers.where((t) => t['has_logged_in'] == false).length;
+    final activeTrainers = trainers
+        .where((t) => t['profiles']?['is_active'] == true)
+        .length;
+    final pendingLogin = trainers
+        .where((t) => t['profiles']?['first_login_at'] == null)
+        .length;
 
     return {
       'total_trainers': trainers.length,

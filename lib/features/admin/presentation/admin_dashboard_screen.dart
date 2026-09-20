@@ -417,11 +417,11 @@ class _TrainersView extends ConsumerWidget {
             itemBuilder: (context, index) {
               final trainer = trainers[index];
               final profile = trainer['profiles'] as Map<String, dynamic>;
-              final name = profile['name'] ?? 'Sin nombre';
+              final name = trainer['name'] ?? 'Sin nombre';
               final email = profile['email'] ?? '';
               final specialty = trainer['specialty'] ?? 'Sin especialidad';
-              final isActive = trainer['is_active'] == true;
-              final hasLoggedIn = trainer['has_logged_in'] == true;
+              final isActive = profile['is_active'] == true;
+              final hasLoggedIn = profile['first_login_at'] != null;
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -751,8 +751,7 @@ class _AssignmentsTab extends ConsumerWidget {
           itemCount: trainers.length,
           itemBuilder: (context, index) {
             final trainer = trainers[index];
-            final profile = trainer['profiles'] as Map<String, dynamic>;
-            final name = profile['name'] ?? 'Sin nombre';
+            final name = trainer['name'] ?? 'Sin nombre';
             final trainerId = trainer['id'] as String;
 
             return Card(
@@ -813,8 +812,7 @@ class _AssignSubscriptionSheetState extends ConsumerState<_AssignSubscriptionShe
 
   @override
   Widget build(BuildContext context) {
-    final profile = widget.trainer['profiles'] as Map<String, dynamic>;
-    final name = profile['name'] ?? 'Trainer';
+    final name = widget.trainer['name'] ?? 'Trainer';
     final plansAsync = ref.watch(subscriptionPlansProvider);
 
     return Container(

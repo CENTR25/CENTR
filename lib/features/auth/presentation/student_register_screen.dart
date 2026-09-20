@@ -79,7 +79,6 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
       await client.from('profiles').upsert({
         'id': user.id,
         'email': user.email ?? _emailController.text.trim(),
-        'name': _nameController.text.trim(),
         'role': 'student', // hardcoded — never from URL
         'is_active': true,
         'created_at': DateTime.now().toIso8601String(),
@@ -96,6 +95,7 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
         if (uuidPattern.hasMatch(widget.trainerId!)) {
           await client.from('athletes').insert({
             'user_id': user.id, // always auth.uid() — not from URL
+            'name': _nameController.text.trim(),
             'trainer_id': widget.trainerId,
             'created_at': DateTime.now().toIso8601String(),
           });

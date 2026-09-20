@@ -1,5 +1,8 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/constants/app_constants.dart';
 import 'supabase_service.dart';
 
 /// Service for Admin operations
@@ -27,26 +30,16 @@ class AdminService {
     String? specialty,
     String? photoUrl,
   }) async {
-    // 1. Create auth user with temporary password
-    final tempPassword = _generateTempPassword();
-    
-    final authResponse = await _client.auth.admin.createUser(
-      AdminUserAttributes(
-        email: email,
-        password: tempPassword,
-        emailConfirm: true,
-        userMetadata: {
-          'full_name': name,
-          'role': 'trainer',
-        },
-      ),
-    );
+    // 1. Create auth user via the admin-auth Edge Function — the service
+    //    role key lives server-side; auth.admin.* cannot run on the client.
+    final created = await _invokeAdminAuth({
+      'action': 'create_trainer',
+      'email': email,
+      'name': name,
+    });
 
-    if (authResponse.user == null) {
-      throw Exception('Failed to create auth user');
-    }
-
-    final userId = authResponse.user!.id;
+    final userId = created['user_id'] as String;
+    final tempPassword = created['temp_password'] as String;
 
     // 2. Create profile
     await _client.from('profiles').insert({
@@ -161,17 +154,21 @@ class AdminService {
     // Delete profile
     await _client.from('profiles').delete().eq('id', userId);
 
-    // Delete auth user
-    await _client.auth.admin.deleteUser(userId);
+    // Delete auth user (server-side, service role)
+    await _invokeAdminAuth({'action': 'delete_user', 'user_id': userId});
   }
 
   // ==================== INVITATIONS ====================
 
-  /// Generate invitation token
+  /// Generate invitation token (cryptographically random — it is the sole
+  /// credential for setting the trainer's password on first login)
   Future<String> _generateInvitationToken(String userId) async {
-    final token = DateTime.now().millisecondsSinceEpoch.toString() + 
-                  userId.substring(0, 8);
-    
+    final rand = Random.secure();
+    final token = List.generate(
+      32,
+      (_) => rand.nextInt(16).toRadixString(16),
+    ).join();
+
     // Store token in database (RLS disabled for this table)
     await _client.from('invitation_tokens').insert({
       'user_id': userId,
@@ -194,7 +191,7 @@ class AdminService {
     // For now, this is a placeholder
     // In production, use Supabase Auth email templates or SMTP service
     
-    final inviteLink = 'https://centr-v1.netlify.app/first-login?token=$token';
+    final inviteLink = '${AppConstants.firstLoginBaseUrl}?token=$token';
     
     print('📧 Invitation Email:');
     print('To: $email');
@@ -206,45 +203,19 @@ class AdminService {
     // await _client.auth.admin.inviteUserByEmail(email);
   }
 
-  /// Verify invitation token and complete first login
+  /// Verify invitation token and complete first login.
+  /// Runs entirely in the admin-auth Edge Function: the caller is not
+  /// authenticated yet (the token is the credential) and both the token
+  /// lookup (admin-only RLS) and the password update need the service role.
   Future<bool> completeFirstLogin({
     required String token,
     required String newPassword,
   }) async {
-    // Verify token
-    final tokenData = await _client
-        .from('invitation_tokens')
-        .select('*, trainers!inner(id)')
-        .eq('token', token)
-        .eq('is_used', false)
-        .maybeSingle();
-
-    if (tokenData == null) {
-      throw Exception('Invalid or expired token');
-    }
-
-    final expiresAt = DateTime.parse(tokenData['expires_at']);
-    if (DateTime.now().isAfter(expiresAt)) {
-      throw Exception('Token expired');
-    }
-
-    final userId = tokenData['user_id'] as String;
-
-    // Update password
-    await _client.auth.admin.updateUserById(
-      userId,
-      attributes: AdminUserAttributes(password: newPassword),
-    );
-
-    // Mark first login on the profile (trainers has no has_logged_in column)
-    await _client
-        .from('profiles')
-        .update({'first_login_at': DateTime.now().toIso8601String()})
-        .eq('id', userId);
-
-    // Mark token as used
-    await _client.from('invitation_tokens').update({'is_used': true}).eq('token', token);
-
+    await _invokeAdminAuth({
+      'action': 'complete_first_login',
+      'token': token,
+      'new_password': newPassword,
+    });
     return true;
   }
 
@@ -342,11 +313,18 @@ class AdminService {
 
   // ==================== HELPERS ====================
 
-  String _generateTempPassword() {
-    // Generate secure random password
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#';
-    final random = DateTime.now().millisecondsSinceEpoch;
-    return 'Temp' + random.toString().substring(0, 8) + '!';
+  /// Calls the admin-auth Edge Function and unwraps its error payload.
+  Future<Map<String, dynamic>> _invokeAdminAuth(
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final res = await _client.functions.invoke('admin-auth', body: body);
+      return Map<String, dynamic>.from(res.data as Map);
+    } on FunctionException catch (e) {
+      final details = e.details;
+      final message = details is Map ? details['error']?.toString() : null;
+      throw Exception(message ?? 'Operación fallida (${e.status})');
+    }
   }
 }
 

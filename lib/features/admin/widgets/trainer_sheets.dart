@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/admin_service.dart';
 
@@ -158,7 +159,7 @@ class _CreateTrainerSheetState extends ConsumerState<CreateTrainerSheet> {
     final tempPassword = _createdTrainer!['temp_password'] as String;
     final invitationToken = _createdTrainer!['invitation_token'] as String;
     final email = _emailController.text;
-    final inviteLink = 'https://centr-v1.netlify.app/first-login?token=$invitationToken';
+    final inviteLink = '${AppConstants.firstLoginBaseUrl}?token=$invitationToken';
 
     return Column(
       children: [

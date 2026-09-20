@@ -15,6 +15,9 @@ class AppConstants {
   // Points to the Cloudflare-deployed web app's /register route.
   // Update when the app gets its own domain.
   static const String inviteBaseUrl = 'https://centr.xavierbenavidesm.workers.dev/register';
+
+  // Base URL for trainer first-login links (invitation token flow).
+  static const String firstLoginBaseUrl = 'https://centr.xavierbenavidesm.workers.dev/first-login';
 }
 
 /// Supabase configuration

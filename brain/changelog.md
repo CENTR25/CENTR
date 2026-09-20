@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-20 — Trainer invite flow: auth.admin.* moved to admin-auth Edge Function
+
+**Problem:** `admin_service.dart` called `auth.admin.createUser/deleteUser/updateUserById` from the client — impossible without the service-role key, so create-trainer, delete-trainer, and the trainer first-login (set password via invitation token) were all dead. The pre-auth token lookup in `completeFirstLogin` was additionally blocked by admin-only RLS on `invitation_tokens`.
+
+**Fix:** New `admin-auth` Edge Function (deployed, v1; source in `supabase/functions/admin-auth/index.ts`) with three actions:
+- `create_trainer` / `delete_user` — require a JWT whose profile role is `admin` (verified server-side via service role); `delete_user` refuses to delete admins. Temp password now generated server-side and returned once to the admin.
+- `complete_first_login` — pre-auth; the invitation token is the credential. Verifies token (unused + unexpired) with the service role, sets the password, stamps `profiles.first_login_at`, marks token used.
+
+Client changes: `admin_service` now calls the function via `functions.invoke` (`_invokeAdminAuth` helper unwraps the error payload); invitation tokens are now 128-bit `Random.secure()` hex (were guessable `millisecondsSinceEpoch` + user-id prefix — unacceptable as a password-set credential); stale `centr-v1.netlify.app` first-login links in `admin_service` + `trainer_sheets` replaced with `AppConstants.firstLoginBaseUrl` (workers.dev).
+
+**Verified:** curl smoke tests against the live function — invalid token rejected, `create_trainer`/`delete_user` reject anon callers, unknown action rejected. `flutter analyze` clean (baseline 378→375). Deployed to workers.dev. Full happy-path (create trainer → open invite link → set password) needs a logged-in admin session to test end-to-end.
+
 ## 2026-09-20 — Schema-drift audit: code vs live DB — 8 bug clusters fixed
 
 **Trigger:** Student signup (invite link, web) crashed with PGRST204 — code upserted `profiles.name`, which doesn't exist in prod. Full audit of every Supabase call site (~150) against live `information_schema` followed.

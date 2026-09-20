@@ -59,50 +59,36 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
     final client = ref.read(supabaseClientProvider);
 
     try {
-      // 1. Create the auth user. Role is ALWAYS 'student' — not from the URL.
+      // Validate that trainer_id looks like a UUID before trusting it.
+      final uuidPattern = RegExp(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+      );
+      final trainerId =
+          widget.trainerId != null && uuidPattern.hasMatch(widget.trainerId!)
+              ? widget.trainerId
+              : null;
+
+      // Create the auth user. Role is ALWAYS 'student' — not from the URL.
+      // The profiles and athletes rows are created server-side by the
+      // on_auth_user_created trigger (add_student_signup_trigger.sql): with
+      // email confirmation enabled there is no session yet, so client-side
+      // inserts would be rejected by RLS. The trigger also validates that
+      // trainer_id references a real trainer before linking it.
       final authResponse = await client.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         data: {
           'name': _nameController.text.trim(),
           'role': 'student',
+          if (trainerId != null) 'trainer_id': trainerId,
         },
       );
 
-      final user = authResponse.user;
-      if (user == null) {
+      if (authResponse.user == null) {
         throw Exception('No se pudo crear la cuenta. Intenta de nuevo.');
       }
 
-      // 2. Upsert the profile row (auth trigger may have already created it;
-      //    upsert is safe either way).
-      await client.from('profiles').upsert({
-        'id': user.id,
-        'email': user.email ?? _emailController.text.trim(),
-        'role': 'student', // hardcoded — never from URL
-        'is_active': true,
-        'created_at': DateTime.now().toIso8601String(),
-      });
-
-      // 3. Create the athlete row linking this student to the trainer.
-      //    user_id is always auth.uid() — never arbitrary input.
-      //    trainer_id is purely a data association; it grants no extra permissions.
-      if (widget.trainerId != null && widget.trainerId!.isNotEmpty) {
-        // Validate that trainer_id looks like a UUID before trusting it.
-        final uuidPattern = RegExp(
-          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-        );
-        if (uuidPattern.hasMatch(widget.trainerId!)) {
-          await client.from('athletes').insert({
-            'user_id': user.id, // always auth.uid() — not from URL
-            'name': _nameController.text.trim(),
-            'trainer_id': widget.trainerId,
-            'created_at': DateTime.now().toIso8601String(),
-          });
-        }
-      }
-
-      // 4. Navigate — auth state listener in AuthNotifier will handle the rest.
+      // Navigate — auth state listener in AuthNotifier will handle the rest.
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

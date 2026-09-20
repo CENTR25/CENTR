@@ -33,6 +33,20 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script>
+    // iOS swipe-back guard. The initial document history entry has no Flutter
+    // serialCount state; when a swipe-back lands on it, the Flutter engine
+    // reboots the whole app (visible as the loading screen). Trap that
+    // popstate before the engine's listener runs, bounce forward, and surface
+    // the gesture to the app as an in-app back intent instead.
+    window.addEventListener('popstate', function (e) {
+      if (!e.state || e.state.serialCount === undefined) {
+        e.stopImmediatePropagation();
+        history.forward();
+        window.dispatchEvent(new Event('flutter-swipe-back'));
+      }
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

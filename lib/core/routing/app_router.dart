@@ -39,12 +39,21 @@ class AppRoutes {
   static const String studentProgress = '/student/progress';
 }
 
+/// Root navigator key — used by the web swipe-back handler to pop
+/// Navigator.push'd screens when the browser back gesture is trapped.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 /// Router provider
 final routerProvider = Provider<GoRouter>((ref) {
   // Use read instead of watch to avoid rebuilding GoRouter on auth changes
   final authNotifier = ref.read(authProvider.notifier);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
+    // Replace (never push) browser history entries on web. Auth-flow
+    // redirects were pushing stale splash/login entries; iOS swipe-back then
+    // revealed their Safari snapshots — seen as a loading-screen flash.
+    routerNeglect: true,
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
     // Use refreshListenable to trigger redirects on auth state changes

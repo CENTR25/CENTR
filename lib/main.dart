@@ -5,10 +5,13 @@ import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'core/routing/app_router.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'core/swipe_back_handler_stub.dart'
+    if (dart.library.html) 'core/swipe_back_handler_web.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy();
+  initSwipeBackHandler(() => rootNavigatorKey.currentState?.maybePop());
   
   // Initialize Supabase
   await Supabase.initialize(

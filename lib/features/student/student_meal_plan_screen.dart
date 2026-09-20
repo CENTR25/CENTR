@@ -47,7 +47,13 @@ class _StudentMealPlanScreenState extends ConsumerState<StudentMealPlanScreen> w
           final items = (plan['meal_plan_items'] as List?) ?? [];
           const daysCount = 7;
 
-          _tabController ??= TabController(length: daysCount, vsync: this);
+          // Focus today's tab on open. Plan days are "Día 1..7" mapped to
+          // Mon..Sun, so today = weekday - 1 (Dart weekday: Mon=1..Sun=7).
+          _tabController ??= TabController(
+            length: daysCount,
+            vsync: this,
+            initialIndex: (DateTime.now().weekday - 1).clamp(0, daysCount - 1),
+          );
 
           return Column(
             children: [

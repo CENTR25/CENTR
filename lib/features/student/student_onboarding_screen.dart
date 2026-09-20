@@ -174,7 +174,7 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
           Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: AppColors.studentColor.withOpacity(0.1),
+              color: AppColors.studentColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.fitness_center_rounded, size: 80, color: AppColors.studentColor),
@@ -219,7 +219,7 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
                     data: SliderTheme.of(context).copyWith(
                       activeTrackColor: AppColors.studentColor,
                       thumbColor: AppColors.studentColor,
-                      overlayColor: AppColors.studentColor.withOpacity(0.2),
+                      overlayColor: AppColors.studentColor.withValues(alpha: 0.2),
                       trackHeight: 12,
                     ),
                     child: Slider(
@@ -266,7 +266,7 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
             ),
           ),
           const SizedBox(height: 32),
-          Icon(Icons.monitor_weight_outlined, size: 100, color: AppColors.textLight.withOpacity(0.2)),
+          Icon(Icons.monitor_weight_outlined, size: 100, color: AppColors.textLight.withValues(alpha: 0.2)),
         ],
       ),
     );

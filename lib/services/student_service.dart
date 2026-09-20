@@ -111,8 +111,9 @@ class StudentService {
         .eq('athlete_id', athleteId)
         .maybeSingle();
 
-    if (response == null)
+    if (response == null) {
       return {'current_count': 0, 'last_activity_date': null};
+    }
 
     // Live calculation to check if streak is still valid
     final lastWorkoutStr = response['last_activity_date'] as String?;
@@ -445,7 +446,7 @@ class StudentService {
     final isPending =
         dueDate != null &&
         (now.isAfter(dueDate) || now.isAtSameMomentAs(dueDate));
-    final daysOverdue = isPending ? now.difference(dueDate!).inDays : 0;
+    final daysOverdue = isPending ? now.difference(dueDate).inDays : 0;
 
     return (
       lastDate: lastDate,
@@ -808,8 +809,9 @@ class StudentService {
   /// Get today's step count and goal
   Future<Map<String, dynamic>> getDailySteps() async {
     final athleteId = await _getAthleteId();
-    if (athleteId == null)
+    if (athleteId == null) {
       return {'steps': 0, 'goal': 10000, 'updatedToday': false};
+    }
 
     final todayStr = DateTime.now().toIso8601String().split('T')[0];
 

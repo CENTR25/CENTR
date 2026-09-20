@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/admin_service.dart';
-import '../../../services/auth_service.dart';
 
 class FirstLoginScreen extends ConsumerStatefulWidget {
   final String token;
@@ -129,7 +128,7 @@ class _FirstLoginScreenState extends ConsumerState<FirstLoginScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
+                          color: AppColors.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(

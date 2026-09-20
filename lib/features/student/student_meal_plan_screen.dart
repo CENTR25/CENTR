@@ -65,7 +65,7 @@ class _StudentMealPlanScreenState extends ConsumerState<StudentMealPlanScreen> w
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10),
                   ],
                 ),
                 child: Row(
@@ -215,7 +215,7 @@ class _StudentMealItemCard extends StatelessWidget {
           ListTile(
             leading: item['image_url'] == null
                 ? CircleAvatar(
-                    backgroundColor: color.withOpacity(0.1),
+                    backgroundColor: color.withValues(alpha: 0.1),
                     child: Icon(Icons.restaurant, color: color, size: 20),
                   )
                 : null,

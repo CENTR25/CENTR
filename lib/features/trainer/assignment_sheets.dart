@@ -17,7 +17,7 @@ class AssignRoutineSheet extends ConsumerStatefulWidget {
 
 class _AssignRoutineSheetState extends ConsumerState<AssignRoutineSheet> {
   String? _selectedRoutineId;
-  DateTime _startDate = DateTime.now();
+  final DateTime _startDate = DateTime.now();
   DateTime? _endDate;
   bool _isLoading = false;
 
@@ -43,7 +43,7 @@ class _AssignRoutineSheetState extends ConsumerState<AssignRoutineSheet> {
               width: 50,
               height: 5,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
@@ -55,7 +55,7 @@ class _AssignRoutineSheetState extends ConsumerState<AssignRoutineSheet> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.15),
+                    color: AppColors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -109,58 +109,59 @@ class _AssignRoutineSheetState extends ConsumerState<AssignRoutineSheet> {
                     child: Text('No tienes rutinas creadas.'),
                   );
                 }
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: routines.length,
-                  itemBuilder: (context, index) {
-                    final routine = routines[index];
-                    final isSelected = _selectedRoutineId == routine['id'];
+                return RadioGroup<String>(
+                  groupValue: _selectedRoutineId,
+                  onChanged: (val) => setState(() => _selectedRoutineId = val),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: routines.length,
+                    itemBuilder: (context, index) {
+                      final routine = routines[index];
+                      final isSelected = _selectedRoutineId == routine['id'];
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.primary.withOpacity(0.05)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.primary.withOpacity(0.3)
-                              : Colors.white.withOpacity(0.05),
-                        ),
-                      ),
-                      child: RadioListTile<String>(
-                        value: routine['id'],
-                        groupValue: _selectedRoutineId,
-                        onChanged: (val) =>
-                            setState(() => _selectedRoutineId = val),
-                        title: Text(
-                          routine['title'] ?? 'Rutina',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                              ? AppColors.primary.withValues(alpha: 0.05)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.primary.withValues(alpha: 0.3)
+                                : Colors.white.withValues(alpha: 0.05),
                           ),
                         ),
-                        subtitle: Text(
-                          routine['objective'] ?? '',
-                          style: TextStyle(color: AppColors.textLight),
+                        child: RadioListTile<String>(
+                          value: routine['id'],
+                          title: Text(
+                            routine['title'] ?? 'Rutina',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Text(
+                            routine['objective'] ?? '',
+                            style: TextStyle(color: AppColors.textLight),
+                          ),
+                          secondary: isSelected
+                              ? const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppColors.primaryLight,
+                                )
+                              : null,
+                          activeColor: AppColors.primaryLight,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
-                        secondary: isSelected
-                            ? const Icon(
-                                Icons.check_circle_rounded,
-                                color: AppColors.primaryLight,
-                              )
-                            : null,
-                        activeColor: AppColors.primaryLight,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -231,7 +232,7 @@ class AssignMealPlanSheet extends ConsumerStatefulWidget {
 
 class _AssignMealPlanSheetState extends ConsumerState<AssignMealPlanSheet> {
   String? _selectedMealPlanId;
-  DateTime _startDate = DateTime.now();
+  final DateTime _startDate = DateTime.now();
   DateTime? _endDate;
   bool _isLoading = false;
 
@@ -257,7 +258,7 @@ class _AssignMealPlanSheetState extends ConsumerState<AssignMealPlanSheet> {
               width: 50,
               height: 5,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
@@ -269,7 +270,7 @@ class _AssignMealPlanSheetState extends ConsumerState<AssignMealPlanSheet> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.warning.withOpacity(0.15),
+                    color: AppColors.warning.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -321,58 +322,59 @@ class _AssignMealPlanSheetState extends ConsumerState<AssignMealPlanSheet> {
                 if (plans.isEmpty) {
                   return const Center(child: Text('No tienes planes creados.'));
                 }
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: plans.length,
-                  itemBuilder: (context, index) {
-                    final plan = plans[index];
-                    final isSelected = _selectedMealPlanId == plan['id'];
+                return RadioGroup<String>(
+                  groupValue: _selectedMealPlanId,
+                  onChanged: (val) => setState(() => _selectedMealPlanId = val),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: plans.length,
+                    itemBuilder: (context, index) {
+                      final plan = plans[index];
+                      final isSelected = _selectedMealPlanId == plan['id'];
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.warning.withOpacity(0.05)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.warning.withOpacity(0.3)
-                              : Colors.white.withOpacity(0.05),
-                        ),
-                      ),
-                      child: RadioListTile<String>(
-                        value: plan['id'],
-                        groupValue: _selectedMealPlanId,
-                        onChanged: (val) =>
-                            setState(() => _selectedMealPlanId = val),
-                        title: Text(
-                          plan['title'] ?? 'Plan',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                              ? AppColors.warning.withValues(alpha: 0.05)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.warning.withValues(alpha: 0.3)
+                                : Colors.white.withValues(alpha: 0.05),
                           ),
                         ),
-                        subtitle: Text(
-                          plan['objective'] ?? '',
-                          style: TextStyle(color: AppColors.textLight),
+                        child: RadioListTile<String>(
+                          value: plan['id'],
+                          title: Text(
+                            plan['title'] ?? 'Plan',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Text(
+                            plan['objective'] ?? '',
+                            style: TextStyle(color: AppColors.textLight),
+                          ),
+                          secondary: isSelected
+                              ? const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppColors.warning,
+                                )
+                              : null,
+                          activeColor: AppColors.warning,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
-                        secondary: isSelected
-                            ? const Icon(
-                                Icons.check_circle_rounded,
-                                color: AppColors.warning,
-                              )
-                            : null,
-                        activeColor: AppColors.warning,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),

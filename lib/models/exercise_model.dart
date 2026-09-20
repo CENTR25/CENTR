@@ -99,7 +99,7 @@ class ExerciseModel {
   }
 
   factory ExerciseModel.fromMap(Map<String, dynamic> map) {
-    List<String> _asList(Object? v) =>
+    List<String> asList(Object? v) =>
         (v is List) ? List<String>.from(v) : <String>[];
 
     // Parse instructions_i18n (always present, stores rich metadata for seed)
@@ -121,7 +121,7 @@ class ExerciseModel {
           (map['equipment'] as String?) ?? (i18n['equipment'] as String?),
       target: (map['target'] as String?) ?? (i18n['target'] as String?),
       muscleGroup: map['muscle_group'] as String?,
-      secondaryMuscles: _asList(
+      secondaryMuscles: asList(
         (map['secondary_muscles'] as List?) ??
             (i18n['secondary_muscles'] as List?),
       ),
@@ -130,7 +130,7 @@ class ExerciseModel {
       mediaId: (map['media_id'] as String?) ?? (i18n['media_id'] as String?),
       gifUrl: (map['gif_url'] as String?) ?? (i18n['gif_url'] as String?),
       videoUrl: map['video_url'] as String?,
-      imageUrls: _asList(map['image_urls']),
+      imageUrls: asList(map['image_urls']),
       createdByTrainer: map['created_by_trainer']?.toString(),
       isPublic: (map['is_public'] as bool?) ?? true,
       source: (map['source'] as String?) ?? 'trainer',

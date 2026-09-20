@@ -43,9 +43,9 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                     ),
-                    child: Icon(Icons.history_rounded, size: 64, color: Colors.white.withOpacity(0.1)),
+                    child: Icon(Icons.history_rounded, size: 64, color: Colors.white.withValues(alpha: 0.1)),
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -95,7 +95,7 @@ class _WorkoutLogCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -142,7 +142,7 @@ class _StatBadge extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
+            color: AppColors.primary.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
           child: Icon(icon, size: 16, color: AppColors.primaryLight),

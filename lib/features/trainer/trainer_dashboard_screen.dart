@@ -71,7 +71,7 @@ class _TrainerDashboardScreenState extends ConsumerState<TrainerDashboardScreen>
       decoration: BoxDecoration(
         color: AppColors.background,
         border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 1),
         ),
       ),
       child: BottomNavigationBar(
@@ -319,10 +319,10 @@ class _StatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -333,7 +333,7 @@ class _StatCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 22),
@@ -384,7 +384,7 @@ class _QuickActionCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.3),
+            color: color.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -504,7 +504,7 @@ class _EmptyNotificationsCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Center(
         child: Column(
@@ -512,10 +512,10 @@ class _EmptyNotificationsCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.03),
+                color: Colors.white.withValues(alpha: 0.03),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.notifications_none_rounded, size: 48, color: Colors.white.withOpacity(0.2)),
+              child: Icon(Icons.notifications_none_rounded, size: 48, color: Colors.white.withValues(alpha: 0.2)),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -563,8 +563,7 @@ class _NotificationCard extends StatelessWidget {
     required this.subtitle,
     this.date,
     this.onTap,
-    this.actionLabel,
-  });
+  }) : actionLabel = null;
 
   Color get _tagColor {
     switch (type) {
@@ -611,10 +610,10 @@ class _NotificationCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       color: AppColors.surface,
       elevation: 4,
-      shadowColor: Colors.black.withOpacity(0.3),
+      shadowColor: Colors.black.withValues(alpha: 0.3),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 1),
       ),
       child: InkWell(
         onTap: onTap,
@@ -627,7 +626,7 @@ class _NotificationCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _tagColor.withOpacity(0.15),
+                  color: _tagColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(15),
                 ),
                 child: Icon(_icon, color: _tagColor, size: 28),
@@ -642,9 +641,9 @@ class _NotificationCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _tagColor.withOpacity(0.2),
+                        color: _tagColor.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _tagColor.withOpacity(0.5)),
+                        border: Border.all(color: _tagColor.withValues(alpha: 0.5)),
                       ),
                       child: Text(
                         _tagLabel,
@@ -677,12 +676,12 @@ class _NotificationCard extends StatelessWidget {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Icon(Icons.access_time_rounded, size: 12, color: AppColors.textLight.withOpacity(0.7)),
+                          Icon(Icons.access_time_rounded, size: 12, color: AppColors.textLight.withValues(alpha: 0.7)),
                           const SizedBox(width: 4),
                           Text(
                             _formatDate(date!),
                             style: TextStyle(
-                              color: AppColors.textLight.withOpacity(0.7),
+                              color: AppColors.textLight.withValues(alpha: 0.7),
                               fontSize: 12,
                             ),
                           ),
@@ -693,7 +692,7 @@ class _NotificationCard extends StatelessWidget {
                 ),
               ),
               // Flecha
-              Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.3), size: 16),
+              Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withValues(alpha: 0.3), size: 16),
             ],
           ),
         ),
@@ -809,7 +808,7 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                   width: 50,
                   height: 5,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -820,7 +819,7 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.15),
+                      color: AppColors.primary.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: const Icon(Icons.campaign_rounded, color: AppColors.primaryLight, size: 28),
@@ -939,7 +938,7 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                               return Center(
                                 child: Text(
                                   'No hay novedades recientes',
-                                  style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                                 ),
                               );
                             }
@@ -990,10 +989,10 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1008,7 +1007,7 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
               child: Image.network(
                 imageAsset,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: color.withOpacity(0.1)),
+                errorBuilder: (_, __, ___) => Container(color: color.withValues(alpha: 0.1)),
               ),
             )
           else
@@ -1019,7 +1018,7 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      color.withOpacity(0.2),
+                      color.withValues(alpha: 0.2),
                       Colors.transparent,
                     ],
                   ),
@@ -1036,7 +1035,7 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                 end: Alignment.bottomCenter,
                 colors: [
                   Colors.transparent,
-                  Colors.black.withOpacity(0.8),
+                  Colors.black.withValues(alpha: 0.8),
                 ],
               ),
             ),
@@ -1049,7 +1048,7 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.2),
+                        color: color.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(icon, color: color, size: 16),
@@ -1058,7 +1057,7 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
+                        color: Colors.black.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Text(
@@ -1087,7 +1086,7 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 12,
                   ),
                   maxLines: 2,
@@ -1148,9 +1147,9 @@ class _StudentsView extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
                       ),
                       child: const Icon(
                         Icons.people_outline_rounded,
@@ -1205,7 +1204,7 @@ class _StudentsView extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                 ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1262,7 +1261,7 @@ class _StudentsView extends ConsumerWidget {
                           return Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.1),
+                              color: Colors.orange.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Row(
@@ -1286,7 +1285,7 @@ class _StudentsView extends ConsumerWidget {
                     ],
                   ),
                   subtitle: Text(email, style: TextStyle(color: AppColors.textLight)),
-                  trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.2), size: 16),
+                  trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withValues(alpha: 0.2), size: 16),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -1435,7 +1434,7 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
                 width: 50,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
@@ -1448,7 +1447,7 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.15),
+                    color: AppColors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Icon(Icons.person_add_rounded, color: AppColors.primaryLight, size: 28),
@@ -1506,9 +1505,9 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   children: [
@@ -1558,7 +1557,7 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
                       label: const Text('COPIAR'),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
@@ -1572,7 +1571,7 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
                       label: const Text('OTROS'),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
@@ -1587,7 +1586,7 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.info.withOpacity(0.1),
+                  color: AppColors.info.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Row(
@@ -1650,9 +1649,9 @@ class _RoutinesView extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
-                        color: AppColors.success.withOpacity(0.1),
+                        color: AppColors.success.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.success.withOpacity(0.2)),
+                        border: Border.all(color: AppColors.success.withValues(alpha: 0.2)),
                       ),
                       child: const Icon(Icons.fitness_center_rounded, size: 64, color: AppColors.success),
                     ),
@@ -1693,10 +1692,10 @@ class _RoutinesView extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withValues(alpha: 0.2),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -1725,12 +1724,12 @@ class _RoutinesView extends ConsumerWidget {
                           fit: BoxFit.cover,
                           placeholder: (context, url) => Container(
                             height: 160,
-                            color: Colors.white.withOpacity(0.05),
+                            color: Colors.white.withValues(alpha: 0.05),
                             child: const Center(child: CircularProgressIndicator()),
                           ),
                           errorWidget: (context, url, error) => Container(
                             height: 160,
-                            color: Colors.white.withOpacity(0.05),
+                            color: Colors.white.withValues(alpha: 0.05),
                             child: const Icon(Icons.broken_image_rounded, color: Colors.grey),
                           ),
                         ),
@@ -1740,7 +1739,7 @@ class _RoutinesView extends ConsumerWidget {
                           ? Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: AppColors.success.withOpacity(0.15),
+                                color: AppColors.success.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(Icons.fitness_center_rounded, color: AppColors.success),
@@ -1754,7 +1753,7 @@ class _RoutinesView extends ConsumerWidget {
                           routine['objective'] ?? 'Sin objetivo',
                           style: TextStyle(color: AppColors.textLight),
                         ),
-                        trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.2), size: 16),
+                        trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withValues(alpha: 0.2), size: 16),
                       ),
                     ],
                   ),
@@ -1922,7 +1921,7 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                   width: 50,
                   height: 5,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -1934,7 +1933,7 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.15),
+                        color: AppColors.primary.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(Icons.fitness_center_rounded, color: AppColors.primaryLight, size: 24),
@@ -1968,9 +1967,9 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                   height: 160,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                     image: _selectedImage != null
                         ? DecorationImage(
                             image: FileImage(_selectedImage!),
@@ -1983,7 +1982,7 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.add_photo_alternate_rounded, 
-                                 size: 40, color: AppColors.primaryLight.withOpacity(0.5)),
+                                 size: 40, color: AppColors.primaryLight.withValues(alpha: 0.5)),
                             const SizedBox(height: 12),
                             const Text(
                               'Añadir portada',
@@ -2023,7 +2022,7 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _level,
+                initialValue: _level,
                 decoration: const InputDecoration(
                   labelText: 'Nivel',
                   prefixIcon: Icon(Icons.bar_chart),
@@ -2039,9 +2038,9 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.03),
+                  color: Colors.white.withValues(alpha: 0.03),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                 ),
                 child: Row(
                   children: [
@@ -2054,9 +2053,9 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                       child: SliderTheme(
                         data: SliderTheme.of(context).copyWith(
                           activeTrackColor: AppColors.primaryLight,
-                          inactiveTrackColor: Colors.white.withOpacity(0.1),
+                          inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
                           thumbColor: AppColors.primaryLight,
-                          overlayColor: AppColors.primaryLight.withOpacity(0.1),
+                          overlayColor: AppColors.primaryLight.withValues(alpha: 0.1),
                           valueIndicatorColor: AppColors.primary,
                         ),
                         child: Slider(
@@ -2072,7 +2071,7 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.15),
+                        color: AppColors.primary.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
@@ -2099,33 +2098,6 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
 
 
 
-class _LevelChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool selected;
-  final VoidCallback onSelected;
-
-  const _LevelChip({
-    required this.label,
-    required this.value,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onSelected(),
-      selectedColor: AppColors.primary.withOpacity(0.2),
-      labelStyle: TextStyle(
-        color: selected ? AppColors.primary : AppColors.textSecondary,
-        fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-      ),
-    );
-  }
-}
 
 // ==================== MEAL PLANS VIEW ====================
 class _MealPlansView extends ConsumerWidget {
@@ -2160,9 +2132,9 @@ class _MealPlansView extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
-                        color: AppColors.warning.withOpacity(0.1),
+                        color: AppColors.warning.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.warning.withOpacity(0.2)),
+                        border: Border.all(color: AppColors.warning.withValues(alpha: 0.2)),
                       ),
                       child: const Icon(
                         Icons.restaurant_menu_rounded,
@@ -2214,10 +2186,10 @@ class _MealPlansView extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withValues(alpha: 0.2),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -2247,12 +2219,12 @@ class _MealPlansView extends ConsumerWidget {
                           fit: BoxFit.cover,
                           placeholder: (context, url) => Container(
                             height: 160,
-                            color: Colors.white.withOpacity(0.05),
+                            color: Colors.white.withValues(alpha: 0.05),
                             child: const Center(child: CircularProgressIndicator()),
                           ),
                           errorWidget: (context, url, error) => Container(
                             height: 160,
-                            color: Colors.white.withOpacity(0.05),
+                            color: Colors.white.withValues(alpha: 0.05),
                             child: const Icon(Icons.broken_image_rounded, color: Colors.grey),
                           ),
                         ),
@@ -2262,7 +2234,7 @@ class _MealPlansView extends ConsumerWidget {
                           ? Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: AppColors.warning.withOpacity(0.15),
+                                color: AppColors.warning.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(Icons.restaurant_rounded, color: AppColors.warning),
@@ -2276,7 +2248,7 @@ class _MealPlansView extends ConsumerWidget {
                           '${((plan['meal_plan_items'] as List?) ?? []).length} comidas',
                           style: TextStyle(color: AppColors.textLight),
                         ),
-                        trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.2), size: 16),
+                        trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withValues(alpha: 0.2), size: 16),
                       ),
                     ],
                   ),
@@ -2344,12 +2316,12 @@ class _ProfileView extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
+                    color: AppColors.primary.withValues(alpha: 0.3),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
                 ],
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: Column(
                 children: [
@@ -2385,7 +2357,7 @@ class _ProfileView extends ConsumerWidget {
                   Text(
                     user?.email ?? '',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                       fontSize: 14,
                     ),
                   ),
@@ -2393,9 +2365,9 @@ class _ProfileView extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                     ),
                     child: const Text(
                       'ENTRENADOR',
@@ -2496,7 +2468,7 @@ class _ProfileView extends ConsumerWidget {
                 label: const Text('Cerrar Sesión', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: BorderSide(color: AppColors.notificationRed.withOpacity(0.5)),
+                  side: BorderSide(color: AppColors.notificationRed.withValues(alpha: 0.5)),
                   foregroundColor: AppColors.notificationRed,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -2529,10 +2501,10 @@ class _ProfileStatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -2543,7 +2515,7 @@ class _ProfileStatCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.15),
+              color: AppColors.primary.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: AppColors.primaryLight, size: 20),
@@ -2591,7 +2563,7 @@ class _MenuItem extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -2604,7 +2576,7 @@ class _MenuItem extends StatelessWidget {
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.15),
+                  color: AppColors.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: AppColors.primaryLight),
@@ -2626,7 +2598,7 @@ class _MenuItem extends StatelessWidget {
               ),
               trailing: Icon(
                 Icons.arrow_forward_ios_rounded,
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 size: 16,
               ),
             ),

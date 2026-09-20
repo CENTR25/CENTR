@@ -76,7 +76,7 @@ class _EmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -280,7 +280,7 @@ class _SubscriptionBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -376,7 +376,7 @@ class _InviteTrainerSheetState extends ConsumerState<InviteTrainerSheet> {
             backgroundColor: AppColors.success,
           ),
         );
-        ref.refresh(trainersProvider);
+        ref.refresh(trainersProvider); // ignore: unused_result
       }
     } catch (e) {
       if (mounted) {
@@ -463,7 +463,7 @@ class _InviteTrainerSheetState extends ConsumerState<InviteTrainerSheet> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _selectedPlan,
+                initialValue: _selectedPlan,
                 decoration: const InputDecoration(
                   labelText: 'Plan inicial',
                   prefixIcon: Icon(Icons.card_membership_outlined),
@@ -650,8 +650,8 @@ class TrainerDetailSheet extends ConsumerWidget {
               try {
                 final service = ref.read(supabaseServiceProvider);
                 await service.deleteTrainer(trainer['id']);
-                ref.refresh(trainersProvider);
-                
+                ref.refresh(trainersProvider); // ignore: unused_result
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Entrenador eliminado'),
@@ -659,6 +659,7 @@ class TrainerDetailSheet extends ConsumerWidget {
                   ),
                 );
               } catch (e) {
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Error: $e'),

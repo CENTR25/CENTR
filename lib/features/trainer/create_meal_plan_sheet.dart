@@ -96,7 +96,7 @@ class _CreateMealPlanSheetState extends ConsumerState<CreateMealPlanSheet> {
                 width: 50,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
@@ -108,7 +108,7 @@ class _CreateMealPlanSheetState extends ConsumerState<CreateMealPlanSheet> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.warning.withOpacity(0.15),
+                      color: AppColors.warning.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.restaurant_menu_rounded, color: AppColors.warning, size: 24),
@@ -148,9 +148,9 @@ class _CreateMealPlanSheetState extends ConsumerState<CreateMealPlanSheet> {
                         width: double.infinity,
                         margin: const EdgeInsets.only(bottom: 24),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.2),
+                          color: Colors.black.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withOpacity(0.05)),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                           image: _selectedImage != null
                               ? DecorationImage(
                                   image: FileImage(_selectedImage!),
@@ -163,7 +163,7 @@ class _CreateMealPlanSheetState extends ConsumerState<CreateMealPlanSheet> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(Icons.add_photo_alternate_rounded, 
-                                       size: 40, color: AppColors.warning.withOpacity(0.5)),
+                                       size: 40, color: AppColors.warning.withValues(alpha: 0.5)),
                                   const SizedBox(height: 12),
                                   const Text(
                                     'Añadir portada',

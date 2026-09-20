@@ -400,8 +400,9 @@ class TrainerService {
     required StorageService storageService,
   }) async {
     final trainerId = await _getTrainerId();
-    if (trainerId == null)
+    if (trainerId == null) {
       throw Exception('No trainer record found for this user');
+    }
 
     String? finalImageUrl = imageUrl; // Use the provided imageUrl if available
 

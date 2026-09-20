@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:video_player/video_player.dart';
@@ -563,7 +562,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                         icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
                         onPressed: () => _showExitDialog(),
                         style: IconButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.1),
+                          backgroundColor: Colors.white.withValues(alpha: 0.1),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
@@ -572,7 +571,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                           Text(
                             'EJERCICIO ${_currentExerciseIndex + 1} / $totalExercises',
                             style: TextStyle(
-                              color: AppColors.textLight.withOpacity(0.5),
+                              color: AppColors.textLight.withValues(alpha: 0.5),
                               fontSize: 10,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 1.2,
@@ -601,7 +600,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: exerciseProgress,
-                      backgroundColor: Colors.white.withOpacity(0.1),
+                      backgroundColor: Colors.white.withValues(alpha: 0.1),
                       valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
                       minHeight: 6,
                     ),
@@ -692,9 +691,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppColors.info.withOpacity(0.1),
+                          color: AppColors.info.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.info.withOpacity(0.2)),
+                          border: Border.all(color: AppColors.info.withValues(alpha: 0.2)),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -706,7 +705,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                                 notes,
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: AppColors.textLight.withOpacity(0.9),
+                                  color: AppColors.textLight.withValues(alpha: 0.9),
                                   height: 1.4,
                                 ),
                               ),
@@ -758,7 +757,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 20,
                     offset: const Offset(0, -5),
                   ),
@@ -802,7 +801,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                           shadowColor: Colors.transparent, 
                         ).copyWith(
                           elevation: WidgetStateProperty.all(8),
-                          shadowColor: WidgetStateProperty.all(AppColors.success.withOpacity(0.4)),
+                          shadowColor: WidgetStateProperty.all(AppColors.success.withValues(alpha: 0.4)),
                         ),
                         child: const Text(
                           'Terminar Serie',
@@ -1386,39 +1385,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
 
 // Helper widgets
 
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _InfoChip({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(color: color, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _ExitStatRow extends StatelessWidget {
   final IconData icon;
@@ -1451,122 +1417,6 @@ class _ExitStatRow extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _ExerciseStatRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? value;
-  final Color color;
-  final bool isEditable;
-  final TextEditingController? controller;
-  final FocusNode? focusNode;
-
-  const _ExerciseStatRow({
-    required this.icon,
-    required this.label,
-    this.value,
-    required this.color,
-    this.isEditable = false,
-    this.controller,
-    this.focusNode,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final Widget content = Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: isEditable && focusNode != null ? () => focusNode!.requestFocus() : null,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(0.2)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, size: 20, color: color),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              if (isEditable && controller != null)
-                Container(
-                  width: 120,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white10,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: color.withOpacity(0.5)),
-                  ),
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    textAlign: TextAlign.center,
-                    cursorColor: color,
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: '0.0',
-                      hintStyle: TextStyle(color: color.withOpacity(0.3)),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      suffixText: ' kg',
-                      suffixStyle: TextStyle(
-                        color: color.withOpacity(0.5),
-                        fontSize: 14,
-                        fontWeight: FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                )
-              else
-                Text(
-                  value ?? '',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    return content;
   }
 }
 
@@ -1734,9 +1584,9 @@ class _ModernStatItem extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1749,7 +1599,7 @@ class _ModernStatItem extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  color: color.withOpacity(0.8),
+                  color: color.withValues(alpha: 0.8),
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.5,
@@ -1837,22 +1687,22 @@ class _InputStatBoxState extends State<_InputStatBox> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.surfaceVariant.withOpacity(0.6),
-            AppColors.surfaceVariant.withOpacity(0.3),
+            AppColors.surfaceVariant.withValues(alpha: 0.6),
+            AppColors.surfaceVariant.withValues(alpha: 0.3),
           ],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: hasImprovement 
-            ? AppColors.success.withOpacity(0.4) 
-            : Colors.white.withOpacity(0.05),
+            ? AppColors.success.withValues(alpha: 0.4) 
+            : Colors.white.withValues(alpha: 0.05),
           width: hasImprovement ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: hasImprovement 
-              ? AppColors.success.withOpacity(0.15)
-              : Colors.black.withOpacity(0.2),
+              ? AppColors.success.withValues(alpha: 0.15)
+              : Colors.black.withValues(alpha: 0.2),
             blurRadius: hasImprovement ? 15 : 10,
             offset: const Offset(0, 4),
           ),
@@ -1888,7 +1738,7 @@ class _InputStatBoxState extends State<_InputStatBox> {
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: '0',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.1)),
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.1)),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
@@ -1921,7 +1771,7 @@ class _ProgressBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.success.withOpacity(0.2),
+        color: AppColors.success.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -1969,7 +1819,7 @@ class _HistoryInfoRow extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(8),
         ),
         child: const Text(
@@ -1983,9 +1833,9 @@ class _HistoryInfoRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       decoration: BoxDecoration(
-        color: AppColors.accent.withOpacity(0.1),
+        color: AppColors.accent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1995,7 +1845,7 @@ class _HistoryInfoRow extends StatelessWidget {
           Text(
             'ANTERIOR: ',
             style: TextStyle(
-              color: AppColors.accent.withOpacity(0.8),
+              color: AppColors.accent.withValues(alpha: 0.8),
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),

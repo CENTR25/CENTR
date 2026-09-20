@@ -81,7 +81,7 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> wit
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.warning.withOpacity(0.3),
+                      color: AppColors.warning.withValues(alpha: 0.3),
                       blurRadius: 15,
                       offset: const Offset(0, 8),
                     ),
@@ -107,7 +107,7 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> wit
                         ),
                         Text(
                           'OBJETIVO DIARIO',
-                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
                         ),
                       ],
                     ),
@@ -115,7 +115,7 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> wit
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -136,7 +136,7 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> wit
                 indicatorColor: AppColors.warning,
                 indicatorWeight: 3,
                 indicatorSize: TabBarIndicatorSize.label,
-                overlayColor: WidgetStateProperty.all(AppColors.warning.withOpacity(0.05)),
+                overlayColor: WidgetStateProperty.all(AppColors.warning.withValues(alpha: 0.05)),
                 dividerColor: Colors.transparent,
                 labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
@@ -168,9 +168,9 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> wit
                               decoration: BoxDecoration(
                                 color: AppColors.surface,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white.withOpacity(0.05)),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                               ),
-                              child: Icon(Icons.restaurant_menu_rounded, size: 48, color: Colors.white.withOpacity(0.1)),
+                              child: Icon(Icons.restaurant_menu_rounded, size: 48, color: Colors.white.withValues(alpha: 0.1)),
                             ),
                             const SizedBox(height: 24),
                             Text('Sin comidas para este día', style: TextStyle(color: AppColors.textLight, fontSize: 16)),
@@ -278,7 +278,7 @@ class _MealItemCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
@@ -298,7 +298,7 @@ class _MealItemCard extends StatelessWidget {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(Icons.restaurant_rounded, color: color, size: 28),
@@ -316,7 +316,7 @@ class _MealItemCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
+                    color: color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -339,13 +339,13 @@ class _MealItemCard extends StatelessWidget {
                 item['meal_description'],
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: AppColors.textLight.withOpacity(0.8), fontSize: 13),
+                style: TextStyle(color: AppColors.textLight.withValues(alpha: 0.8), fontSize: 13),
               ),
             ],
           ],
         ),
         trailing: IconButton(
-          icon: Icon(Icons.delete_outline_rounded, color: AppColors.error.withOpacity(0.8)),
+          icon: Icon(Icons.delete_outline_rounded, color: AppColors.error.withValues(alpha: 0.8)),
           onPressed: onDelete,
         ),
       ),
@@ -468,7 +468,7 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -496,9 +496,9 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
                   height: 160,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.03),
+                    color: Colors.white.withValues(alpha: 0.03),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                     image: _imageFile != null
                         ? DecorationImage(image: FileImage(_imageFile!), fit: BoxFit.cover)
                         : null,
@@ -510,13 +510,13 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.05),
+                                color: Colors.white.withValues(alpha: 0.05),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(Icons.add_a_photo_rounded, size: 32, color: AppColors.warning),
                             ),
                             const SizedBox(height: 12),
-                            Text('Agregar foto', style: TextStyle(color: Colors.white.withOpacity(0.5))),
+                            Text('Agregar foto', style: TextStyle(color: Colors.white.withValues(alpha: 0.5))),
                           ],
                         )
                       : null,
@@ -525,7 +525,7 @@ class _AddMealSheetState extends ConsumerState<_AddMealSheet> {
               const SizedBox(height: 24),
 
               DropdownButtonFormField<String>(
-                value: _time,
+                initialValue: _time,
                 dropdownColor: AppColors.surface,
                 style: const TextStyle(color: Colors.white),
                 items: const [
@@ -651,7 +651,7 @@ class _FoodBankSearchSheetState extends ConsumerState<_FoodBankSearchSheet> {
             height: 4,
             margin: const EdgeInsets.only(bottom: 20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -679,7 +679,7 @@ class _FoodBankSearchSheetState extends ConsumerState<_FoodBankSearchSheet> {
               hintText: 'Ej: Pollo, avena, pasta...',
               prefixIcon: const Icon(Icons.search_rounded, color: AppColors.warning),
               filled: true,
-              fillColor: Colors.white.withOpacity(0.05),
+              fillColor: Colors.white.withValues(alpha: 0.05),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
@@ -700,9 +700,9 @@ class _FoodBankSearchSheetState extends ConsumerState<_FoodBankSearchSheet> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.search_off_rounded, size: 64, color: Colors.white.withOpacity(0.1)),
+                          Icon(Icons.search_off_rounded, size: 64, color: Colors.white.withValues(alpha: 0.1)),
                           const SizedBox(height: 16),
-                          Text('Busca una comida para ver resultados', style: TextStyle(color: Colors.white.withOpacity(0.3))),
+                          Text('Busca una comida para ver resultados', style: TextStyle(color: Colors.white.withValues(alpha: 0.3))),
                         ],
                       )
                     )
@@ -713,9 +713,9 @@ class _FoodBankSearchSheetState extends ConsumerState<_FoodBankSearchSheet> {
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.02),
+                            color: Colors.white.withValues(alpha: 0.02),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.white.withOpacity(0.05)),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                           ),
                           child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -731,7 +731,7 @@ class _FoodBankSearchSheetState extends ConsumerState<_FoodBankSearchSheet> {
                               height: 45,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
-                                color: Colors.white.withOpacity(0.05),
+                                color: Colors.white.withValues(alpha: 0.05),
                                 image: item['image_url'] != null
                                    ? DecorationImage(image: NetworkImage(item['image_url']), fit: BoxFit.cover)
                                    : null,
@@ -863,7 +863,7 @@ class _EditMealPlanSheetState extends ConsumerState<_EditMealPlanSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -875,7 +875,7 @@ class _EditMealPlanSheetState extends ConsumerState<_EditMealPlanSheet> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.warning.withOpacity(0.15),
+                      color: AppColors.warning.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.edit_rounded, color: AppColors.warning, size: 24),
@@ -913,9 +913,9 @@ class _EditMealPlanSheetState extends ConsumerState<_EditMealPlanSheet> {
                         width: double.infinity,
                         margin: const EdgeInsets.only(bottom: 24),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.03),
+                          color: Colors.white.withValues(alpha: 0.03),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withOpacity(0.05)),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                           image: _selectedImage != null
                               ? DecorationImage(
                                   image: FileImage(_selectedImage!),
@@ -933,12 +933,12 @@ class _EditMealPlanSheetState extends ConsumerState<_EditMealPlanSheet> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(Icons.add_photo_alternate_rounded, 
-                                       size: 40, color: Colors.white.withOpacity(0.2)),
+                                       size: 40, color: Colors.white.withValues(alpha: 0.2)),
                                   const SizedBox(height: 8),
                                   Text(
                                     'Cambiar portada',
                                     style: TextStyle(
-                                      color: Colors.white.withOpacity(0.4),
+                                      color: Colors.white.withValues(alpha: 0.4),
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),

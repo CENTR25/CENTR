@@ -4,7 +4,6 @@ import '../../core/theme/app_theme.dart';
 import '../../services/auth_service.dart';
 import '../../services/student_service.dart';
 import '../../services/news_service.dart';
-import '../../services/supabase_service.dart';
 import '../../services/notification_providers.dart';
 import '../shared/notifications_sheet.dart';
 import 'student_meal_plan_screen.dart';
@@ -1078,236 +1077,6 @@ class _HomeContent extends ConsumerWidget {
     return month >= 1 && month <= 12 ? names[month] : '';
   }
 
-  // ----- Keep existing helpers -----
-
-  // Helper method to get today's workout title from routine
-  String _getTodayWorkoutTitle(Map<String, dynamic> routine) {
-    // Get today's day of week (1 = Monday, 7 = Sunday)
-    final today = DateTime.now().weekday;
-
-    // Try to get the custom day title from routine_exercises
-    final exercises = routine['routine_exercises'] as List?;
-    if (exercises != null && exercises.isNotEmpty) {
-      // Look for exercises that match today's day
-      final todayExercises = exercises.where((ex) {
-        final dayOfWeek = ex['day_of_week'] as int?;
-        return dayOfWeek == today;
-      }).toList();
-
-      if (todayExercises.isNotEmpty) {
-        // Check if there's a custom day_title field
-        final dayTitle = todayExercises[0]['day_title'] as String?;
-        if (dayTitle != null && dayTitle.isNotEmpty) {
-          return dayTitle;
-        }
-      }
-    }
-
-    // Fallback to generic day name
-    const dayNames = [
-      'Lunes',
-      'Martes',
-      'Miércoles',
-      'Jueves',
-      'Viernes',
-      'Sábado',
-      'Domingo',
-    ];
-    return 'Entrenamiento del ${dayNames[today - 1]}';
-  }
-
-  Widget _buildUnifiedSupplementCard(
-    BuildContext context, {
-    required String dailySupplements,
-    required String chemicalSupplements,
-  }) {
-    // Check if both sections are empty/unassigned
-    final hasDaily =
-        dailySupplements.isNotEmpty && dailySupplements != 'No asignado';
-    final hasChemical =
-        chemicalSupplements.isNotEmpty && chemicalSupplements != 'No asignado';
-
-    if (!hasDaily && !hasChemical) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.medication_outlined, color: Colors.grey),
-            ),
-            const SizedBox(width: 16),
-            const Text(
-              'No tienes suplementación asignada',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return InkWell(
-      onTap: () {
-        // Show the detailed supplementation modal/sheet
-        _showSupplementChecklist(
-          context,
-          dailySupplements,
-          chemicalSupplements,
-        );
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: const Color(0xFF2A2A2A), // Slightly lighter than background
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
-        ),
-        child: Column(
-          children: [
-            // Header for the Card
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.medical_services_outlined,
-                      color: AppColors.primary,
-                      size: 16,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'SUPLEMENTOS',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.0,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const Spacer(),
-                  const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white54,
-                    size: 20,
-                  ),
-                ],
-              ),
-            ),
-
-            // Content List
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Daily Section
-                  if (hasDaily) ...[
-                    _buildSupplementSectionTitle(
-                      'Diarios (Vitaminas/Salud)',
-                      Icons.wb_sunny_rounded,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      dailySupplements,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        height: 1.4,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-
-                  if (hasDaily && hasChemical)
-                    const Divider(color: Colors.white10, height: 24),
-
-                  // Chemical Section
-                  if (hasChemical) ...[
-                    _buildSupplementSectionTitle(
-                      'Química / Ciclo',
-                      Icons.science_rounded,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      chemicalSupplements,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        height: 1.4,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-
-                  const SizedBox(height: 12),
-                  // CTA
-                  SizedBox(
-                    width: double.infinity,
-                    child: Text(
-                      'Toca para registrar tu toma diaria',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.primary.withValues(alpha: 0.8),
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSupplementSectionTitle(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: AppColors.accent),
-        const SizedBox(width: 6),
-        Text(
-          title.toUpperCase(),
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: AppColors.accent,
-          ),
-        ),
-      ],
-    );
-  }
-
   void _showSupplementChecklist(
     BuildContext context,
     String daily,
@@ -1335,10 +1104,10 @@ class _HomeContent extends ConsumerWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1354,7 +1123,7 @@ class _HomeContent extends ConsumerWidget {
                 imageAsset,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) =>
-                    Container(color: color.withOpacity(0.1)),
+                    Container(color: color.withValues(alpha: 0.1)),
               ),
             )
           else
@@ -1364,7 +1133,7 @@ class _HomeContent extends ConsumerWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [color.withOpacity(0.2), Colors.transparent],
+                    colors: [color.withValues(alpha: 0.2), Colors.transparent],
                   ),
                 ),
               ),
@@ -1377,7 +1146,7 @@ class _HomeContent extends ConsumerWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+                colors: [Colors.transparent, Colors.black.withValues(alpha: 0.8)],
               ),
             ),
             child: Column(
@@ -1389,7 +1158,7 @@ class _HomeContent extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.2),
+                        color: color.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(icon, color: color, size: 16),
@@ -1401,7 +1170,7 @@ class _HomeContent extends ConsumerWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
+                        color: Colors.black.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Text(
@@ -1430,7 +1199,7 @@ class _HomeContent extends ConsumerWidget {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 12,
                   ),
                   maxLines: 2,
@@ -1767,9 +1536,9 @@ class _StepsCardState extends ConsumerState<_StepsCard>
               textAlign: TextAlign.center,
               decoration: InputDecoration(
                 hintText: '0',
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
+                fillColor: Colors.white.withValues(alpha: 0.05),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -1860,7 +1629,7 @@ class _StepsCardState extends ConsumerState<_StepsCard>
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFFFD700).withOpacity(0.4),
+                            color: const Color(0xFFFFD700).withValues(alpha: 0.4),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -1902,7 +1671,7 @@ class _StepsCardState extends ConsumerState<_StepsCard>
                           height: 48,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.accent.withOpacity(0.15),
+                            color: AppColors.accent.withValues(alpha: 0.15),
                           ),
                         ),
                         const Icon(
@@ -1943,7 +1712,7 @@ class _StepsCardState extends ConsumerState<_StepsCard>
                           child: CircularProgressIndicator(
                             value: progress,
                             strokeWidth: 4,
-                            backgroundColor: Colors.white.withOpacity(0.05),
+                            backgroundColor: Colors.white.withValues(alpha: 0.05),
                             color: AppColors.accent,
                           ),
                         ),
@@ -1970,7 +1739,7 @@ class _StepsCardState extends ConsumerState<_StepsCard>
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w500,
-                        color: Colors.white.withOpacity(0.5),
+                        color: Colors.white.withValues(alpha: 0.5),
                       ),
                     ),
                   ],
@@ -1996,8 +1765,8 @@ class _StepsCardState extends ConsumerState<_StepsCard>
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFFFFD700).withOpacity(0.15),
-                  const Color(0xFFFFA500).withOpacity(0.08),
+                  const Color(0xFFFFD700).withValues(alpha: 0.15),
+                  const Color(0xFFFFA500).withValues(alpha: 0.08),
                 ],
               )
             : null,
@@ -2005,19 +1774,19 @@ class _StepsCardState extends ConsumerState<_StepsCard>
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: highlighted
-              ? AppColors.accent.withOpacity(0.5)
+              ? AppColors.accent.withValues(alpha: 0.5)
               : goalCompleted
-              ? const Color(0xFFFFD700).withOpacity(0.3)
-              : Colors.white.withOpacity(0.05),
+              ? const Color(0xFFFFD700).withValues(alpha: 0.3)
+              : Colors.white.withValues(alpha: 0.05),
           width: highlighted ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: highlighted
-                ? AppColors.accent.withOpacity(0.2)
+                ? AppColors.accent.withValues(alpha: 0.2)
                 : goalCompleted
-                ? const Color(0xFFFFD700).withOpacity(0.15)
-                : Colors.black.withOpacity(0.1),
+                ? const Color(0xFFFFD700).withValues(alpha: 0.15)
+                : Colors.black.withValues(alpha: 0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

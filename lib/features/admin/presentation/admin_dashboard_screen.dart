@@ -5,7 +5,6 @@ import '../../../services/auth_service.dart';
 import '../../../services/admin_service.dart';
 import '../../../services/news_service.dart';
 import '../../../models/news_model.dart';
-import '../widgets/trainer_sheets.dart';
 import 'trainers_list_screen.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
@@ -35,7 +34,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.star_rounded, color: AppColors.primary, size: 20),
@@ -79,7 +78,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         color: AppColors.surface,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -165,7 +164,7 @@ class _DashboardView extends StatelessWidget {
                 Text(
                   'Panel de administración',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 14,
                   ),
                 ),
@@ -274,7 +273,7 @@ class _StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -287,7 +286,7 @@ class _StatCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -349,7 +348,7 @@ class _ActionCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: AppColors.primary),
@@ -382,214 +381,6 @@ class _ActionCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ==================== TRAINERS VIEW ====================
-class _TrainersView extends ConsumerWidget {
-  const _TrainersView();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final trainersAsync = ref.watch(allTrainersProvider);
-
-    return Scaffold(
-      body: trainersAsync.when(
-        data: (trainers) {
-          if (trainers.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.people_outline, size: 64, color: AppColors.textSecondary),
-                  const SizedBox(height: 16),
-                  const Text('No hay entrenadores', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  Text('Invita a tu primer entrenador', style: TextStyle(color: AppColors.textSecondary)),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: trainers.length,
-            itemBuilder: (context, index) {
-              final trainer = trainers[index];
-              final profile = trainer['profiles'] as Map<String, dynamic>;
-              final name = trainer['name'] ?? 'Sin nombre';
-              final email = profile['email'] ?? '';
-              final specialty = trainer['specialty'] ?? 'Sin especialidad';
-              final isActive = profile['is_active'] == true;
-              final hasLoggedIn = profile['first_login_at'] != null;
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: isActive ? AppColors.primary.withOpacity(0.1) : Colors.grey.shade300,
-                        child: Text(
-                          name[0].toUpperCase(),
-                          style: TextStyle(
-                            color: isActive ? AppColors.primary : Colors.grey,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      if (!hasLoggedIn)
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: const BoxDecoration(
-                              color: AppColors.warning,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.notification_important, size: 12, color: Colors.white),
-                          ),
-                        ),
-                    ],
-                  ),
-                  title: Row(
-                    children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 8),
-                      if (!isActive)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.error.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text('Inactivo', style: TextStyle(fontSize: 10, color: AppColors.error)),
-                        ),
-                    ],
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(email, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                      Text(specialty, style: const TextStyle(fontSize: 12)),
-                      if (!hasLoggedIn)
-                        const Text(
-                          'Pendiente primer login',
-                          style: TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.w600),
-                        ),
-                    ],
-                  ),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) => _handleAction(context, ref, value, trainer),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(value: 'edit', child: Text('Editar')),
-                      PopupMenuItem(
-                        value: isActive ? 'deactivate' : 'activate',
-                        child: Text(isActive ? 'Desactivar' : 'Activar'),
-                      ),
-                      const PopupMenuDivider(),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Text('Eliminar', style: TextStyle(color: AppColors.error)),
-                      ),
-                    ],
-                  ),
-                  isThreeLine: true,
-                ),
-              );
-            },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateTrainer(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Invitar Trainer'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
-
-  void _showCreateTrainer(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const CreateTrainerSheet(),
-    );
-  }
-
-  Future<void> _handleAction(
-    BuildContext context,
-    WidgetRef ref,
-    String action,
-    Map<String, dynamic> trainer,
-  ) async {
-    final service = ref.read(adminServiceProvider);
-    final trainerId = trainer['id'] as String;
-
-    try {
-      switch (action) {
-        case 'edit':
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (context) => EditTrainerSheet(trainer: trainer),
-          );
-          break;
-
-        case 'activate':
-        case 'deactivate':
-          final isActive = action == 'activate';
-          await service.updateTrainer(trainerId, isActive: isActive);
-          ref.invalidate(allTrainersProvider);
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(isActive ? 'Trainer activado' : 'Trainer desactivado')),
-            );
-          }
-          break;
-
-        case 'delete':
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Eliminar Trainer'),
-              content: const Text('¿Estás seguro? Esta acción no se puede deshacer.'),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.error),
-                  child: const Text('Eliminar'),
-                ),
-              ],
-            ),
-          );
-
-          if (confirmed == true) {
-            await service.deleteTrainer(trainerId);
-            ref.invalidate(allTrainersProvider);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Trainer eliminado'), backgroundColor: AppColors.success),
-              );
-            }
-          }
-          break;
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
-        );
-      }
-    }
   }
 }
 
@@ -680,7 +471,7 @@ class _PlansTab extends ConsumerWidget {
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                     child: const Icon(Icons.workspace_premium, color: AppColors.primary),
                   ),
                   title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -752,13 +543,12 @@ class _AssignmentsTab extends ConsumerWidget {
           itemBuilder: (context, index) {
             final trainer = trainers[index];
             final name = trainer['name'] ?? 'Sin nombre';
-            final trainerId = trainer['id'] as String;
 
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                   child: Text(name[0].toUpperCase(), style: const TextStyle(color: AppColors.primary)),
                 ),
                 title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -854,33 +644,35 @@ class _AssignSubscriptionSheetState extends ConsumerState<_AssignSubscriptionShe
           Expanded(
             child: plansAsync.when(
               data: (plans) {
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: plans.length,
-                  itemBuilder: (context, index) {
-                    final plan = plans[index];
-                    final planId = plan['id'] as String;
-                    final name = plan['name'] ?? 'Plan';
-                    final price = plan['price'] ?? 0.0;
-                    final durationDays = plan['duration_days'] ?? 30;
-                    final maxStudents = plan['max_students'];
+                return RadioGroup<String>(
+                  groupValue: _selectedPlanId,
+                  onChanged: (value) => setState(() => _selectedPlanId = value),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: plans.length,
+                    itemBuilder: (context, index) {
+                      final plan = plans[index];
+                      final planId = plan['id'] as String;
+                      final name = plan['name'] ?? 'Plan';
+                      final price = plan['price'] ?? 0.0;
+                      final durationDays = plan['duration_days'] ?? 30;
+                      final maxStudents = plan['max_students'];
 
-                    return RadioListTile<String>(
-                      value: planId,
-                      groupValue: _selectedPlanId,
-                      onChanged: (value) => setState(() => _selectedPlanId = value),
-                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('\$$price/mes'),
-                          Text('Duración: $durationDays días'),
-                          if (maxStudents != null) Text('Hasta $maxStudents alumnos'),
-                        ],
-                      ),
-                      isThreeLine: true,
-                    );
-                  },
+                      return RadioListTile<String>(
+                        value: planId,
+                        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('\$$price/mes'),
+                            Text('Duración: $durationDays días'),
+                            if (maxStudents != null) Text('Hasta $maxStudents alumnos'),
+                          ],
+                        ),
+                        isThreeLine: true,
+                      );
+                    },
+                  ),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -992,7 +784,7 @@ class _NewsView extends ConsumerWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: news.isPublished ? AppColors.success.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                                  color: news.isPublished ? AppColors.success.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
@@ -1356,7 +1148,7 @@ class _CreateNewsSheetState extends ConsumerState<_CreateNewsSheet> {
                       margin: const EdgeInsets.only(right: 12),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.grey.shade100,
+                        color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: isSelected ? AppColors.primary : Colors.grey.shade300,
@@ -1424,7 +1216,7 @@ class _SettingsView extends ConsumerWidget {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                 ),
               ],
@@ -1459,7 +1251,7 @@ class _SettingsView extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Text(

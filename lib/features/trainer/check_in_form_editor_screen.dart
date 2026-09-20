@@ -156,7 +156,7 @@ class _CheckInFormEditorScreenState extends ConsumerState<CheckInFormEditorScree
                   style: TextStyle(color: Colors.white54, fontSize: 12)),
               value: _isActive,
               onChanged: (v) => setState(() => _isActive = v),
-              activeColor: AppColors.success,
+              activeThumbColor: AppColors.success,
               contentPadding: EdgeInsets.zero,
             ),
             const SizedBox(height: 24),

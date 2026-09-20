@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
@@ -95,7 +95,7 @@ class StorageService {
         await _client.storage.from(_bucketName).remove(imagePaths);
       }
     } catch (e) {
-      print('Error deleting exercise media: $e');
+      debugPrint('Error deleting exercise media: $e');
     }
   }
 

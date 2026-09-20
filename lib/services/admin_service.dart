@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/constants/app_constants.dart';
@@ -193,11 +194,11 @@ class AdminService {
     
     final inviteLink = '${AppConstants.firstLoginBaseUrl}?token=$token';
     
-    print('📧 Invitation Email:');
-    print('To: $email');
-    print('Subject: Invitación a CENTR');
-    print('Link: $inviteLink');
-    print('Temp Password: $tempPassword');
+    debugPrint('📧 Invitation Email:');
+    debugPrint('To: $email');
+    debugPrint('Subject: Invitación a CENTR');
+    debugPrint('Link: $inviteLink');
+    debugPrint('Temp Password: $tempPassword');
     
     // In production, send via Supabase:
     // await _client.auth.admin.inviteUserByEmail(email);

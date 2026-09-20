@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -435,33 +434,35 @@ class _StudentCheckInScreenState extends ConsumerState<StudentCheckInScreen> {
         );
       case 'multiple_choice':
         final sel = (value is String) ? value : '';
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ...options.map(
-              (o) => RadioListTile<String>(
-                title: Text(
-                  o,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+        return RadioGroup<String>(
+          groupValue: sel.isEmpty ? null : sel,
+          onChanged: (v) => onChanged(v),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                 ),
-                value: o,
-                groupValue: sel.isEmpty ? null : sel,
-                onChanged: (v) => onChanged(v),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                activeColor: AppColors.accent,
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              ...options.map(
+                (o) => RadioListTile<String>(
+                  title: Text(
+                    o,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                  value: o,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: AppColors.accent,
+                ),
+              ),
+            ],
+          ),
         );
       default:
         return TextField(

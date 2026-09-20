@@ -36,7 +36,6 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen>
 
   @override
   Widget build(BuildContext context) {
-    final exercisesAsync = ref.watch(exercisesProvider);
     final muscleGroupsAsync = ref.watch(muscleGroupsProvider);
 
     return Scaffold(
@@ -168,15 +167,15 @@ class _ExerciseList extends ConsumerWidget {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        AppColors.primary.withOpacity(0.1),
-                        Colors.blue.withOpacity(0.1),
+                        AppColors.primary.withValues(alpha: 0.1),
+                        Colors.blue.withValues(alpha: 0.1),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppColors.primary.withOpacity(0.2),
+                      color: AppColors.primary.withValues(alpha: 0.2),
                     ),
                   ),
                   child: Row(
@@ -184,7 +183,7 @@ class _ExerciseList extends ConsumerWidget {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
+                          color: AppColors.primary.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -285,7 +284,7 @@ class _ExerciseCard extends StatelessWidget {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(muscleIcon, color: AppColors.primary, size: 32),
@@ -387,7 +386,7 @@ class _MetadataBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: isOutlined ? null : color.withOpacity(0.1),
+        color: isOutlined ? null : color.withValues(alpha: 0.1),
         border: isOutlined ? Border.all(color: color) : null,
         borderRadius: BorderRadius.circular(4),
       ),
@@ -414,7 +413,7 @@ class _IconBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         shape: BoxShape.circle,
       ),
       child: Icon(icon, size: 14, color: color),
@@ -526,7 +525,7 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(muscleIcon, color: AppColors.primary, size: 28),
@@ -585,7 +584,7 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -611,7 +610,7 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -637,7 +636,7 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.3),
+                                    color: Colors.white.withValues(alpha: 0.3),
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: Colors.white,
@@ -747,7 +746,7 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
+                                      color: Colors.black.withValues(alpha: 0.1),
                                       blurRadius: 8,
                                       offset: const Offset(0, 4),
                                     ),
@@ -848,10 +847,8 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
   final _youtubeUrlController = TextEditingController();
   String _selectedMuscleGroup = 'Pecho';
   File? _selectedVideo;
-  List<File> _selectedImages = [];
+  final List<File> _selectedImages = [];
   bool _isLoading = false;
-
-  final _picker = ImagePicker();
 
   bool get _isEditMode => widget.exerciseToEdit != null;
   String get _title => _isEditMode ? 'Editar Ejercicio' : 'Crear Ejercicio';

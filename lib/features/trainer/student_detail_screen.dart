@@ -76,7 +76,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
+                        color: AppColors.primary.withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -115,7 +115,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                       Text(
                         email,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 16,
                         ),
                       ),
@@ -159,14 +159,14 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.all(12),
                       leading: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.success.withOpacity(0.15),
+                          color: AppColors.success.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: const Icon(Icons.fitness_center_rounded, color: AppColors.success, size: 28),
@@ -179,7 +179,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                         'Asignada el ${_formatDate(activeRoutine['start_date'])}',
                         style: TextStyle(color: AppColors.textLight),
                       ),
-                      trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.2), size: 16),
+                      trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withValues(alpha: 0.2), size: 16),
                       onTap: () {
                          Navigator.push(
                           context,
@@ -234,7 +234,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                   ),
                   child: Column(
                     children: [
@@ -243,7 +243,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: AppColors.warning.withOpacity(0.15),
+                              color: AppColors.warning.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Icon(Icons.directions_run, color: AppColors.warning, size: 28),
@@ -264,7 +264,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   _formatCardioDays(student['cardio_days'] as List?),
-                                  style: TextStyle(color: AppColors.textLight.withOpacity(0.7), fontSize: 13),
+                                  style: TextStyle(color: AppColors.textLight.withValues(alpha: 0.7), fontSize: 13),
                                 ),
                               ],
                             ),
@@ -290,7 +290,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                   ),
                   child: Column(
                     children: [
@@ -321,14 +321,14 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.all(12),
                       leading: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.warning.withOpacity(0.15),
+                          color: AppColors.warning.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: const Icon(Icons.restaurant_rounded, color: AppColors.warning, size: 28),
@@ -341,7 +341,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                          'Asignado el ${_formatDate(activeMealPlan['start_date'])}',
                          style: TextStyle(color: AppColors.textLight),
                        ),
-                       trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.2), size: 16),
+                       trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withValues(alpha: 0.2), size: 16),
                        onTap: () {
                          Navigator.push(
                            context,
@@ -616,11 +616,11 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
         child: Column(
           children: [
-            Icon(Icons.show_chart_rounded, size: 48, color: Colors.white.withOpacity(0.1)),
+            Icon(Icons.show_chart_rounded, size: 48, color: Colors.white.withValues(alpha: 0.1)),
             const SizedBox(height: 12),
             Text(
               'Sin datos de peso aún',
@@ -660,7 +660,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
         children: [
@@ -672,7 +672,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                   show: true,
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (value) => FlLine(
-                    color: Colors.white.withOpacity(0.05),
+                    color: Colors.white.withValues(alpha: 0.05),
                     strokeWidth: 1,
                   ),
                 ),
@@ -697,7 +697,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipColor: (_) => AppColors.surface,
-                    tooltipBorder: BorderSide(color: AppColors.primary.withOpacity(0.2)),
+                    tooltipBorder: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
                   ),
                 ),
                 borderData: FlBorderData(show: false),
@@ -724,8 +724,8 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                       show: true,
                       gradient: LinearGradient(
                         colors: [
-                          AppColors.primary.withOpacity(0.2),
-                          AppColors.primary.withOpacity(0),
+                          AppColors.primary.withValues(alpha: 0.2),
+                          AppColors.primary.withValues(alpha: 0),
                         ],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -752,11 +752,11 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
         child: Column(
           children: [
-            Icon(Icons.photo_camera_rounded, size: 48, color: Colors.white.withOpacity(0.1)),
+            Icon(Icons.photo_camera_rounded, size: 48, color: Colors.white.withValues(alpha: 0.1)),
             const SizedBox(height: 12),
             Text(
               'Sin fotos de check-in',
@@ -782,7 +782,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               color: AppColors.surface,
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
             ),
             clipBehavior: Clip.antiAlias,
             child: photoUrl != null
@@ -827,7 +827,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -864,17 +864,17 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                     height: 36,
                     decoration: BoxDecoration(
                       color: hasWorkout 
-                        ? AppColors.primary.withOpacity(0.2) 
-                        : Colors.white.withOpacity(0.03),
+                        ? AppColors.primary.withValues(alpha: 0.2) 
+                        : Colors.white.withValues(alpha: 0.03),
                       shape: BoxShape.circle,
                       border: hasWorkout 
-                        ? Border.all(color: AppColors.primary.withOpacity(0.5), width: 1.5)
+                        ? Border.all(color: AppColors.primary.withValues(alpha: 0.5), width: 1.5)
                         : null,
                     ),
                     child: Icon(
                       hasWorkout ? Icons.local_fire_department_rounded : Icons.remove_rounded,
                       size: 18,
-                      color: hasWorkout ? Colors.orange : Colors.white.withOpacity(0.1),
+                      color: hasWorkout ? Colors.orange : Colors.white.withValues(alpha: 0.1),
                     ),
                   ),
                 ],
@@ -948,9 +948,9 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -958,11 +958,11 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.2),
+                  color: color.withValues(alpha: 0.2),
                   blurRadius: 8,
                 ),
               ],
@@ -977,7 +977,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 Text(
                   label.toUpperCase(),
                   style: TextStyle(
-                    color: AppColors.textLight.withOpacity(0.7),
+                    color: AppColors.textLight.withValues(alpha: 0.7),
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.0,
@@ -987,7 +987,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 Text(
                   value,
                   style: TextStyle(
-                    color: hasValue ? Colors.white : Colors.white.withOpacity(0.3),
+                    color: hasValue ? Colors.white : Colors.white.withValues(alpha: 0.3),
                     fontSize: 16,
                     fontWeight: hasValue ? FontWeight.w600 : FontWeight.normal,
                     fontStyle: hasValue ? FontStyle.normal : FontStyle.italic,
@@ -1125,17 +1125,17 @@ class _EmptyStateCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
         child: Column(
           children: [
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.03),
+                color: Colors.white.withValues(alpha: 0.03),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: Colors.white.withOpacity(0.2), size: 32),
+              child: Icon(icon, color: Colors.white.withValues(alpha: 0.2), size: 32),
             ),
             const SizedBox(height: 16),
             Text(
@@ -1169,7 +1169,7 @@ class _StatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
         children: [
@@ -1179,7 +1179,7 @@ class _StatCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
+                  color: color.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: color, size: 20),

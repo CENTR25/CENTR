@@ -139,7 +139,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withOpacity(0.3),
+                      color: AppColors.primary.withValues(alpha: 0.3),
                       blurRadius: 15,
                       offset: const Offset(0, 5),
                     ),
@@ -163,14 +163,14 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                           icon: Icons.trending_up_rounded,
                           label: routine['level'] ?? 'beginner',
                           color: Colors.white,
-                          backgroundColor: Colors.white.withOpacity(0.2),
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
                         ),
                         const SizedBox(width: 10),
                         _InfoChip(
                           icon: Icons.calendar_today_rounded,
                           label: '$daysPerWeek días/sem',
                           color: Colors.white,
-                          backgroundColor: Colors.white.withOpacity(0.2),
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
                         ),
                       ],
                     ),
@@ -246,7 +246,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                               color: AppColors.surface,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: AppColors.primary.withOpacity(0.3),
+                                color: AppColors.primary.withValues(alpha: 0.3),
                               ),
                             ),
                             child: Row(
@@ -255,8 +255,8 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
                                     color: isCardioDay
-                                        ? AppColors.primary.withOpacity(0.2)
-                                        : Colors.grey.withOpacity(0.1),
+                                        ? AppColors.primary.withValues(alpha: 0.2)
+                                        : Colors.grey.withValues(alpha: 0.1),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
@@ -297,9 +297,9 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                                   value: isCardioDay,
                                   onChanged: (val) =>
                                       _toggleCardio(routine, dayNum, val),
-                                  activeColor: AppColors.accent,
+                                  activeThumbColor: AppColors.accent,
                                   activeTrackColor: AppColors.accent
-                                      .withOpacity(0.4),
+                                      .withValues(alpha: 0.4),
                                 ),
                               ],
                             ),
@@ -315,7 +315,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                                   Icon(
                                     Icons.fitness_center_rounded,
                                     size: 80,
-                                    color: Colors.white.withOpacity(0.1),
+                                    color: Colors.white.withValues(alpha: 0.1),
                                   ),
                                   const SizedBox(height: 20),
                                   Text(
@@ -352,6 +352,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                             child: ReorderableListView.builder(
                               padding: const EdgeInsets.all(16),
                               itemCount: dayExercises.length,
+                              // ignore: deprecated_member_use
                               onReorder: (oldIndex, newIndex) =>
                                   _onReorder(dayExercises, oldIndex, newIndex),
                               itemBuilder: (context, index) {
@@ -419,10 +420,11 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
       }
       ref.invalidate(routineDetailProvider(widget.routineId));
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error al reordenar: $e')));
+      }
     }
   }
 
@@ -517,7 +519,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: selectedLevel,
+                  initialValue: selectedLevel,
                   decoration: const InputDecoration(
                     labelText: 'Nivel',
                     prefixIcon: Icon(Icons.trending_up),
@@ -542,7 +544,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<int>(
-                  value: selectedDays,
+                  initialValue: selectedDays,
                   decoration: const InputDecoration(
                     labelText: 'Días por semana',
                     prefixIcon: Icon(Icons.calendar_month),
@@ -695,6 +697,8 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
   }
 
   Future<void> _deleteRoutine() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -717,8 +721,6 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     );
 
     if (confirmed == true) {
-      final scaffoldMessenger = ScaffoldMessenger.of(context);
-      final navigator = Navigator.of(context);
 
       try {
         final service = ref.read(trainerServiceProvider);
@@ -751,6 +753,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
   }
 
   Future<void> _deleteExercise(String exerciseId) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -771,7 +774,6 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     );
 
     if (confirmed == true) {
-      final scaffoldMessenger = ScaffoldMessenger.of(context);
       try {
         final service = ref.read(trainerServiceProvider);
         await service.removeExerciseFromRoutine(exerciseId);
@@ -817,7 +819,7 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: backgroundColor ?? color.withOpacity(0.1),
+        color: backgroundColor ?? color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -881,10 +883,10 @@ class _ExerciseCard extends StatelessWidget {
       color: AppColors.surface,
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 4,
-      shadowColor: Colors.black.withOpacity(0.4),
+      shadowColor: Colors.black.withValues(alpha: 0.4),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 1),
       ),
       child: InkWell(
         onTap: onEdit,
@@ -942,7 +944,7 @@ class _ExerciseCard extends StatelessWidget {
                   ),
                   Icon(
                     Icons.drag_indicator_rounded,
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                   ),
                 ],
               ),
@@ -950,7 +952,7 @@ class _ExerciseCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -1150,7 +1152,7 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1162,7 +1164,7 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.accent.withOpacity(0.15),
+                    color: AppColors.accent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -1240,7 +1242,7 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                         color: AppColors.accent,
                       ),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.03),
+                      fillColor: Colors.white.withValues(alpha: 0.03),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -1278,8 +1280,8 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                   Container(
                     height: 220,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.02),
-                      border: Border.all(color: Colors.white.withOpacity(0.05)),
+                      color: Colors.white.withValues(alpha: 0.02),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: ClipRRect(
@@ -1532,7 +1534,7 @@ class _FilterChip extends StatelessWidget {
         label: Text(label),
         selected: selected,
         onSelected: (_) => onSelected(),
-        selectedColor: AppColors.primary.withOpacity(0.2),
+        selectedColor: AppColors.primary.withValues(alpha: 0.2),
         checkmarkColor: AppColors.primary,
         labelStyle: TextStyle(
           color: selected ? AppColors.primary : Colors.black87,
@@ -1596,7 +1598,7 @@ class _ExerciseSelector extends ConsumerWidget {
             return ListTile(
               dense: true,
               selected: isSelected,
-              selectedTileColor: AppColors.primary.withOpacity(0.1),
+              selectedTileColor: AppColors.primary.withValues(alpha: 0.1),
               leading: _ExerciseGifThumb(
                 gifUrl: gifUrl,
                 isSelected: isSelected,
@@ -1647,7 +1649,7 @@ class _ExerciseGifThumb extends StatelessWidget {
             height: 58,
             child: gifUrl == null
                 ? Container(
-                    color: Colors.white.withOpacity(0.06),
+                    color: Colors.white.withValues(alpha: 0.06),
                     child: const Icon(
                       Icons.fitness_center,
                       color: Colors.white38,
@@ -1660,7 +1662,7 @@ class _ExerciseGifThumb extends StatelessWidget {
                     height: 58,
                     fit: BoxFit.cover,
                     placeholder: (_, __) => Container(
-                      color: Colors.white.withOpacity(0.06),
+                      color: Colors.white.withValues(alpha: 0.06),
                       child: const Center(
                         child: SizedBox(
                           width: 16,
@@ -1670,7 +1672,7 @@ class _ExerciseGifThumb extends StatelessWidget {
                       ),
                     ),
                     errorWidget: (_, __, ___) => Container(
-                      color: Colors.white.withOpacity(0.06),
+                      color: Colors.white.withValues(alpha: 0.06),
                       child: const Icon(
                         Icons.broken_image_outlined,
                         color: Colors.white38,
@@ -1684,7 +1686,7 @@ class _ExerciseGifThumb extends StatelessWidget {
             width: 58,
             height: 58,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.55),
+              color: AppColors.primary.withValues(alpha: 0.55),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(
@@ -1741,7 +1743,7 @@ void _showExercisePreview(
                     ? Container(
                         width: double.infinity,
                         height: 240,
-                        color: Colors.white.withOpacity(0.06),
+                        color: Colors.white.withValues(alpha: 0.06),
                         child: const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -1808,7 +1810,7 @@ final routineDetailProvider =
 class _AssignToStudentsSheet extends ConsumerStatefulWidget {
   final String routineId;
 
-  const _AssignToStudentsSheet({super.key, required this.routineId});
+  const _AssignToStudentsSheet({required this.routineId});
 
   @override
   ConsumerState<_AssignToStudentsSheet> createState() =>
@@ -1838,7 +1840,7 @@ class _AssignToStudentsSheetState
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1850,7 +1852,7 @@ class _AssignToStudentsSheetState
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.15),
+                    color: AppColors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -1906,7 +1908,7 @@ class _AssignToStudentsSheetState
                         Icon(
                           Icons.people_outline_rounded,
                           size: 48,
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withValues(alpha: 0.1),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -1932,13 +1934,13 @@ class _AssignToStudentsSheetState
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? AppColors.primary.withOpacity(0.05)
+                            ? AppColors.primary.withValues(alpha: 0.05)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: isSelected
-                              ? AppColors.primary.withOpacity(0.3)
-                              : Colors.white.withOpacity(0.05),
+                              ? AppColors.primary.withValues(alpha: 0.3)
+                              : Colors.white.withValues(alpha: 0.05),
                         ),
                       ),
                       child: CheckboxListTile(
@@ -1967,7 +1969,7 @@ class _AssignToStudentsSheetState
                           ),
                         ),
                         secondary: CircleAvatar(
-                          backgroundColor: AppColors.primary.withOpacity(0.15),
+                          backgroundColor: AppColors.primary.withValues(alpha: 0.15),
                           child: Text(
                             name.isNotEmpty ? name[0].toUpperCase() : 'A',
                             style: const TextStyle(

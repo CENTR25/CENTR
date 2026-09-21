@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/trainer_service.dart';
 import 'routine_detail_screen.dart';
@@ -287,7 +286,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 _SectionHeader(
                   title: 'Suplementación',
                   action: 'Editar',
-                  onTap: () => _showEditSupplementsDialog(context),
+                  onTap: () => _showEditSupplementsDialog(context, student),
                 ),
                 const SizedBox(height: 12),
                 Container(
@@ -303,14 +302,24 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                       _buildSupplementRow(
                         icon: Icons.medication_rounded,
                         label: 'Suplementos Diarios',
-                        value: 'Creatina 5g, Omega 3',
+                        value: (student['daily_supplements'] as String?)
+                                    ?.trim()
+                                    .isNotEmpty ==
+                                true
+                            ? student['daily_supplements'] as String
+                            : 'No asignado',
                         color: Colors.blue,
                       ),
                       const SizedBox(height: 12),
                       _buildSupplementRow(
                         icon: Icons.science_rounded,
                         label: 'Suplementación Química',
-                        value: 'No asignado',
+                        value: (student['chemical_supplements'] as String?)
+                                    ?.trim()
+                                    .isNotEmpty ==
+                                true
+                            ? student['chemical_supplements'] as String
+                            : 'No asignado',
                         color: Colors.purple,
                       ),
                     ],
@@ -646,15 +655,19 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         ? sortedProgress.sublist(sortedProgress.length - 7)
         : sortedProgress;
 
-    // Create spots for chart (column is body_weight)
-    final spots = <FlSpot>[];
-    for (int i = 0; i < recentProgress.length; i++) {
-      final weight = (recentProgress[i]['body_weight'] as num?)?.toDouble();
-      if (weight != null) spots.add(FlSpot(i.toDouble(), weight));
-    }
-    if (spots.isEmpty) {
+    // Keep only entries that actually have a weight, so spot x-index and the
+    // date labels below stay aligned (a null-weight entry would otherwise
+    // shift every label).
+    final plotted = recentProgress
+        .where((e) => (e['body_weight'] as num?) != null)
+        .toList();
+    if (plotted.isEmpty) {
       return const SizedBox.shrink();
     }
+    final spots = [
+      for (int i = 0; i < plotted.length; i++)
+        FlSpot(i.toDouble(), (plotted[i]['body_weight'] as num).toDouble()),
+    ];
 
     // Calculate min/max for Y axis
     final weights = spots.map((s) => s.y).toList();
@@ -696,7 +709,30 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                       ),
                     ),
                   ),
-                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 22,
+                      interval: 1,
+                      getTitlesWidget: (value, meta) {
+                        final i = value.round();
+                        if (i < 0 || i >= plotted.length) {
+                          return const SizedBox.shrink();
+                        }
+                        final raw = (plotted[i]['date'] ??
+                            plotted[i]['created_at']) as String?;
+                        final d = raw != null ? DateTime.tryParse(raw) : null;
+                        if (d == null) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            '${d.day}/${d.month}',
+                            style: TextStyle(fontSize: 9, color: AppColors.textLight),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                   topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
@@ -708,7 +744,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,
-                maxX: (recentProgress.length - 1).toDouble(),
+                maxX: (plotted.length - 1).toDouble(),
                 minY: minY,
                 maxY: maxY,
                 lineBarsData: [
@@ -857,13 +893,17 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
             ),
             clipBehavior: Clip.antiAlias,
             child: photoUrl != null
-                ? CachedNetworkImage(
-                    imageUrl: photoUrl,
+                ? Image.network(
+                    photoUrl,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-                    ),
-                    errorWidget: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.grey),
+                    loadingBuilder: (_, child, progress) => progress == null
+                        ? child
+                        : const Center(
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: AppColors.primary),
+                          ),
+                    errorBuilder: (_, __, ___) =>
+                        const Icon(Icons.broken_image_rounded, color: Colors.grey),
                   )
                 : const Icon(Icons.photo_rounded, color: Colors.grey),
           );
@@ -1072,10 +1112,16 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     );
   }
 
-  void _showEditSupplementsDialog(BuildContext context) {
-    // Controllers with initial mock values
-    final dailyController = TextEditingController(text: 'Creatina 5g, Omega 3');
-    final chemicalController = TextEditingController();
+  void _showEditSupplementsDialog(
+    BuildContext context,
+    Map<String, dynamic> student,
+  ) {
+    final dailyController = TextEditingController(
+      text: (student['daily_supplements'] as String?) ?? '',
+    );
+    final chemicalController = TextEditingController(
+      text: (student['chemical_supplements'] as String?) ?? '',
+    );
 
     showDialog(
       context: context,

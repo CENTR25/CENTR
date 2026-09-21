@@ -170,7 +170,6 @@ const List<IntakeSection> kIntakeSections = [
         key: 'intolerances',
         label: '¿Sufrís alguna intolerancia?',
         type: IntakeFieldType.multiChoice,
-        required: true,
         options: ['Lactosa', 'T.A.C.C.'],
         allowOther: true,
       ),

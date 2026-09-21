@@ -31,6 +31,10 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
   /// (keyed by field key, or `key__other` for the free-text option).
   final Map<String, TextEditingController> _controllers = {};
 
+  /// Field keys whose "Otro" option is toggled open (input shown), even before
+  /// any text is typed. Decouples the tap state from the stored free-text value.
+  final Set<String> _otherOpen = {};
+
   @override
   void initState() {
     super.initState();
@@ -364,7 +368,9 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
 
   Widget _buildSingleChoice(IntakeField field) {
     final current = _responses[field.key] as String?;
-    final isOther = current != null && !field.options.contains(current);
+    final isOther =
+        _otherOpen.contains(field.key) ||
+        (current != null && !field.options.contains(current));
     return Column(
       children: [
         ...field.options.map((opt) {
@@ -373,7 +379,10 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
             label: opt,
             selected: selected,
             circular: true,
-            onTap: () => setState(() => _responses[field.key] = opt),
+            onTap: () => setState(() {
+              _otherOpen.remove(field.key);
+              _responses[field.key] = opt;
+            }),
           );
         }),
         if (field.allowOther)
@@ -393,7 +402,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
       (v) => !field.options.contains(v),
       orElse: () => '',
     );
-    final hasOther = otherValue.isNotEmpty;
+    final hasOther = otherValue.isNotEmpty || _otherOpen.contains(field.key);
     return Column(
       children: [
         ...field.options.map((opt) {
@@ -497,6 +506,11 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
           selected: selected,
           circular: !multi,
           onTap: () => setState(() {
+            if (selected) {
+              _otherOpen.remove(field.key);
+            } else {
+              _otherOpen.add(field.key);
+            }
             if (multi) {
               final list =
                   ((_responses[field.key] as List?)?.cast<String>() ?? [])

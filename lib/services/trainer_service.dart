@@ -36,6 +36,9 @@ class TrainerService {
     return trainerId;
   }
 
+  /// Public accessor for the current trainer's `trainers.id` (UI ownership checks).
+  Future<String?> getTrainerId() => _getTrainerId();
+
   // ==================== STUDENTS ====================
 
   /// Get all students for current trainer
@@ -289,11 +292,17 @@ class TrainerService {
     return groups;
   }
 
-  /// Create custom exercise
+  /// Create custom exercise (private to the current trainer).
+  /// The optional fields let a trainer duplicate a global/other exercise into
+  /// their own private list (copy-on-edit) carrying over category/equipment/media.
   Future<Map<String, dynamic>> createExercise({
     required String name,
     required String muscleGroup,
     String? instructions,
+    String? category,
+    List<String>? equipment,
+    String? gifUrl,
+    String? mediaId,
   }) async {
     final trainerId = await _getTrainerId();
     if (trainerId == null) throw Exception('No trainer record found');
@@ -304,14 +313,25 @@ class TrainerService {
           'name': name,
           'muscle_group': muscleGroup,
           'instructions': instructions,
+          if (category != null) 'category': category,
+          if (equipment != null && equipment.isNotEmpty) 'equipment': equipment,
+          if (gifUrl != null) 'gif_url': gifUrl,
+          if (mediaId != null) 'media_id': mediaId,
           'created_by_trainer': trainerId,
           'is_public': false,
+          'source': 'trainer',
           'created_at': DateTime.now().toIso8601String(),
         })
         .select()
         .single();
 
     return response;
+  }
+
+  /// Delete a custom exercise. RLS restricts this to the owning trainer.
+  /// Throws if the exercise is still referenced by a routine (FK).
+  Future<void> deleteExercise(String exerciseId) async {
+    await _client.from('exercises').delete().eq('id', exerciseId);
   }
 
   /// Update exercise media URLs after upload
@@ -1090,6 +1110,13 @@ final exercisesProvider = FutureProvider<List<Map<String, dynamic>>>((
 ) async {
   final service = ref.watch(trainerServiceProvider);
   return service.getExercises();
+});
+
+/// Current trainer's `trainers.id` — used by the library UI to decide whether
+/// an exercise is owned (edit in place) or global/foreign (duplicate-then-edit).
+final myTrainerIdProvider = FutureProvider<String?>((ref) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getTrainerId();
 });
 
 /// Provider for exercises library with filters

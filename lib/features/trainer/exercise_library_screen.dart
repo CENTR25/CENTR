@@ -422,16 +422,17 @@ class _IconBadge extends StatelessWidget {
 }
 
 // Exercise Detail Sheet
-class _ExerciseDetailSheet extends StatefulWidget {
+class _ExerciseDetailSheet extends ConsumerStatefulWidget {
   final Map<String, dynamic> exercise;
 
   const _ExerciseDetailSheet({required this.exercise});
 
   @override
-  State<_ExerciseDetailSheet> createState() => _ExerciseDetailSheetState();
+  ConsumerState<_ExerciseDetailSheet> createState() =>
+      _ExerciseDetailSheetState();
 }
 
-class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
+class _ExerciseDetailSheetState extends ConsumerState<_ExerciseDetailSheet> {
   VideoPlayerController? _videoController;
   YoutubePlayerController? _youtubeController;
   late PageController _pageController;
@@ -509,6 +510,16 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
         (widget.exercise['image_urls'] as List?)?.cast<String>() ?? [];
     final muscleIcon = _getMuscleIcon(muscleGroup);
 
+    // Ownership: only the trainer who created a private exercise may edit/delete
+    // it in place. Global (or another trainer's) exercises are duplicated into
+    // the trainer's own list before editing (copy-on-edit). While the trainer id
+    // is still resolving we can't classify ownership, so the edit action is
+    // disabled to avoid accidentally duplicating an owned exercise.
+    final myTrainerAsync = ref.watch(myTrainerIdProvider);
+    final myTrainerId = myTrainerAsync.valueOrNull;
+    final owner = widget.exercise['created_by_trainer'];
+    final isOwn = owner != null && owner == myTrainerId;
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.9,
       decoration: const BoxDecoration(
@@ -555,12 +566,27 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _showEditExercise(context, widget.exercise);
-                  },
+                  icon: Icon(
+                    isOwn ? Icons.edit_outlined : Icons.copy_all_outlined,
+                  ),
+                  tooltip: isOwn ? 'Editar' : 'Duplicar a mi lista y editar',
+                  onPressed: myTrainerAsync.isLoading
+                      ? null
+                      : () {
+                          Navigator.pop(context);
+                          _showEditExercise(
+                            context,
+                            widget.exercise,
+                            duplicate: !isOwn,
+                          );
+                        },
                 ),
+                if (isOwn)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: 'Eliminar',
+                    onPressed: _confirmDelete,
+                  ),
                 IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
@@ -819,21 +845,86 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
     );
   }
 
-  void _showEditExercise(BuildContext context, Map<String, dynamic> exercise) {
+  void _showEditExercise(
+    BuildContext context,
+    Map<String, dynamic> exercise, {
+    bool duplicate = false,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _CreateExerciseSheet(exerciseToEdit: exercise),
+      builder: (context) =>
+          _CreateExerciseSheet(exerciseToEdit: exercise, duplicate: duplicate),
     );
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar ejercicio'),
+        content: Text(
+          '¿Eliminar "${widget.exercise['name']}" de tu lista? '
+          'Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref
+          .read(trainerServiceProvider)
+          .deleteExercise(widget.exercise['id'] as String);
+      ref.invalidate(exercisesProvider);
+      if (mounted) {
+        Navigator.pop(context); // close the detail sheet
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ejercicio eliminado'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      // FK violation → the exercise is still used in a routine.
+      final inUse = e.toString().contains('foreign key') ||
+          e.toString().contains('23503');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              inUse
+                  ? 'No se puede eliminar: el ejercicio está en uso en una rutina.'
+                  : 'Error al eliminar: $e',
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }
 
 // Create/Edit Exercise Sheet
 class _CreateExerciseSheet extends ConsumerStatefulWidget {
   final Map<String, dynamic>? exerciseToEdit;
+  // When true, prefill from exerciseToEdit but SAVE as a new private copy
+  // (copy-on-edit for global / other trainers' exercises).
+  final bool duplicate;
 
-  const _CreateExerciseSheet({this.exerciseToEdit});
+  const _CreateExerciseSheet({this.exerciseToEdit, this.duplicate = false});
 
   @override
   ConsumerState<_CreateExerciseSheet> createState() =>
@@ -850,13 +941,16 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
   final List<File> _selectedImages = [];
   bool _isLoading = false;
 
-  bool get _isEditMode => widget.exerciseToEdit != null;
-  String get _title => _isEditMode ? 'Editar Ejercicio' : 'Crear Ejercicio';
+  // Edit-in-place only when we have a source AND we're not duplicating it.
+  bool get _isEditMode => widget.exerciseToEdit != null && !widget.duplicate;
+  String get _title => widget.duplicate
+      ? 'Duplicar y editar'
+      : (_isEditMode ? 'Editar Ejercicio' : 'Crear Ejercicio');
 
   @override
   void initState() {
     super.initState();
-    if (_isEditMode) {
+    if (widget.exerciseToEdit != null) {
       _nameController.text = widget.exerciseToEdit!['name'] ?? '';
       _instructionsController.text =
           widget.exerciseToEdit!['instructions'] ?? '';
@@ -1073,11 +1167,20 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
           instructions: _instructionsController.text,
         );
       } else {
-        // Create mode: create new exercise
+        // Create mode (new exercise, or a private copy when duplicating).
+        // When duplicating, carry over the source's category/equipment/media so
+        // the copy is complete; freshly selected media below overrides it.
+        final src = widget.duplicate ? widget.exerciseToEdit : null;
+        // Video/images are resolved from the final form state below so the
+        // trainer can clear them; only category/gif refs are copied here.
         final exerciseData = await service.createExercise(
           name: _nameController.text,
           muscleGroup: _selectedMuscleGroup,
           instructions: _instructionsController.text,
+          category: src?['category'] as String?,
+          equipment: (src?['equipment'] as List?)?.cast<String>(),
+          gifUrl: src?['gif_url'] as String?,
+          mediaId: src?['media_id'] as String?,
         );
         exerciseId = exerciseData['id'] as String;
       }
@@ -1094,15 +1197,24 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
           _selectedVideo!,
           exerciseId,
         );
+      } else if (widget.duplicate) {
+        // Carry over an uploaded (non-YouTube) source video. A cleared YouTube
+        // field means the trainer removed it, so don't carry a YouTube source.
+        final srcVideo = widget.exerciseToEdit?['video_url'] as String?;
+        if (srcVideo != null && !_isYoutubeUrl(srcVideo)) videoUrl = srcVideo;
       }
 
-      // Upload images if selected
+      // Upload images if selected, else carry over the source's on duplicate.
       List<String> imageUrls = [];
       if (_selectedImages.isNotEmpty) {
         imageUrls = await storageService.uploadExerciseImages(
           _selectedImages,
           exerciseId,
         );
+      } else if (widget.duplicate) {
+        imageUrls =
+            (widget.exerciseToEdit?['image_urls'] as List?)?.cast<String>() ??
+            [];
       }
 
       // Update exercise with URLs

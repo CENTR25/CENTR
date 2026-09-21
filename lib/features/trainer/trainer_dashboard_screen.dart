@@ -18,6 +18,7 @@ import 'student_detail_screen.dart';
 import 'routine_detail_screen.dart';
 import 'meal_plan_detail_screen.dart';
 import 'create_meal_plan_sheet.dart';
+import 'exercise_library_screen.dart';
 
 class TrainerDashboardScreen extends ConsumerStatefulWidget {
   const TrainerDashboardScreen({super.key});
@@ -251,6 +252,21 @@ class _HomeView extends ConsumerWidget {
                   builder: (context) => const _InviteStudentSheet(),
                 );
               },
+            ),
+
+            const SizedBox(height: 12),
+
+            // Editar el listado de ejercicios (catálogo global + privados)
+            _QuickActionCard(
+              icon: Icons.fitness_center,
+              label: 'Editar listado de ejercicios',
+              color: AppColors.primary,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ExerciseLibraryScreen(),
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -1631,6 +1647,16 @@ class _RoutinesView extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.fitness_center, color: Colors.white),
+            tooltip: 'Editar listado de ejercicios',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ExerciseLibraryScreen(),
+              ),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.search_rounded, color: Colors.white),
             onPressed: () {},

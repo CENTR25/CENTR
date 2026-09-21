@@ -1,5 +1,17 @@
 # Decision Log
 
+## 2026-09-20 — QA: Exercise Library (Global Catalog + Copy-on-Edit) — NEEDS FIXES ❌
+
+**Decision:** Feature is structurally sound and the RLS is solid, but two real bugs block approval: (1) the edit/copy button is live while `myTrainerIdProvider` is still loading, causing an accidental duplicate of an owned exercise on a fast tap (WARNING severity); (2) clearing the YouTube URL field during a duplicate-creation does not clear `video_url` in the DB because `createExercise` already persisted it before the form is submitted (Bug severity). Both are fixable with small targeted changes.
+
+**Issues flagged:**
+- Bug: Clearing YouTube URL during duplicate doesn't clear `video_url` — `createExercise` stores the source URL before the user's form choices are applied. (`exercise_library_screen.dart:1143–1213`)
+- Warning: Race condition on edit/copy button — while `myTrainerIdProvider` is loading (`valueOrNull = null`), all exercises show as not-owned, so the button is live and shows the copy icon; a fast tap on an owned exercise creates an unwanted duplicate. (`exercise_library_screen.dart:516–577`)
+
+**Open questions:** None — both bugs have clear fixes documented in the QA report.
+
+**Resolution (2026-09-21):** Both fixed. Edit/copy button now disabled while `myTrainerIdProvider` is loading; video/images resolved from final form state (not passed to `createExercise`) so a cleared field clears. `flutter analyze` clean. Feature approved.
+
 ## 2026-09-14 — Plan Review: APPROVED (QA fixes, no plan to review)
 
 **Decision:** Two targeted bug fixes applied directly (no plan phase needed — both are well-scoped incremental changes to existing patterns).

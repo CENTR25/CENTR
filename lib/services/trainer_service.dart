@@ -982,6 +982,85 @@ class TrainerService {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  /// Aggregated progress for the trainer dashboard: summary counts plus, per
+  /// exercise, the top weight lifted in each completed session over time.
+  ///
+  /// Weight per exercise per session = max value across that exercise's sets
+  /// in set_logs (the "top set"). Exercise names come from routine_exercises,
+  /// mapped by the set_logs position index (routine_id + day_number).
+  Future<Map<String, dynamic>> getAthleteProgress(String athleteId) async {
+    final sessions = await _client
+        .from('workout_sessions')
+        .select('routine_id, day_number, started_at, created_at, set_logs')
+        .eq('athlete_id', athleteId)
+        .eq('is_completed', true)
+        .order('started_at');
+    final rows = List<Map<String, dynamic>>.from(sessions);
+
+    // (routine_id|day_number) -> ordered exercise names
+    final routineIds = rows
+        .map((s) => s['routine_id'] as String?)
+        .whereType<String>()
+        .toSet()
+        .toList();
+    final namesByKey = <String, List<String>>{};
+    if (routineIds.isNotEmpty) {
+      final re = await _client
+          .from('routine_exercises')
+          .select('routine_id, day_number, order_index, exercises(name)')
+          .inFilter('routine_id', routineIds)
+          .order('order_index');
+      for (final r in re as List) {
+        final key = '${r['routine_id']}|${r['day_number']}';
+        (namesByKey[key] ??= []).add(
+          (r['exercises']?['name'] as String?) ?? 'Ejercicio',
+        );
+      }
+    }
+
+    // exerciseName -> list of {date, weight} across sessions
+    final progress = <String, List<Map<String, dynamic>>>{};
+    var thisMonth = 0;
+    final now = DateTime.now();
+    String? lastDate;
+
+    for (final s in rows) {
+      final startedAt = (s['started_at'] ?? s['created_at']) as String?;
+      if (startedAt != null) {
+        lastDate = startedAt; // rows are ascending, so last wins
+        final d = DateTime.tryParse(startedAt)?.toLocal();
+        if (d != null && d.year == now.year && d.month == now.month) {
+          thisMonth++;
+        }
+      }
+      final names = namesByKey['${s['routine_id']}|${s['day_number']}'] ?? [];
+      final setLogs = s['set_logs'] as Map<String, dynamic>?;
+      if (setLogs == null) continue;
+      setLogs.forEach((exIdxStr, setsRaw) {
+        final exIdx = int.tryParse(exIdxStr);
+        if (exIdx == null || exIdx >= names.length) return;
+        final sets = setsRaw as Map<String, dynamic>?;
+        if (sets == null) return;
+        num top = 0;
+        for (final v in sets.values) {
+          if (v is num && v > top) top = v;
+        }
+        if (top <= 0) return;
+        (progress[names[exIdx]] ??= []).add({
+          'date': startedAt,
+          'weight': top,
+        });
+      });
+    }
+
+    return {
+      'total_sessions': rows.length,
+      'this_month': thisMonth,
+      'last_date': lastDate,
+      'exercises': progress,
+    };
+  }
+
   /// The athlete's active routine plus the day numbers that have exercises,
   /// used by the trainer's "log an in-person session" picker.
   Future<Map<String, dynamic>?> getActiveRoutineForAthlete(

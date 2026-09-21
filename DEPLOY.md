@@ -32,6 +32,10 @@ Production web app: **https://prgs.pages.dev** (Cloudflare Pages, project `prgs`
 - Verify live == build: `curl -s https://prgs.pages.dev/main.dart.js | md5` should match
   `md5 build/web/main.dart.js` after a local `flutter build web --release`.
 
-## Old target (deprecated)
+## Old target (deprecated / removed)
 - `centr.xavierbenavidesm.workers.dev` (Workers Assets, `wrangler.jsonc`) was the previous host on
-  Xavier's account. Superseded by `prgs.pages.dev`.
+  Xavier's account, deployed by the `.github/workflows/deploy-web.yml` Action (`wrangler deploy`).
+  Superseded by `prgs.pages.dev`. That Action was **removed** because it deployed to the deprecated
+  Worker AND failed on `web/_redirects`: Workers Assets rejects `/* /index.html 200` as an infinite
+  loop, while Pages requires it for SPA deep-links (e.g. `/login`). `wrangler.jsonc` is kept only so a
+  manual `wrangler deploy` still works if ever needed.

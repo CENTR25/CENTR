@@ -5,6 +5,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/admin_service.dart';
 import '../../../services/news_service.dart';
 import '../../../models/news_model.dart';
+import '../widgets/trainer_sheets.dart';
 import 'trainers_list_screen.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
@@ -131,9 +132,19 @@ class _NavItem {
 }
 
 // ==================== DASHBOARD VIEW ====================
-class _DashboardView extends StatelessWidget {
+class _DashboardView extends ConsumerWidget {
+  Future<void> _showCreateTrainer(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const CreateTrainerSheet(),
+    );
+    ref.invalidate(trainersProvider);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -236,7 +247,7 @@ class _DashboardView extends StatelessWidget {
             icon: Icons.person_add_rounded,
             title: 'Invitar Entrenador',
             subtitle: 'Enviar link de acceso',
-            onTap: () {},
+            onTap: () => _showCreateTrainer(context, ref),
           ),
           const SizedBox(height: 8),
           _ActionCard(
@@ -520,7 +531,7 @@ class _AssignmentsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final trainersAsync = ref.watch(allTrainersProvider);
+    final trainersAsync = ref.watch(trainersProvider);
 
     return trainersAsync.when(
       data: (trainers) {

@@ -341,12 +341,6 @@ final adminStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   return service.getAdminStats();
 });
 
-/// Provider for all trainers
-final allTrainersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final service = ref.watch(adminServiceProvider);
-  return service.getAllTrainers();
-});
-
 /// Provider for subscription plans
 final subscriptionPlansProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final service = ref.watch(adminServiceProvider);

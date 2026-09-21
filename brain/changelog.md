@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-09-21 — QA: Admin create-trainer end-to-end — PASSED
+
+**What was tested:** Full create-trainer → complete_first_login → sign-in flow for the rewired admin UI (CreateTrainerSheet now reachable from TrainersListScreen FAB + empty-state + dashboard quick-action). Static analysis of all three edited files plus service layer and edge function. Live happy-path exercised against prod DB.
+
+**Issues found:**
+
+### Bug (Critical) — `_DashboardView` invalidates `trainersProvider` after create, but `trainersProvider` lives in `trainers_list_screen.dart` and `_DashboardView` is in `admin_dashboard_screen.dart`: the import chain is correct (trainer_sheets.dart is imported by both files, and trainers_list_screen.dart is imported by admin_dashboard_screen.dart), but `_DashboardView._showCreateTrainer` calls `ref.invalidate(trainersProvider)` which is the right provider for TrainersListScreen. This is CORRECT — no defect here.
+
+### Warning — Trigger collision risk (verified safe): `on_auth_user_created` fires on every `auth.users` INSERT. Confirmed: `handle_new_user()` returns early for `role != 'student'` in metadata. The edge function sets `user_metadata: { role: "trainer" }`, so the trigger is a no-op for trainer creation. No duplicate-profiles conflict.
+
+### Warning — `_sendInvitationEmail` is a no-op: the method only calls `debugPrint` — no actual email is sent. The sheet displays the invite link and temp password to the admin, who must copy-paste or use the "Enviar Correo" button (mailto: deep link). This is a known TODO, not a regression.
+
+### Nit — Header copy mismatch: `CreateTrainerSheet` header says "Invitar Entrenador" (unchanged from the old sheet). The success state says "Trainer creado!". Consistent with the change but slightly mixed messaging — cosmetic only.
+
+**Live test results:**
+- Auth user created: email confirmed, `raw_user_meta_data.role = trainer`
+- `profiles` row: `role = trainer`, `is_active = true`, `first_login_at = null` (pre-login)
+- `trainers` row: linked by `user_id`, name and specialty set
+- `invitation_tokens` row: 32-char hex token, `is_used = false`, 7-day expiry
+- `complete_first_login` via real deployed edge function (anon JWT): returned `{ok: true}`
+- Post-login DB: `first_login_at` stamped, `is_used = true`
+- Sign-in with new password via Supabase auth REST: SIGN_IN OK (got `access_token`)
+- Cleanup: all 4 rows deleted, confirmed 0 remaining in auth.users, profiles, trainers, invitation_tokens
+
+**Status:** PASSED — sent to Xavier for approval. One real email delivery gap (debugPrint-only `_sendInvitationEmail`) is a known pre-existing TODO, not introduced by this change.
+
+---
+
 ## 2026-09-20 — Trainer invite flow: auth.admin.* moved to admin-auth Edge Function
 
 **Problem:** `admin_service.dart` called `auth.admin.createUser/deleteUser/updateUserById` from the client — impossible without the service-role key, so create-trainer, delete-trainer, and the trainer first-login (set password via invitation token) were all dead. The pre-auth token lookup in `completeFirstLogin` was additionally blocked by admin-only RLS on `invitation_tokens`.

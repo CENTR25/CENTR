@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/supabase_service.dart';
+import '../widgets/trainer_sheets.dart';
 
 // Provider for trainers list
 final trainersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -50,13 +51,15 @@ class TrainersListScreen extends ConsumerWidget {
     );
   }
 
-  void _showInviteDialog(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
+  Future<void> _showInviteDialog(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const InviteTrainerSheet(),
+      builder: (context) => const CreateTrainerSheet(),
     );
+    // Refresh in case the sheet was dismissed without its own invalidate.
+    ref.invalidate(trainersProvider);
   }
 }
 
@@ -327,178 +330,6 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-// ==================== INVITE TRAINER SHEET ====================
-class InviteTrainerSheet extends ConsumerStatefulWidget {
-  const InviteTrainerSheet({super.key});
-
-  @override
-  ConsumerState<InviteTrainerSheet> createState() => _InviteTrainerSheetState();
-}
-
-class _InviteTrainerSheetState extends ConsumerState<InviteTrainerSheet> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _nameController = TextEditingController();
-  String _selectedPlan = 'basic_5';
-  bool _isLoading = false;
-
-  final Map<String, String> _plans = {
-    'basic_5': 'Básico - 5 alumnos',
-    'standard_25': 'Estándar - 25 alumnos',
-    'pro_50': 'Pro - 50 alumnos',
-    'enterprise_100': 'Enterprise - 100 alumnos',
-  };
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _sendInvitation() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final service = ref.read(supabaseServiceProvider);
-      await service.createInvitation(
-        email: _emailController.text.trim(),
-        role: 'trainer',
-      );
-
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invitación enviada correctamente'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-        ref.refresh(trainersProvider); // ignore: unused_result
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Invitar Entrenador',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Envía un link de acceso para que el entrenador pueda registrarse.',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 24),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre (opcional)',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Correo electrónico',
-                  prefixIcon: Icon(Icons.email_outlined),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Ingresa el correo';
-                  }
-                  if (!value.contains('@')) {
-                    return 'Ingresa un correo válido';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedPlan,
-                decoration: const InputDecoration(
-                  labelText: 'Plan inicial',
-                  prefixIcon: Icon(Icons.card_membership_outlined),
-                ),
-                items: _plans.entries.map((e) {
-                  return DropdownMenuItem(value: e.key, child: Text(e.value));
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) setState(() => _selectedPlan = value);
-                },
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _sendInvitation,
-                  icon: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send),
-                  label: Text(_isLoading ? 'Enviando...' : 'Enviar Invitación'),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // ==================== TRAINER DETAIL SHEET ====================
 class TrainerDetailSheet extends ConsumerWidget {

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/admin_service.dart';
+import '../presentation/trainers_list_screen.dart';
 
 // Create Trainer Sheet
 class CreateTrainerSheet extends ConsumerStatefulWidget {
@@ -52,7 +53,7 @@ class _CreateTrainerSheetState extends ConsumerState<CreateTrainerSheet> {
                 ),
                 const Expanded(
                   child: Text(
-                    'Invitar Trainer',
+                    'Invitar Entrenador',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
@@ -289,7 +290,7 @@ class _CreateTrainerSheetState extends ConsumerState<CreateTrainerSheet> {
                 onPressed: () {
                   Navigator.pop(context);
                   // Refresh list
-                  ref.invalidate(allTrainersProvider);
+                  ref.invalidate(trainersProvider);
                 },
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(0, 48),
@@ -506,7 +507,7 @@ class _EditTrainerSheetState extends ConsumerState<EditTrainerSheet> {
         specialty: _specialtyController.text.trim().isEmpty ? null : _specialtyController.text.trim(),
       );
 
-      ref.invalidate(allTrainersProvider);
+      ref.invalidate(trainersProvider);
 
       if (mounted) {
         Navigator.pop(context);

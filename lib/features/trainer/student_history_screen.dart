@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/trainer_service.dart';
+import 'session_detail_screen.dart';
 
 class StudentHistoryScreen extends ConsumerStatefulWidget {
   final String studentId;
@@ -62,21 +63,109 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen> {
             itemCount: logs.length,
             itemBuilder: (context, index) {
               final log = logs[index];
-              return _WorkoutLogCard(log: log);
+              return _WorkoutLogCard(
+                log: log,
+                onTap: log['routine_id'] == null
+                    ? null
+                    : () => _openSession(log),
+              );
             },
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, s) => Center(child: Text('Error: $e')),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _logInPerson,
+        backgroundColor: AppColors.primary,
+        icon: const Icon(Icons.add),
+        label: const Text('Registrar en persona'),
+      ),
     );
+  }
+
+  Future<void> _openSession(Map<String, dynamic> log) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SessionDetailScreen(
+          session: log,
+          athleteId: log['athlete_id'] as String,
+          routineId: log['routine_id'] as String,
+          dayNumber: (log['day_number'] as int?) ?? 1,
+          routineTitle: (log['routines']?['title'] as String?) ?? 'Rutina',
+        ),
+      ),
+    );
+    if (changed == true) {
+      ref.invalidate(studentHistoryProvider(widget.studentId));
+    }
+  }
+
+  Future<void> _logInPerson() async {
+    final service = ref.read(trainerServiceProvider);
+    final routine = await service.getActiveRoutineForAthlete(widget.studentId);
+    if (!mounted) return;
+    if (routine == null || (routine['days'] as List).isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El alumno no tiene una rutina activa')),
+      );
+      return;
+    }
+
+    final days = (routine['days'] as List).cast<int>();
+    final day = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Elegí el día',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            for (final d in days)
+              ListTile(
+                title: Text(
+                  'Día $d',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () => Navigator.of(context).pop(d),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (day == null || !mounted) return;
+
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SessionDetailScreen(
+          session: null,
+          athleteId: widget.studentId,
+          routineId: routine['routine_id'] as String,
+          dayNumber: day,
+          routineTitle: routine['title'] as String,
+        ),
+      ),
+    );
+    if (changed == true) {
+      ref.invalidate(studentHistoryProvider(widget.studentId));
+    }
   }
 }
 
 class _WorkoutLogCard extends StatelessWidget {
   final Map<String, dynamic> log;
+  final VoidCallback? onTap;
 
-  const _WorkoutLogCard({required this.log});
+  const _WorkoutLogCard({required this.log, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -97,32 +186,44 @@ class _WorkoutLogCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
-              style: TextStyle(fontSize: 12, color: AppColors.textLight, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 12),
-             Text(
-              dayNumber != null ? '$routineName — Día $dayNumber' : routineName,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                _StatBadge(icon: Icons.repeat_rounded, text: '$setsCompleted series'),
-                const SizedBox(width: 20),
-                _StatBadge(
-                  icon: Icons.timer_rounded,
-                  text: '${(durationSeconds / 60).round()} min',
-                ),
-              ],
-            ),
-          ],
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
+                      style: TextStyle(fontSize: 12, color: AppColors.textLight, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                  if (onTap != null)
+                    Icon(Icons.chevron_right, color: AppColors.textLight, size: 20),
+                ],
+              ),
+              const SizedBox(height: 12),
+               Text(
+                dayNumber != null ? '$routineName — Día $dayNumber' : routineName,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _StatBadge(icon: Icons.repeat_rounded, text: '$setsCompleted series'),
+                  const SizedBox(width: 20),
+                  _StatBadge(
+                    icon: Icons.timer_rounded,
+                    text: '${(durationSeconds / 60).round()} min',
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

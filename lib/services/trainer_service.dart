@@ -982,6 +982,122 @@ class TrainerService {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  /// The athlete's active routine plus the day numbers that have exercises,
+  /// used by the trainer's "log an in-person session" picker.
+  Future<Map<String, dynamic>?> getActiveRoutineForAthlete(
+    String athleteId,
+  ) async {
+    final ar = await _client
+        .from('athlete_routines')
+        .select('routine_id, routines(title)')
+        .eq('athlete_id', athleteId)
+        .eq('is_active', true)
+        .order('start_date', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    if (ar == null) return null;
+
+    final routineId = ar['routine_id'] as String;
+    final rows = await _client
+        .from('routine_exercises')
+        .select('day_number')
+        .eq('routine_id', routineId);
+    final days =
+        (rows as List)
+            .map((e) => e['day_number'] as int?)
+            .whereType<int>()
+            .toSet()
+            .toList()
+          ..sort();
+
+    return {
+      'routine_id': routineId,
+      'title': ar['routines']?['title'] ?? 'Rutina',
+      'days': days,
+    };
+  }
+
+  /// Ordered exercises for a routine day (index in this list is the key used
+  /// by workout_sessions.set_logs / reps_logs). Includes the exercise name.
+  Future<List<Map<String, dynamic>>> getSessionExercises(
+    String routineId,
+    int dayNumber,
+  ) async {
+    final response = await _client
+        .from('routine_exercises')
+        .select('id, sets, reps_target, order_index, exercises(name)')
+        .eq('routine_id', routineId)
+        .eq('day_number', dayNumber)
+        .order('order_index');
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// The athlete's previous completed session for the same routine day, so the
+  /// trainer can compare against last time. Excludes [excludeSessionId].
+  Future<Map<String, dynamic>?> getPreviousSession({
+    required String athleteId,
+    required String routineId,
+    required int dayNumber,
+    required String beforeStartedAt,
+    String? excludeSessionId,
+  }) async {
+    var query = _client
+        .from('workout_sessions')
+        .select('set_logs, reps_logs, started_at')
+        .eq('athlete_id', athleteId)
+        .eq('routine_id', routineId)
+        .eq('day_number', dayNumber)
+        .eq('is_completed', true)
+        .lt('started_at', beforeStartedAt);
+    if (excludeSessionId != null) {
+      query = query.neq('id', excludeSessionId);
+    }
+    final response = await query
+        .order('started_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    return response;
+  }
+
+  /// Trainer override of a session's recorded weights/reps.
+  Future<void> updateSessionLogs({
+    required String sessionId,
+    required Map<String, Map<String, num>> setLogs,
+    required Map<String, Map<String, num>> repsLogs,
+    required int setsCompleted,
+  }) async {
+    await _client
+        .from('workout_sessions')
+        .update({
+          'set_logs': setLogs,
+          'reps_logs': repsLogs,
+          'sets_completed': setsCompleted,
+          'is_completed': true,
+        })
+        .eq('id', sessionId);
+  }
+
+  /// Log an in-person session the athlete didn't record.
+  Future<void> createInPersonSession({
+    required String athleteId,
+    required String routineId,
+    required int dayNumber,
+    required Map<String, Map<String, num>> setLogs,
+    required Map<String, Map<String, num>> repsLogs,
+    required int setsCompleted,
+  }) async {
+    await _client.from('workout_sessions').insert({
+      'athlete_id': athleteId,
+      'routine_id': routineId,
+      'day_number': dayNumber,
+      'set_logs': setLogs,
+      'reps_logs': repsLogs,
+      'sets_completed': setsCompleted,
+      'duration_seconds': 0,
+      'is_completed': true,
+    });
+  }
+
   /// Read an athlete's intake questionnaire responses (trainer/admin only via
   /// RLS). Returns null if the athlete hasn't filled it yet.
   Future<Map<String, dynamic>?> getAthleteIntake(String athleteId) async {

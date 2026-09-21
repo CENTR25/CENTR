@@ -196,6 +196,7 @@ class _StudentMealItemCard extends StatelessWidget {
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               child: CachedNetworkImage(
+                key: ValueKey(item['image_url']),
                 imageUrl: item['image_url'],
                 height: 150,
                 width: double.infinity,

@@ -190,20 +190,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                 dividerColor: Colors.transparent,
                 labelStyle: const TextStyle(fontWeight: FontWeight.bold),
                 tabs: List.generate(daysPerWeek, (index) {
-                  const days = [
-                    'Lunes',
-                    'Martes',
-                    'Miércoles',
-                    'Jueves',
-                    'Viernes',
-                    'Sábado',
-                    'Domingo',
-                  ];
-                  return Tab(
-                    text: index < days.length
-                        ? days[index]
-                        : 'Día ${index + 1}',
-                  );
+                  return Tab(text: 'Día ${index + 1}');
                 }),
               ),
 

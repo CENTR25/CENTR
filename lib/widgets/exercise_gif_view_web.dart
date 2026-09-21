@@ -31,6 +31,7 @@ class ExerciseGifView extends StatefulWidget {
 
 class _ExerciseGifViewState extends State<ExerciseGifView> {
   late String _viewType;
+  html.ImageElement? _image;
   bool _isLoaded = false;
   bool _hasError = false;
 
@@ -49,6 +50,8 @@ class _ExerciseGifViewState extends State<ExerciseGifView> {
   }
 
   void _registerImage(String url) {
+    // Drop the previous <img> so a URL change doesn't leave an orphan element.
+    _image?.remove();
     _isLoaded = false;
     _hasError = false;
     _viewType = 'exercise-gif-${_nextExerciseGifViewId++}';
@@ -59,12 +62,17 @@ class _ExerciseGifViewState extends State<ExerciseGifView> {
       ..style.height = '100%'
       ..style.display = 'block'
       ..style.objectFit = _cssObjectFit(widget.fit);
+    _image = image;
 
     image.onLoad.listen((_) {
-      if (mounted) setState(() => _isLoaded = true);
+      if (mounted && identical(_image, image)) {
+        setState(() => _isLoaded = true);
+      }
     });
     image.onError.listen((_) {
-      if (mounted) setState(() => _hasError = true);
+      if (mounted && identical(_image, image)) {
+        setState(() => _hasError = true);
+      }
     });
 
     // Do not set crossOrigin: the browser can display a cross-origin GIF in
@@ -78,6 +86,13 @@ class _ExerciseGifViewState extends State<ExerciseGifView> {
       (int viewId) => image,
     );
     if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _image?.remove();
+    _image = null;
+    super.dispose();
   }
 
   @override

@@ -106,18 +106,7 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen>
                   unselectedLabelColor: AppColors.textSecondary,
                   indicatorColor: AppColors.primary,
                   tabs: List.generate(days, (i) {
-                    final weekDays = [
-                      'Lunes',
-                      'Martes',
-                      'Miércoles',
-                      'Jueves',
-                      'Viernes',
-                      'Sábado',
-                      'Domingo',
-                    ];
-                    final label = i < weekDays.length
-                        ? weekDays[i]
-                        : 'Día ${i + 1}';
+                    final label = 'Día ${i + 1}';
 
                     // Check if this day has cardio
                     // Check if this day has cardio

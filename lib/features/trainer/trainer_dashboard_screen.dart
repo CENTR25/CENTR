@@ -1744,6 +1744,7 @@ class _RoutinesView extends ConsumerWidget {
                     children: [
                       if (routine['image_url'] != null)
                         CachedNetworkImage(
+                          key: ValueKey(routine['image_url']),
                           imageUrl: routine['image_url'],
                           height: 160,
                           width: double.infinity,
@@ -2239,6 +2240,7 @@ class _MealPlansView extends ConsumerWidget {
                     children: [
                       if (plan['image_url'] != null)
                         CachedNetworkImage(
+                          key: ValueKey(plan['image_url']),
                           imageUrl: plan['image_url'],
                           height: 160,
                           width: double.infinity,

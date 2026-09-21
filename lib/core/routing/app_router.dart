@@ -10,6 +10,7 @@ import 'package:north_star/features/admin/presentation/admin_dashboard_screen.da
 import 'package:north_star/features/trainer/trainer_dashboard_screen.dart';
 import 'package:north_star/features/student/student_dashboard_screen.dart';
 import 'package:north_star/features/student/student_onboarding_screen.dart';
+import 'package:north_star/features/student/student_intake_screen.dart';
 import 'package:north_star/features/shared/widgets/loading_screen.dart';
 
 /// Route names
@@ -35,6 +36,7 @@ class AppRoutes {
   // Student routes
   static const String studentDashboard = '/student';
   static const String studentOnboarding = '/student/onboarding';
+  static const String studentIntake = '/student/intake';
   static const String studentRoutine = '/student/routine';
   static const String studentProgress = '/student/progress';
 }
@@ -92,19 +94,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Authenticated - redirect to role-based dashboard if on auth/splash pages
       if (isLoginRoute || isSplash) {
-        if (authState.user?.role == UserRole.student &&
-            authState.user?.hasCompletedOnboarding == false) {
-          return AppRoutes.studentOnboarding;
-        }
+        final studentSetup = _studentSetupRoute(authState.user);
+        if (studentSetup != null) return studentSetup;
         return _getDashboardRoute(authState.user?.role);
       }
 
-      // Enforce onboarding for students
-      if (isAuthenticated &&
-          authState.user?.role == UserRole.student &&
-          authState.user?.hasCompletedOnboarding == false &&
-          state.matchedLocation != AppRoutes.studentOnboarding) {
-        return AppRoutes.studentOnboarding;
+      // Enforce the student setup flow (onboarding, then the intake form)
+      // before letting students into the rest of the app.
+      final studentSetup = _studentSetupRoute(authState.user);
+      if (studentSetup != null &&
+          state.matchedLocation != studentSetup) {
+        return studentSetup;
       }
 
       return null;
@@ -164,6 +164,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.studentOnboarding,
         builder: (context, state) => const StudentOnboardingScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.studentIntake,
+        builder: (context, state) => const StudentIntakeScreen(),
+      ),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(
@@ -201,6 +205,16 @@ class GoRouterRefreshStream extends ChangeNotifier {
     _subscription.cancel();
     super.dispose();
   }
+}
+
+/// The required setup step a student must complete before entering the app:
+/// first the onboarding, then the intake questionnaire. Returns null when the
+/// user is not a student or has finished both (or is unresolved).
+String? _studentSetupRoute(UserModel? user) {
+  if (user == null || user.role != UserRole.student) return null;
+  if (!user.hasCompletedOnboarding) return AppRoutes.studentOnboarding;
+  if (!user.hasCompletedIntake) return AppRoutes.studentIntake;
+  return null;
 }
 
 /// Get dashboard route based on user role

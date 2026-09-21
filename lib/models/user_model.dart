@@ -46,6 +46,7 @@ class UserModel {
   final String? trainerId; // Only for students - their assigned trainer
   final bool isActive;
   final bool hasCompletedOnboarding;
+  final bool hasCompletedIntake;
   final DateTime createdAt;
   final DateTime? lastLoginAt;
   final DateTime? firstLoginAt;
@@ -59,6 +60,7 @@ class UserModel {
     this.trainerId,
     this.isActive = true,
     this.hasCompletedOnboarding = false,
+    this.hasCompletedIntake = false,
     required this.createdAt,
     this.lastLoginAt,
     this.firstLoginAt,
@@ -133,6 +135,7 @@ class UserModel {
       isActive: json['is_active'] as bool? ?? true,
       hasCompletedOnboarding:
           json['has_completed_onboarding'] as bool? ?? false,
+      hasCompletedIntake: json['has_completed_intake'] as bool? ?? false,
       createdAt: _parseDate(json['created_at']),
       lastLoginAt: json['last_login_at'] != null
           ? _parseDate(json['last_login_at'])
@@ -153,6 +156,7 @@ class UserModel {
       'trainer_id': trainerId,
       'is_active': isActive,
       'has_completed_onboarding': hasCompletedOnboarding,
+      'has_completed_intake': hasCompletedIntake,
       'created_at': createdAt.toIso8601String(),
       'last_login_at': lastLoginAt?.toIso8601String(),
       'first_login_at': firstLoginAt?.toIso8601String(),
@@ -168,6 +172,7 @@ class UserModel {
     String? trainerId,
     bool? isActive,
     bool? hasCompletedOnboarding,
+    bool? hasCompletedIntake,
     DateTime? createdAt,
     DateTime? lastLoginAt,
     DateTime? firstLoginAt,
@@ -182,6 +187,7 @@ class UserModel {
       isActive: isActive ?? this.isActive,
       hasCompletedOnboarding:
           hasCompletedOnboarding ?? this.hasCompletedOnboarding,
+      hasCompletedIntake: hasCompletedIntake ?? this.hasCompletedIntake,
       createdAt: createdAt ?? this.createdAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
       firstLoginAt: firstLoginAt ?? this.firstLoginAt,

@@ -962,6 +962,16 @@ class TrainerService {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  /// Read an athlete's intake questionnaire responses (trainer/admin only via
+  /// RLS). Returns null if the athlete hasn't filled it yet.
+  Future<Map<String, dynamic>?> getAthleteIntake(String athleteId) async {
+    return await _client
+        .from('athlete_intake')
+        .select()
+        .eq('athlete_id', athleteId)
+        .maybeSingle();
+  }
+
   /// Search food bank (Internal Database)
   Future<List<Map<String, dynamic>>> searchFoodBank(String query) async {
     if (query.length < 2) return [];

@@ -8,6 +8,7 @@ import 'routine_detail_screen.dart';
 import 'meal_plan_detail_screen.dart';
 import 'assignment_sheets.dart';
 import 'student_history_screen.dart';
+import 'intake_view_screen.dart';
 
 class StudentDetailScreen extends ConsumerStatefulWidget {
   final String studentId;
@@ -124,7 +125,12 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 ),
                 
                 const SizedBox(height: 32),
-                
+
+                // Athlete intake questionnaire ("Formulario para conocer al Atleta")
+                _buildIntakeCard(context, name),
+
+                const SizedBox(height: 32),
+
                 // Stats Section
                 _SectionHeader(
                   title: 'Estadísticas',
@@ -737,6 +743,71 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildIntakeCard(BuildContext context, String name) {
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => IntakeViewScreen(
+            athleteId: widget.studentId,
+            athleteName: name,
+          ),
+        ),
+      ),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.primary.withValues(alpha: 0.18),
+              AppColors.primary.withValues(alpha: 0.06),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.assignment_ind_outlined,
+                  color: AppColors.primaryLight, size: 24),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ficha del Atleta',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Respuestas del formulario inicial',
+                    style: TextStyle(color: AppColors.textLight, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.textLight),
+          ],
+        ),
       ),
     );
   }

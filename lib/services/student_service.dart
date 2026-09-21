@@ -199,6 +199,40 @@ class StudentService {
         .eq('id', userId);
   }
 
+  /// Submit the one-time athlete intake questionnaire. Upserts the responses
+  /// (keyed by intake_form.dart field keys) and flips the profile gate so the
+  /// router lets the student into the app.
+  Future<void> submitIntake(Map<String, dynamic> responses) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('No user logged in');
+    final athleteId = await _getAthleteId();
+    if (athleteId == null) throw Exception('No se encontró el perfil de atleta');
+
+    final now = DateTime.now().toIso8601String();
+    await _client.from('athlete_intake').upsert({
+      'athlete_id': athleteId,
+      'responses': responses,
+      'completed_at': now,
+      'updated_at': now,
+    }, onConflict: 'athlete_id');
+
+    await _client
+        .from('profiles')
+        .update({'has_completed_intake': true})
+        .eq('id', userId);
+  }
+
+  /// The current student's intake responses (or null if not filled yet).
+  Future<Map<String, dynamic>?> getMyIntake() async {
+    final athleteId = await _getAthleteId();
+    if (athleteId == null) return null;
+    return _client
+        .from('athlete_intake')
+        .select()
+        .eq('athlete_id', athleteId)
+        .maybeSingle();
+  }
+
   /// Log weight and height (updates profiles table)
   Future<void> logMetrics({double? weight, double? height}) async {
     final userId = currentUserId;

@@ -125,6 +125,9 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
     if (message.contains('Invalid email')) {
       return 'El correo no es válido.';
     }
+    if (message.contains('rate limit') || message.contains('rate_limit')) {
+      return 'Demasiados intentos seguidos. Espera unos minutos e intenta de nuevo.';
+    }
     return message;
   }
 
@@ -220,6 +223,7 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
                         controller: _nameController,
                         label: 'Nombre completo',
                         icon: Icons.person_outline,
+                        textInputAction: TextInputAction.next,
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return 'Ingresa tu nombre';
@@ -236,6 +240,7 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
                         label: 'Correo electrónico',
                         icon: Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return 'Ingresa tu correo';
@@ -253,6 +258,7 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
                         obscure: _obscurePassword,
                         onToggle: () =>
                             setState(() => _obscurePassword = !_obscurePassword),
+                        textInputAction: TextInputAction.next,
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Ingresa una contraseña';
                           if (v.length < 6) return 'Mínimo 6 caracteres';
@@ -266,6 +272,8 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
                         obscure: _obscureConfirm,
                         onToggle: () =>
                             setState(() => _obscureConfirm = !_obscureConfirm),
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => _register(),
                         validator: (v) {
                           if (v != _passwordController.text) {
                             return 'Las contraseñas no coinciden';
@@ -355,11 +363,16 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
     required String label,
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
+    TextInputAction? textInputAction,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      onFieldSubmitted: textInputAction == TextInputAction.next
+          ? (_) => FocusScope.of(context).nextFocus()
+          : null,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
@@ -374,11 +387,18 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
     required String label,
     required bool obscure,
     required VoidCallback onToggle,
+    TextInputAction? textInputAction,
+    void Function(String)? onSubmitted,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       obscureText: obscure,
+      textInputAction: textInputAction,
+      onFieldSubmitted: onSubmitted ??
+          (textInputAction == TextInputAction.next
+              ? (_) => FocusScope.of(context).nextFocus()
+              : null),
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,

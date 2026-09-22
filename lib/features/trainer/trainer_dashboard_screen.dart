@@ -746,6 +746,10 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
   final _messageController = TextEditingController();
   bool _isLoading = false;
 
+  // Recipient filter: all students, or a hand-picked subset (profile ids).
+  bool _sendToAll = true;
+  final Set<String> _selectedIds = {};
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -756,32 +760,45 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
   Future<void> _sendNotification() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (!_sendToAll && _selectedIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Selecciona al menos un alumno'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
       final trainerService = ref.read(trainerServiceProvider);
       final students = await trainerService.getMyStudents();
-      
+
       final supabaseService = ref.read(supabaseServiceProvider);
-      
-      // Enviar notificación a cada alumno
+
+      // Enviar notificación a cada alumno destinatario.
       // notifications.user_id referencia profiles(id), no athletes(id)
+      var sent = 0;
       for (var student in students) {
         final profileId = student['user_id'] as String?;
         if (profileId == null) continue;
+        if (!_sendToAll && !_selectedIds.contains(profileId)) continue;
         await supabaseService.createNotification(
           userId: profileId,
           type: 'broadcast',
           title: _titleController.text.trim(),
           message: _messageController.text.trim(),
         );
+        sent++;
       }
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Notificación enviada a ${students.length} alumno(s)'),
+            content: Text('Notificación enviada a $sent alumno(s)'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -840,7 +857,7 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                     child: const Icon(Icons.campaign_rounded, color: AppColors.primaryLight, size: 28),
                   ),
                   const SizedBox(width: 16),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -853,8 +870,10 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                           ),
                         ),
                         Text(
-                          'Se enviará a todos tus alumnos',
-                          style: TextStyle(
+                          _sendToAll
+                              ? 'Se enviará a todos tus alumnos'
+                              : 'Se enviará a ${_selectedIds.length} alumno(s)',
+                          style: const TextStyle(
                             color: AppColors.textLight,
                             fontSize: 14,
                           ),
@@ -864,6 +883,82 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                   ),
                 ],
               ),
+              const SizedBox(height: 24),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: true,
+                    label: Text('Todos'),
+                    icon: Icon(Icons.groups_rounded),
+                  ),
+                  ButtonSegment(
+                    value: false,
+                    label: Text('Elegir'),
+                    icon: Icon(Icons.person_search_rounded),
+                  ),
+                ],
+                selected: {_sendToAll},
+                onSelectionChanged: (s) =>
+                    setState(() => _sendToAll = s.first),
+              ),
+              if (!_sendToAll) ...[
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 260),
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final studentsAsync = ref.watch(myStudentsProvider);
+                      return studentsAsync.when(
+                        data: (students) {
+                          if (students.isEmpty) {
+                            return Text(
+                              'No tienes alumnos asignados',
+                              style: TextStyle(color: AppColors.textLight),
+                            );
+                          }
+                          return ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: students.length,
+                            itemBuilder: (context, index) {
+                              final student = students[index];
+                              final pid = student['user_id'] as String?;
+                              if (pid == null) return const SizedBox.shrink();
+                              final name = student['name'] ?? 'Sin nombre';
+                              return CheckboxListTile(
+                                dense: true,
+                                value: _selectedIds.contains(pid),
+                                onChanged: (val) => setState(() {
+                                  if (val == true) {
+                                    _selectedIds.add(pid);
+                                  } else {
+                                    _selectedIds.remove(pid);
+                                  }
+                                }),
+                                title: Text(
+                                  name,
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                activeColor: AppColors.primaryLight,
+                                contentPadding: EdgeInsets.zero,
+                              );
+                            },
+                          );
+                        },
+                        loading: () => const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        error: (e, s) => Text(
+                          'Error: $e',
+                          style: const TextStyle(color: AppColors.error),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               TextFormField(
                 controller: _titleController,
@@ -917,7 +1012,11 @@ class _BroadcastNotificationSheetState extends ConsumerState<_BroadcastNotificat
                         )
                       : const Icon(Icons.send_rounded, color: Colors.white),
                   label: Text(
-                    _isLoading ? 'ENVIANDO...' : 'ENVIAR A TODOS',
+                    _isLoading
+                        ? 'ENVIANDO...'
+                        : (_sendToAll
+                              ? 'ENVIAR A TODOS'
+                              : 'ENVIAR A ${_selectedIds.length}'),
                     style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
                   ),
                 ),

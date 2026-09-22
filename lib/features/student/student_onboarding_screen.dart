@@ -22,10 +22,67 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
   double _height = 170.0;
   String? _goal;
 
+  // Text controllers so height/weight can be typed exactly (sliders are
+  // liked but imprecise). Kept in sync with the sliders below.
+  late final TextEditingController _heightCtrl =
+      TextEditingController(text: _height.toStringAsFixed(0));
+  late final TextEditingController _weightCtrl =
+      TextEditingController(text: _weight.toStringAsFixed(1));
+
   @override
   void dispose() {
     _pageController.dispose();
+    _heightCtrl.dispose();
+    _weightCtrl.dispose();
     super.dispose();
+  }
+
+  /// Big centered number that doubles as a text input, with a unit suffix.
+  Widget _valueField({
+    required TextEditingController controller,
+    required String unit,
+    required double min,
+    required double max,
+    required ValueChanged<double> onValue,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        IntrinsicWidth(
+          child: TextField(
+            controller: controller,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 48,
+              fontWeight: FontWeight.bold,
+              color: AppColors.studentColor,
+            ),
+            decoration: const InputDecoration(
+              isDense: true,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+            ),
+            onChanged: (t) {
+              final v = double.tryParse(t.replaceAll(',', '.'));
+              if (v != null && v >= min && v <= max) onValue(v);
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          unit,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
+            color: AppColors.studentColor.withValues(alpha: 0.7),
+          ),
+        ),
+      ],
+    );
   }
 
   void _nextPage() {
@@ -202,9 +259,12 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
       description: 'Esto nos ayuda a calcular tus métricas corporales.',
       child: Column(
         children: [
-          Text(
-            '${_height.toStringAsFixed(0)} cm',
-            style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: AppColors.studentColor),
+          _valueField(
+            controller: _heightCtrl,
+            unit: 'cm',
+            min: 100,
+            max: 250,
+            onValue: (v) => setState(() => _height = v),
           ),
           const SizedBox(height: 48),
           SizedBox(
@@ -226,7 +286,10 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
                       value: _height,
                       min: 100,
                       max: 250,
-                      onChanged: (val) => setState(() => _height = val),
+                      onChanged: (val) => setState(() {
+                        _height = val;
+                        _heightCtrl.text = val.toStringAsFixed(0);
+                      }),
                     ),
                   ),
                 ),
@@ -244,9 +307,12 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
       description: 'El punto de partida para medir tu progreso.',
       child: Column(
         children: [
-          Text(
-            '${_weight.toStringAsFixed(1)} kg',
-            style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: AppColors.studentColor),
+          _valueField(
+            controller: _weightCtrl,
+            unit: 'kg',
+            min: 30,
+            max: 200,
+            onValue: (v) => setState(() => _weight = v),
           ),
           const SizedBox(height: 32),
           Container(
@@ -261,7 +327,10 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
                 value: _weight,
                 min: 30,
                 max: 200,
-                onChanged: (val) => setState(() => _weight = val),
+                onChanged: (val) => setState(() {
+                  _weight = val;
+                  _weightCtrl.text = val.toStringAsFixed(1);
+                }),
               ),
             ),
           ),

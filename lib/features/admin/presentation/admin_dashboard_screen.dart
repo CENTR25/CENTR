@@ -5,6 +5,8 @@ import '../../../services/auth_service.dart';
 import '../../../services/admin_service.dart';
 import '../../../services/news_service.dart';
 import '../../../models/news_model.dart';
+import '../../../services/affiliated_brand_service.dart';
+import '../../../models/affiliated_brand_model.dart';
 import '../widgets/trainer_sheets.dart';
 import 'trainers_list_screen.dart';
 
@@ -23,6 +25,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     _NavItem(icon: Icons.people_rounded, label: 'Entrenadores'),
     _NavItem(icon: Icons.card_membership_rounded, label: 'Planes'),
     _NavItem(icon: Icons.newspaper_rounded, label: 'Noticias'),
+    _NavItem(icon: Icons.local_offer_rounded, label: 'Marcas'),
     _NavItem(icon: Icons.settings_rounded, label: 'Config'),
   ];
 
@@ -67,6 +70,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       case 3:
         return _NewsView();
       case 4:
+        return _BrandsView();
+      case 5:
         return _SettingsView();
       default:
         return _DashboardView();
@@ -1202,6 +1207,425 @@ class _CreateNewsSheetState extends ConsumerState<_CreateNewsSheet> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== BRANDS VIEW ====================
+class _BrandsView extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final brandsAsync = ref.watch(allBrandsProvider);
+
+    return Scaffold(
+      body: brandsAsync.when(
+        data: (brands) {
+          if (brands.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.local_offer_rounded, size: 64, color: AppColors.textSecondary),
+                  const SizedBox(height: 16),
+                  const Text('No hay marcas cargadas', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Text('Agrega la primera marca con descuento', style: TextStyle(color: AppColors.textSecondary)),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: brands.length,
+            itemBuilder: (context, index) {
+              final brand = brands[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                    backgroundImage: (brand.logoUrl?.isNotEmpty ?? false)
+                        ? NetworkImage(brand.logoUrl!)
+                        : null,
+                    child: (brand.logoUrl?.isNotEmpty ?? false)
+                        ? null
+                        : const Icon(Icons.local_offer_rounded, color: AppColors.primary),
+                  ),
+                  title: Text(brand.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      if (brand.discountCode?.isNotEmpty ?? false)
+                        Text('Código: ${brand.discountCode}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: brand.isActive ? AppColors.success.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          brand.isActive ? 'Activa' : 'Oculta',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: brand.isActive ? AppColors.success : Colors.grey,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) => _handleAction(context, ref, value, brand),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: 'edit', child: Text('Editar')),
+                      PopupMenuItem(
+                        value: 'toggle_active',
+                        child: Text(brand.isActive ? 'Ocultar' : 'Activar'),
+                      ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Eliminar', style: TextStyle(color: AppColors.error)),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showBrandSheet(context),
+        icon: const Icon(Icons.add),
+        label: const Text('Nueva Marca'),
+        backgroundColor: AppColors.primary,
+      ),
+    );
+  }
+
+  void _showBrandSheet(BuildContext context, {AffiliatedBrand? brand}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _BrandSheet(brand: brand),
+    );
+  }
+
+  Future<void> _handleAction(
+    BuildContext context,
+    WidgetRef ref,
+    String action,
+    AffiliatedBrand brand,
+  ) async {
+    final service = ref.read(affiliatedBrandServiceProvider);
+
+    try {
+      switch (action) {
+        case 'edit':
+          _showBrandSheet(context, brand: brand);
+          break;
+
+        case 'toggle_active':
+          await service.updateBrand(
+            brand.id,
+            name: brand.name,
+            discountCode: brand.discountCode,
+            bannerText: brand.bannerText,
+            websiteUrl: brand.websiteUrl,
+            instagramUrl: brand.instagramUrl,
+            logoUrl: brand.logoUrl,
+            isActive: !brand.isActive,
+            displayOrder: brand.displayOrder,
+          );
+          ref.invalidate(allBrandsProvider);
+          ref.invalidate(activeBrandsProvider);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(brand.isActive ? 'Marca oculta' : 'Marca activada')),
+            );
+          }
+          break;
+
+        case 'delete':
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Eliminar Marca'),
+              content: const Text('¿Estás seguro? Esta acción no se puede deshacer.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                  child: const Text('Eliminar'),
+                ),
+              ],
+            ),
+          );
+
+          if (confirmed == true) {
+            await service.deleteBrand(brand.id);
+            ref.invalidate(allBrandsProvider);
+            ref.invalidate(activeBrandsProvider);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Marca eliminada'), backgroundColor: AppColors.success),
+              );
+            }
+          }
+          break;
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+}
+
+class _BrandSheet extends ConsumerStatefulWidget {
+  final AffiliatedBrand? brand;
+
+  const _BrandSheet({this.brand});
+
+  @override
+  ConsumerState<_BrandSheet> createState() => _BrandSheetState();
+}
+
+class _BrandSheetState extends ConsumerState<_BrandSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _codeController;
+  late TextEditingController _bannerController;
+  late TextEditingController _websiteController;
+  late TextEditingController _instagramController;
+  late TextEditingController _logoController;
+  bool _isActive = true;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final b = widget.brand;
+    _nameController = TextEditingController(text: b?.name ?? '');
+    _codeController = TextEditingController(text: b?.discountCode ?? '');
+    _bannerController = TextEditingController(text: b?.bannerText ?? '');
+    _websiteController = TextEditingController(text: b?.websiteUrl ?? '');
+    _instagramController = TextEditingController(text: b?.instagramUrl ?? '');
+    _logoController = TextEditingController(text: b?.logoUrl ?? '');
+    _isActive = b?.isActive ?? true;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _codeController.dispose();
+    _bannerController.dispose();
+    _websiteController.dispose();
+    _instagramController.dispose();
+    _logoController.dispose();
+    super.dispose();
+  }
+
+  String? _clean(TextEditingController c) {
+    final t = c.text.trim();
+    return t.isEmpty ? null : t;
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_clean(_websiteController) == null && _clean(_instagramController) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Agrega al menos un enlace: web o Instagram')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final service = ref.read(affiliatedBrandServiceProvider);
+
+      if (widget.brand != null) {
+        await service.updateBrand(
+          widget.brand!.id,
+          name: _nameController.text.trim(),
+          discountCode: _clean(_codeController),
+          bannerText: _clean(_bannerController),
+          websiteUrl: _clean(_websiteController),
+          instagramUrl: _clean(_instagramController),
+          logoUrl: _clean(_logoController),
+          isActive: _isActive,
+          displayOrder: widget.brand!.displayOrder,
+        );
+      } else {
+        await service.createBrand(
+          name: _nameController.text.trim(),
+          discountCode: _clean(_codeController),
+          bannerText: _clean(_bannerController),
+          websiteUrl: _clean(_websiteController),
+          instagramUrl: _clean(_instagramController),
+          logoUrl: _clean(_logoController),
+          isActive: _isActive,
+        );
+      }
+
+      ref.invalidate(allBrandsProvider);
+      ref.invalidate(activeBrandsProvider);
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.brand != null ? 'Marca actualizada' : 'Marca creada'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        top: 24,
+        left: 24,
+        right: 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    widget.brand != null ? 'Editar Marca' : 'Nueva Marca',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre de la marca',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.storefront),
+                ),
+                validator: (v) => v?.trim().isEmpty == true ? 'Requerido' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _codeController,
+                decoration: const InputDecoration(
+                  labelText: 'Código de descuento',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.confirmation_number_outlined),
+                  helperText: 'Ej: PRGS',
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _bannerController,
+                decoration: const InputDecoration(
+                  labelText: 'Texto del cartelito (Opcional)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.campaign_outlined),
+                  helperText: 'Ej: No olvides usar el código al abonar',
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _websiteController,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(
+                  labelText: 'URL del sitio web',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.language),
+                  helperText: 'https://...',
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _instagramController,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(
+                  labelText: 'URL de Instagram',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.camera_alt_outlined),
+                  helperText: 'https://instagram.com/...',
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _logoController,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(
+                  labelText: 'URL del logo (Opcional)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.image_outlined),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Marca activa'),
+                subtitle: const Text('Visible para los atletas'),
+                value: _isActive,
+                activeThumbColor: AppColors.primary,
+                onChanged: (v) => setState(() => _isActive = v),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Text(widget.brand != null ? 'Guardar Cambios' : 'Crear Marca'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

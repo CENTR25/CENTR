@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
@@ -1743,18 +1742,26 @@ class _RoutinesView extends ConsumerWidget {
                   child: Column(
                     children: [
                       if (routine['image_url'] != null)
-                        CachedNetworkImage(
+                        // ponytail: Image.network (browser cache), not
+                        // CachedNetworkImage — the latter's stream breaks on
+                        // web after navigating away and back (shows grey box).
+                        Image.network(
+                          routine['image_url'],
                           key: ValueKey(routine['image_url']),
-                          imageUrl: routine['image_url'],
                           height: 160,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
-                            height: 160,
-                            color: Colors.white.withValues(alpha: 0.05),
-                            child: const Center(child: CircularProgressIndicator()),
-                          ),
-                          errorWidget: (context, url, error) => Container(
+                          loadingBuilder: (context, child, progress) =>
+                              progress == null
+                              ? child
+                              : Container(
+                                  height: 160,
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                ),
+                          errorBuilder: (context, error, stack) => Container(
                             height: 160,
                             color: Colors.white.withValues(alpha: 0.05),
                             child: const Icon(Icons.broken_image_rounded, color: Colors.grey),
@@ -2239,18 +2246,25 @@ class _MealPlansView extends ConsumerWidget {
                   child: Column(
                     children: [
                       if (plan['image_url'] != null)
-                        CachedNetworkImage(
+                        // ponytail: see routine card above — Image.network
+                        // survives web back-navigation; CachedNetworkImage doesn't.
+                        Image.network(
+                          plan['image_url'],
                           key: ValueKey(plan['image_url']),
-                          imageUrl: plan['image_url'],
                           height: 160,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
-                            height: 160,
-                            color: Colors.white.withValues(alpha: 0.05),
-                            child: const Center(child: CircularProgressIndicator()),
-                          ),
-                          errorWidget: (context, url, error) => Container(
+                          loadingBuilder: (context, child, progress) =>
+                              progress == null
+                              ? child
+                              : Container(
+                                  height: 160,
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                ),
+                          errorBuilder: (context, error, stack) => Container(
                             height: 160,
                             color: Colors.white.withValues(alpha: 0.05),
                             child: const Icon(Icons.broken_image_rounded, color: Colors.grey),

@@ -157,9 +157,9 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
           label: _translateBodyPart(ex.bodyPart!),
           color: AppColors.primary,
         ),
-      if (ex.equipment != null && ex.equipment!.isNotEmpty)
+      if (ex.equipment.isNotEmpty)
         _ChipData(
-          label: _translateEquipment(ex.equipment!),
+          label: ex.equipment.map(_translateEquipment).join(' / '),
           color: AppColors.accent,
         ),
       if (ex.target != null && ex.target!.isNotEmpty)

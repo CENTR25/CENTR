@@ -252,12 +252,20 @@ class TrainerService {
         .select('equipment')
         .not('equipment', 'is', null);
 
-    return response
-        .map((e) => e['equipment'] as String?)
-        .where((c) => c != null && c.isNotEmpty)
-        .cast<String>()
-        .toSet()
-        .toList();
+    // equipment is a _text[] column — each row is a List, not a String.
+    final result = <String>{};
+    for (final row in response) {
+      final v = row['equipment'];
+      if (v is List) {
+        for (final item in v) {
+          final s = item?.toString().trim() ?? '';
+          if (s.isNotEmpty) result.add(s);
+        }
+      } else if (v is String && v.isNotEmpty) {
+        result.add(v);
+      }
+    }
+    return result.toList();
   }
 
   /// Get distinct target values.

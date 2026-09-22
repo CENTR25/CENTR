@@ -11,7 +11,7 @@ class ExerciseModel {
   final String name;
   final String? category;
   final String? bodyPart;
-  final String? equipment;
+  final List<String> equipment;
   final String? target;
   final String? muscleGroup;
   final List<String> secondaryMuscles;
@@ -32,7 +32,7 @@ class ExerciseModel {
     required this.name,
     this.category,
     this.bodyPart,
-    this.equipment,
+    this.equipment = const [],
     this.target,
     this.muscleGroup,
     this.secondaryMuscles = const [],
@@ -102,6 +102,10 @@ class ExerciseModel {
     List<String> asList(Object? v) =>
         (v is List) ? List<String>.from(v) : <String>[];
 
+    // Safe string cast — on Flutter web JSArray/JSObject types from Supabase JS
+    // can fail a bare `as String?` cast even if the column is conceptually text.
+    String? asStr(Object? v) => v == null ? null : (v is String ? v : v.toString());
+
     // Parse instructions_i18n (always present, stores rich metadata for seed)
     Map<String, dynamic> i18n = {};
     final rawI18n = map['instructions_i18n'];
@@ -111,29 +115,32 @@ class ExerciseModel {
 
     return ExerciseModel(
       id: map['id']?.toString() ?? '',
-      name: (map['name'] as String?) ?? 'Ejercicio',
-      category: (map['category'] as String?) ?? (i18n['category'] as String?),
+      name: asStr(map['name']) ?? 'Ejercicio',
+      category: asStr(map['category']) ?? asStr(i18n['category']),
       bodyPart:
-          (map['body_part'] as String?) ??
-          (map['category'] as String?) ??
-          (i18n['body_part'] as String?),
-      equipment:
-          (map['equipment'] as String?) ?? (i18n['equipment'] as String?),
-      target: (map['target'] as String?) ?? (i18n['target'] as String?),
-      muscleGroup: map['muscle_group'] as String?,
+          asStr(map['body_part']) ??
+          asStr(map['category']) ??
+          asStr(i18n['body_part']),
+      equipment: asList(map['equipment'] ?? i18n['equipment']),
+      target: asStr(map['target']) ?? asStr(i18n['target']),
+      muscleGroup: asStr(map['muscle_group']),
       secondaryMuscles: asList(
-        (map['secondary_muscles'] as List?) ??
-            (i18n['secondary_muscles'] as List?),
+        (map['secondary_muscles'] is List
+                ? map['secondary_muscles']
+                : null) ??
+            (i18n['secondary_muscles'] is List
+                ? i18n['secondary_muscles']
+                : null),
       ),
-      instructions: map['instructions'] as String?,
+      instructions: asStr(map['instructions']),
       instructionsI18n: i18n,
-      mediaId: (map['media_id'] as String?) ?? (i18n['media_id'] as String?),
-      gifUrl: (map['gif_url'] as String?) ?? (i18n['gif_url'] as String?),
-      videoUrl: map['video_url'] as String?,
+      mediaId: asStr(map['media_id']) ?? asStr(i18n['media_id']),
+      gifUrl: asStr(map['gif_url']) ?? asStr(i18n['gif_url']),
+      videoUrl: asStr(map['video_url']),
       imageUrls: asList(map['image_urls']),
       createdByTrainer: map['created_by_trainer']?.toString(),
       isPublic: (map['is_public'] as bool?) ?? true,
-      source: (map['source'] as String?) ?? 'trainer',
+      source: asStr(map['source']) ?? 'trainer',
       createdAt: map['created_at'] != null
           ? DateTime.tryParse(map['created_at'].toString())
           : null,

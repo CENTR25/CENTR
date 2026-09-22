@@ -1,5 +1,31 @@
 # Decision Log
 
+## 2026-09-21 — Bug Fix: TypeError on exercise list in Agregar Ejercicio sheet
+
+**Status:** Accepted
+
+**Context:** Trainer "Agregar Ejercicio" bottom sheet threw a red error widget on every seed row after the first trainer row rendered fine. Error: `type 'List<dynamic>' is not a subtype of type 'String?'`. The seed import from PRGS xlsx stored `equipment` as a `text[]` Postgres array; trainer rows had `null`.
+
+**Root cause:** `ExerciseModel.fromMap` cast `map['equipment']` as `String?`. For seed rows with `["Barra"]` etc. the runtime cast from `List<dynamic>` to `String?` throws immediately. The live DB schema confirms `equipment` column is `ARRAY` (`_text`/`text[]`), not `text`.
+
+**Decision:** Changed `equipment` field in `ExerciseModel` from `String?` to `List<String>` (default `const []`). Updated `fromMap` to use the existing `asList()` helper: `equipment: asList(map['equipment'] ?? i18n['equipment'])`. Updated the one display callsite in `exercise_detail_screen.dart` to iterate the list: `ex.equipment.map(_translateEquipment).join(' / ')`. No migration needed — column type was already correct in prod; the model was wrong.
+
+**Consequences:** All rows (seed and trainer) parse without throwing. `exercise_detail_screen` renders a joined string for multi-item equipment lists. `toMap` already wrote the list correctly. `flutter analyze` clean. Layout change from earlier session (keyboard inset fix) is unrelated and correct — kept as-is.
+
+## 2026-09-21 — Bug Fix: Add Exercise sheet grey box / no results on typing
+
+**Status:** Accepted
+
+**Context:** Client reported that typing in the "Buscar Ejercicio" search field in the Add Exercise sheet showed a big empty grey box with no results. Reproduced path: trainer opens routine → taps "Agregar Ejercicio" → types "na" → exercise list area appears empty.
+
+**Investigation:** RLS verified correct (168 rows visible to authenticated trainer). Dart filter logic confirmed correct via isolated repro script — `contains('na')` matches 20+ Spanish exercise names. DB query as authenticated role returns all expected rows. No autoDispose providers. No parsing errors in `ExerciseModel.fromMap`.
+
+**Root cause:** Layout bug in `_AddExerciseSheetState.build()`. The outer `Container(height: 90% of screen)` applied `padding: EdgeInsets.only(bottom: viewInsets.bottom)`. When the user taps the search `TextField` and the keyboard opens (~346px on iOS, ~300–380px on Android), this padding squeezes the `Expanded` viewport inside the Column. On small phones (740px logical height), the `Container(height: 220)` holding the exercise list is pushed partially or fully below the visible area of the `SingleChildScrollView`. The user sees nothing where results should be — they would have to scroll down past the keyboard to find them, but the UX gives no indication of this.
+
+**Decision:** Remove `viewInsets.bottom` from the outer Container padding. Instead add a `SizedBox(height: keyboardHeight)` at the bottom of the scrollable Column content. This keeps the `Expanded` viewport at full size while still allowing the `SingleChildScrollView` to scroll to reveal content that would otherwise sit behind the keyboard.
+
+**Consequences:** The exercise list stays visible when the keyboard opens on all tested phone sizes. The search bar and filter chips remain accessible. One-line diff per concern, `flutter analyze` clean.
+
 ## 2026-09-20 — QA: Exercise Library (Global Catalog + Copy-on-Edit) — NEEDS FIXES ❌
 
 **Decision:** Feature is structurally sound and the RLS is solid, but two real bugs block approval: (1) the edit/copy button is live while `myTrainerIdProvider` is still loading, causing an accidental duplicate of an owned exercise on a fast tap (WARNING severity); (2) clearing the YouTube URL field during a duplicate-creation does not clear `video_url` in the DB because `createExercise` already persisted it before the form is submitted (Bug severity). Both are fixable with small targeted changes.

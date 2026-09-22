@@ -1122,11 +1122,10 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
   Widget build(BuildContext context) {
     final isEditing = widget.existingExercise != null;
 
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.9,
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
@@ -1424,6 +1423,8 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                     maxLines: 3,
                   ),
                   const SizedBox(height: 32),
+                  // Space so the search bar isn't hidden behind the keyboard
+                  SizedBox(height: keyboardHeight),
                 ],
               ),
             ),

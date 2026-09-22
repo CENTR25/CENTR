@@ -883,31 +883,76 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
           final checkIn = checkIns[index] as Map<String, dynamic>;
           final photoUrl = checkIn['photo_url'] as String?;
           
-          return Container(
-            width: 100,
-            margin: EdgeInsets.only(right: index < checkIns.length - 1 ? 12 : 0),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              color: AppColors.surface,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          return GestureDetector(
+            onTap: photoUrl != null
+                ? () => _showPhotoViewer(context, photoUrl)
+                : null,
+            child: Container(
+              width: 100,
+              margin: EdgeInsets.only(right: index < checkIns.length - 1 ? 12 : 0),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: AppColors.surface,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: photoUrl != null
+                  ? Image.network(
+                      photoUrl,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (_, child, progress) => progress == null
+                          ? child
+                          : const Center(
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AppColors.primary),
+                            ),
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.broken_image_rounded, color: Colors.grey),
+                    )
+                  : const Icon(Icons.photo_rounded, color: Colors.grey),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: photoUrl != null
-                ? Image.network(
-                    photoUrl,
-                    fit: BoxFit.cover,
-                    loadingBuilder: (_, child, progress) => progress == null
-                        ? child
-                        : const Center(
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: AppColors.primary),
-                          ),
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.broken_image_rounded, color: Colors.grey),
-                  )
-                : const Icon(Icons.photo_rounded, color: Colors.grey),
           );
         },
+      ),
+    );
+  }
+
+  void _showPhotoViewer(BuildContext context, String photoUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      builder: (context) => GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                child: Image.network(
+                  photoUrl,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (_, child, progress) => progress == null
+                      ? child
+                      : const Center(
+                          child: CircularProgressIndicator(
+                              color: AppColors.primary),
+                        ),
+                  errorBuilder: (_, __, ___) => const Icon(
+                      Icons.broken_image_rounded,
+                      color: Colors.grey,
+                      size: 64),
+                ),
+              ),
+            ),
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              right: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

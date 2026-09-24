@@ -328,6 +328,17 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
 
                 const SizedBox(height: 32),
 
+                // Renewal Date Section
+                _SectionHeader(
+                  title: 'Próximo Vencimiento',
+                  action: 'Editar',
+                  onTap: () => _showEditRenewalDateDialog(context, student),
+                ),
+                const SizedBox(height: 12),
+                _buildRenewalDateCard(context, student),
+
+                const SizedBox(height: 32),
+
                 // Meal Plan Section
                 _SectionHeader(title: 'Plan Alimenticio', action: 'Asignar', onTap: () => _showAssignMealPlanSheet(context)),
                 const SizedBox(height: 8),
@@ -1155,6 +1166,142 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         ],
       ),
     );
+  }
+
+  // -------- Renewal date helpers --------
+
+  Widget _buildRenewalDateCard(
+    BuildContext context,
+    Map<String, dynamic> student,
+  ) {
+    final raw = student['next_renewal_date'] as String?;
+    final renewalDate = raw != null ? DateTime.tryParse(raw) : null;
+
+    String label;
+    Color statusColor;
+    IconData statusIcon;
+
+    if (renewalDate == null) {
+      label = 'Sin fecha asignada';
+      statusColor = Colors.white.withValues(alpha: 0.3);
+      statusIcon = Icons.event_busy_rounded;
+    } else {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final renewalDay = DateTime(renewalDate.year, renewalDate.month, renewalDate.day);
+      final daysLeft = renewalDay.difference(today).inDays;
+      final dateLabel =
+          '${renewalDate.day.toString().padLeft(2, '0')}/${renewalDate.month.toString().padLeft(2, '0')}/${renewalDate.year}';
+
+      if (daysLeft <= 0) {
+        label = 'Venció el $dateLabel';
+        statusColor = AppColors.error;
+        statusIcon = Icons.warning_rounded;
+      } else if (daysLeft <= 5) {
+        label = 'Vence en $daysLeft día${daysLeft == 1 ? '' : 's'} ($dateLabel)';
+        statusColor = AppColors.error;
+        statusIcon = Icons.warning_amber_rounded;
+      } else if (daysLeft <= 14) {
+        label = 'Vence el $dateLabel ($daysLeft días)';
+        statusColor = AppColors.warning;
+        statusIcon = Icons.schedule_rounded;
+      } else {
+        label = 'Vence el $dateLabel ($daysLeft días)';
+        statusColor = AppColors.success;
+        statusIcon = Icons.check_circle_rounded;
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(statusIcon, color: statusColor, size: 28),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: renewalDate != null ? Colors.white : Colors.white.withValues(alpha: 0.3),
+                fontWeight: renewalDate != null ? FontWeight.w600 : FontWeight.normal,
+                fontStyle: renewalDate != null ? FontStyle.normal : FontStyle.italic,
+                fontSize: 15,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditRenewalDateDialog(
+    BuildContext context,
+    Map<String, dynamic> student,
+  ) async {
+    final raw = student['next_renewal_date'] as String?;
+    final initial =
+        raw != null ? (DateTime.tryParse(raw) ?? DateTime.now()) : DateTime.now();
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+      helpText: 'Seleccionar fecha de vencimiento',
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: ColorScheme.dark(
+            primary: AppColors.primary,
+            onPrimary: Colors.white,
+            surface: AppColors.surface,
+            onSurface: Colors.white,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+
+    if (picked == null || !context.mounted) return;
+
+    try {
+      await ref.read(trainerServiceProvider).updateStudentRenewalDate(
+        widget.studentId,
+        picked,
+      );
+      // Refresh the student detail
+      ref.invalidate(studentDetailProvider(widget.studentId));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Fecha de vencimiento actualizada'),
+            backgroundColor: AppColors.success,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   void _showEditSupplementsDialog(

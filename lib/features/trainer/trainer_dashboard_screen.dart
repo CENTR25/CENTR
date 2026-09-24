@@ -107,11 +107,29 @@ class _NavItem {
 }
 
 // ==================== HOME VIEW ====================
-class _HomeView extends ConsumerWidget {
+class _HomeView extends ConsumerStatefulWidget {
   const _HomeView();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_HomeView> createState() => _HomeViewState();
+}
+
+class _HomeViewState extends ConsumerState<_HomeView> {
+  @override
+  void initState() {
+    super.initState();
+    // Fire-and-forget: check for upcoming renewals once per trainer home open.
+    // Notifications are stamped with today's date so re-opens don't duplicate.
+    Future.microtask(() async {
+      if (!mounted) return;
+      final svc = ref.read(trainerServiceProvider);
+      final supabaseSvc = ref.read(supabaseServiceProvider);
+      await svc.checkAndNotifyUpcomingRenewals(supabaseSvc);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
     final statsAsync = ref.watch(trainerStatsProvider);
 
@@ -306,9 +324,318 @@ class _HomeView extends ConsumerWidget {
             const SizedBox(height: 12),
 
             // Notificaciones con colores
-            const _NotificationsDashboard()
+            const _NotificationsDashboard(),
+
+            const SizedBox(height: 24),
+
+            // Resumen del equipo
+            const _TeamSummarySection(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ==================== TEAM SUMMARY ====================
+
+class _TeamSummarySection extends ConsumerWidget {
+  const _TeamSummarySection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final renewalsAsync = ref.watch(upcomingRenewalsProvider);
+    final studentsAsync = ref.watch(myStudentsProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.groups_rounded, color: AppColors.primaryLight, size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Resumen del Equipo',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Card A — Vencimientos próximos
+        renewalsAsync.when(
+          data: (renewals) => _buildRenewalsCard(context, renewals),
+          loading: () => const _SummaryCardShimmer(),
+          error: (_, __) => const SizedBox.shrink(),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Card B — Check-ins pendientes
+        studentsAsync.when(
+          data: (students) => _buildPendingCheckInsCard(context, students, ref),
+          loading: () => const _SummaryCardShimmer(),
+          error: (_, __) => const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRenewalsCard(
+    BuildContext context,
+    List<Map<String, dynamic>> renewals,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: renewals.isEmpty
+              ? AppColors.success.withValues(alpha: 0.25)
+              : AppColors.warning.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                renewals.isEmpty
+                    ? Icons.check_circle_rounded
+                    : Icons.warning_amber_rounded,
+                color: renewals.isEmpty ? AppColors.success : AppColors.warning,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Vencimientos próximos',
+                style: TextStyle(
+                  color: renewals.isEmpty ? AppColors.success : AppColors.warning,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (renewals.isEmpty)
+            Text(
+              'Todo al día',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontStyle: FontStyle.italic,
+                fontSize: 14,
+              ),
+            )
+          else
+            ...renewals.map((athlete) {
+              final name = athlete['name'] as String? ?? 'Alumno';
+              final renewalStr = athlete['next_renewal_date'] as String;
+              final renewalDate = DateTime.tryParse(renewalStr);
+              final now = DateTime.now();
+              final today = DateTime(now.year, now.month, now.day);
+              final renewalDay = renewalDate != null
+                  ? DateTime(renewalDate.year, renewalDate.month, renewalDate.day)
+                  : today;
+              final daysLeft = renewalDay.difference(today).inDays;
+              final dateLabel = renewalDate != null
+                  ? '${renewalDate.day.toString().padLeft(2, '0')}/${renewalDate.month.toString().padLeft(2, '0')}'
+                  : '';
+
+              return GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        StudentDetailScreen(studentId: athlete['id'] as String),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ),
+                      Text(
+                        daysLeft <= 0
+                            ? 'Vencido'
+                            : '$daysLeft d · $dateLabel',
+                        style: TextStyle(
+                          color: daysLeft <= 2 ? AppColors.error : AppColors.warning,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: Colors.white.withValues(alpha: 0.2),
+                        size: 16,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingCheckInsCard(
+    BuildContext context,
+    List<Map<String, dynamic>> students,
+    WidgetRef ref,
+  ) {
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    final pending = students.where((s) {
+      final raw = s['last_check_in_at'] as String?;
+      if (raw == null) return true; // never checked in
+      final last = DateTime.tryParse(raw);
+      return last == null || last.isBefore(sevenDaysAgo);
+    }).toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: pending.isEmpty
+              ? AppColors.success.withValues(alpha: 0.25)
+              : AppColors.info.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                pending.isEmpty
+                    ? Icons.check_circle_rounded
+                    : Icons.camera_alt_rounded,
+                color: pending.isEmpty ? AppColors.success : AppColors.info,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Check-ins pendientes',
+                style: TextStyle(
+                  color: pending.isEmpty ? AppColors.success : AppColors.info,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              if (pending.isNotEmpty) ...[
+                const Spacer(),
+                Text(
+                  '${pending.length} alumno${pending.length == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    color: AppColors.textLight,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (pending.isEmpty)
+            Text(
+              'Todos han hecho check-in esta semana',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontStyle: FontStyle.italic,
+                fontSize: 14,
+              ),
+            )
+          else
+            ...pending.take(5).map((athlete) {
+              final name = athlete['name'] as String? ?? 'Alumno';
+              final raw = athlete['last_check_in_at'] as String?;
+              final last = raw != null ? DateTime.tryParse(raw) : null;
+              final daysSince = last != null
+                  ? DateTime.now().difference(last).inDays
+                  : null;
+              final subtitle = daysSince != null
+                  ? 'Hace $daysSince día${daysSince == 1 ? '' : 's'}'
+                  : 'Sin check-in';
+
+              return GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        StudentDetailScreen(studentId: athlete['id'] as String),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: AppColors.textLight,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: Colors.white.withValues(alpha: 0.2),
+                        size: 16,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          if (pending.length > 5)
+            Text(
+              '+ ${pending.length - 5} más',
+              style: TextStyle(
+                color: AppColors.textLight,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryCardShimmer extends StatelessWidget {
+  const _SummaryCardShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 72,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
       ),
     );
   }

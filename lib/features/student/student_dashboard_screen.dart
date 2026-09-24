@@ -560,6 +560,21 @@ class _HomeContent extends ConsumerWidget {
 
             const SizedBox(height: 24),
 
+            // -- CUOTA / RENEWAL CHIP --
+            Consumer(
+              builder: (context, ref, _) {
+                final renewalAsync = ref.watch(myRenewalDateProvider);
+                return renewalAsync.when(
+                  data: (renewalDate) =>
+                      _buildRenewalChip(context, renewalDate),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                );
+              },
+            ),
+
+            const SizedBox(height: 24),
+
             // -- RENOVACIÓN / CHEQUEO MENSUAL --
             Consumer(
               builder: (context, ref, _) {
@@ -785,6 +800,61 @@ class _HomeContent extends ConsumerWidget {
   }
 
   // ----- New Home Content Helpers -----
+
+  Widget _buildRenewalChip(BuildContext context, DateTime? renewalDate) {
+    if (renewalDate == null) return const SizedBox.shrink();
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final renewalDay = DateTime(
+      renewalDate.year,
+      renewalDate.month,
+      renewalDate.day,
+    );
+    final daysLeft = renewalDay.difference(today).inDays;
+
+    // Only show within 14 days
+    if (daysLeft > 14 || daysLeft < 0) return const SizedBox.shrink();
+
+    final isUrgent = daysLeft <= 5;
+    final chipColor = isUrgent ? AppColors.error : AppColors.warning;
+    final dateLabel =
+        '${renewalDate.day.toString().padLeft(2, '0')}/${renewalDate.month.toString().padLeft(2, '0')}/${renewalDate.year}';
+    final message = isUrgent
+        ? 'Tu cuota vence en $daysLeft día${daysLeft == 1 ? '' : 's'}'
+        : 'Tu cuota vence el $dateLabel';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: chipColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: chipColor.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isUrgent ? Icons.warning_rounded : Icons.schedule_rounded,
+            color: chipColor,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: chipColor,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildRenovacionCard(BuildContext context, CheckInStatus status) {
     final isPending = status.isPending;

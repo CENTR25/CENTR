@@ -1275,6 +1275,118 @@ class TrainerService {
         })
         .eq('id', formId);
   }
+
+  // ==================== CUOTAS / VENCIMIENTOS ====================
+
+  /// Update the renewal date for a student (trainer-initiated).
+  Future<void> updateStudentRenewalDate(String athleteId, DateTime date) async {
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    await _client
+        .from('athletes')
+        .update({'next_renewal_date': dateStr})
+        .eq('id', athleteId);
+  }
+
+  /// Returns athletes belonging to this trainer whose next_renewal_date falls
+  /// within [withinDays] days from today (inclusive).
+  /// Returns only columns needed for the home widget — no heavy joins.
+  Future<List<Map<String, dynamic>>> getUpcomingRenewals({
+    int withinDays = 5,
+  }) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return [];
+
+    final today = DateTime.now();
+    final todayStr =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final limit = today.add(Duration(days: withinDays));
+    final limitStr =
+        '${limit.year}-${limit.month.toString().padLeft(2, '0')}-${limit.day.toString().padLeft(2, '0')}';
+
+    final response = await _client
+        .from('athletes')
+        .select('id, name, next_renewal_date, last_fee_notified_at, user_id')
+        .eq('trainer_id', trainerId)
+        .not('next_renewal_date', 'is', null)
+        .gte('next_renewal_date', todayStr)
+        .lte('next_renewal_date', limitStr)
+        .order('next_renewal_date');
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Checks for upcoming renewals and, for each athlete not yet notified today,
+  /// creates an in-app notification for the trainer AND the student, then stamps
+  /// last_fee_notified_at to prevent duplicates for the rest of the day.
+  ///
+  /// Fire-and-forget from the trainer home — errors are logged but not rethrown.
+  Future<void> checkAndNotifyUpcomingRenewals(
+    SupabaseService supabaseService,
+  ) async {
+    try {
+      final trainerId = await _getTrainerId();
+      if (trainerId == null) return;
+
+      final trainerUserId = currentUserId;
+      if (trainerUserId == null) return;
+
+      final athletes = await getUpcomingRenewals(withinDays: 5);
+      if (athletes.isEmpty) return;
+
+      final today = DateTime.now();
+      final todayStr =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+      for (final athlete in athletes) {
+        final athleteId = athlete['id'] as String;
+        final athleteUserId = athlete['user_id'] as String?;
+        final athleteName = athlete['name'] as String? ?? 'Alumno';
+        final renewalDateStr = athlete['next_renewal_date'] as String;
+        final lastNotified = athlete['last_fee_notified_at'] as String?;
+
+        // Skip if already notified today
+        if (lastNotified == todayStr) continue;
+
+        // Compute days remaining for the message
+        final renewalDate = DateTime.tryParse(renewalDateStr);
+        if (renewalDate == null) continue;
+        final daysLeft = renewalDate.difference(today).inDays;
+        final dateLabel =
+            '${renewalDate.day.toString().padLeft(2, '0')}/${renewalDate.month.toString().padLeft(2, '0')}/${renewalDate.year}';
+
+        // Notify trainer
+        await supabaseService.createNotification(
+          userId: trainerUserId,
+          type: 'subscriptionExpiring',
+          title: 'Vencimiento próximo',
+          message:
+              'La cuota de $athleteName vence en $daysLeft día${daysLeft == 1 ? '' : 's'} ($dateLabel).',
+          data: {'athlete_id': athleteId},
+        );
+
+        // Notify the student (if their user_id is known)
+        if (athleteUserId != null) {
+          await supabaseService.createNotification(
+            userId: athleteUserId,
+            type: 'subscriptionExpiring',
+            title: 'Tu cuota está por vencer',
+            message:
+                'Tu cuota vence en $daysLeft día${daysLeft == 1 ? '' : 's'} ($dateLabel). Comunícate con tu entrenador.',
+            data: {'athlete_id': athleteId},
+          );
+        }
+
+        // Stamp today so we don't re-notify on next app open
+        await _client
+            .from('athletes')
+            .update({'last_fee_notified_at': todayStr})
+            .eq('id', athleteId);
+      }
+    } catch (e) {
+      debugPrint('⚠️ checkAndNotifyUpcomingRenewals error: $e');
+    }
+  }
 }
 
 /// Provider for TrainerService
@@ -1355,6 +1467,13 @@ final exerciseEquipmentsProvider = FutureProvider<List<String>>((ref) async {
 final exerciseTargetsProvider = FutureProvider<List<String>>((ref) async {
   final service = ref.watch(trainerServiceProvider);
   return service.getExerciseTargets();
+});
+
+/// Provider for athletes whose renewal date is within the next 5 days.
+final upcomingRenewalsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getUpcomingRenewals(withinDays: 5);
 });
 
 /// Provider for trainer's check-in form

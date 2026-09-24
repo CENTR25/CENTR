@@ -277,6 +277,21 @@ class StudentService {
     return List<Map<String, dynamic>>.from(response).reversed.toList();
   }
 
+  /// Returns the athlete's next renewal date, or null if not set.
+  Future<DateTime?> getMyRenewalDate() async {
+    final userId = currentUserId;
+    if (userId == null) return null;
+
+    final row = await _client
+        .from('athletes')
+        .select('next_renewal_date')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    final raw = row?['next_renewal_date'] as String?;
+    return raw != null ? DateTime.tryParse(raw) : null;
+  }
+
   /// Update profile info (display name lives on athletes, not profiles)
   Future<void> updateProfile({String? name}) async {
     final userId = currentUserId;
@@ -1048,3 +1063,9 @@ final recentSessionsProvider =
         limit: arg.limit,
       );
     });
+
+/// Provider for the student's next renewal date.
+final myRenewalDateProvider = FutureProvider<DateTime?>((ref) async {
+  final service = ref.read(studentServiceProvider);
+  return service.getMyRenewalDate();
+});

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/string_utils.dart';
 import '../../../models/exercise_model.dart';
 import '../../../services/exercise_media_service.dart';
 import '../../../services/trainer_service.dart';
@@ -26,6 +27,18 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     with TickerProviderStateMixin {
   TabController? _tabController;
   int _currentDay = 1;
+  int _defaultRest = 60;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDefaultRest();
+  }
+
+  Future<void> _loadDefaultRest() async {
+    final rest = await ref.read(trainerServiceProvider).getDefaultRestSeconds();
+    if (mounted) setState(() => _defaultRest = rest);
+  }
 
   void _handleTabSelection() {
     if (mounted && _tabController != null) {
@@ -453,8 +466,11 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) =>
-          _AddExerciseSheet(routineId: widget.routineId, dayNumber: dayNumber),
+      builder: (context) => _AddExerciseSheet(
+        routineId: widget.routineId,
+        dayNumber: dayNumber,
+        defaultRest: _defaultRest,
+      ),
     );
   }
 
@@ -1046,11 +1062,13 @@ class _AddExerciseSheet extends ConsumerStatefulWidget {
   final String routineId;
   final int dayNumber;
   final Map<String, dynamic>? existingExercise;
+  final int defaultRest;
 
   const _AddExerciseSheet({
     required this.routineId,
     required this.dayNumber,
     this.existingExercise,
+    this.defaultRest = 60,
   });
 
   @override
@@ -1063,7 +1081,7 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
   bool _useSameReps = true;
   String _standardReps = '10-12';
   List<String> _individualReps = ['10', '10', '10'];
-  int _rest = 60;
+  late int _rest = widget.defaultRest;
   String _comments = '';
   bool _isLoading = false;
 
@@ -1406,6 +1424,19 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                     divisions: 15,
                     onChanged: (v) => setState(() => _rest = v.round()),
                   ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _saveDefaultRest,
+                      icon: const Icon(Icons.push_pin_outlined, size: 16),
+                      label: const Text('Usar como predeterminado'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.accent,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ),
 
                   const SizedBox(height: 16),
 
@@ -1432,6 +1463,18 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
         ],
       ),
     );
+  }
+
+  Future<void> _saveDefaultRest() async {
+    await ref.read(trainerServiceProvider).updateDefaultRestSeconds(_rest);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Descanso predeterminado guardado'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
   }
 
   Future<void> _saveExercise() async {
@@ -1556,8 +1599,8 @@ class _ExerciseSelector extends ConsumerWidget {
       data: (exercises) {
         // Filter list locally
         final filtered = exercises.where((ex) {
-          final name = (ex['name'] as String? ?? '').toLowerCase();
-          final matchesSearch = name.contains(searchQuery.toLowerCase());
+          final name = ex['name'] as String? ?? '';
+          final matchesSearch = foldSearch(name).contains(foldSearch(searchQuery));
           final matchesGroup = ExerciseCategory.matches(ex, muscleGroupFilter);
 
           return matchesSearch && matchesGroup;

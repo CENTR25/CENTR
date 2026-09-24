@@ -296,10 +296,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     
     _weightController.text = recordedWeight ?? targetWeight;
 
-    // Use _getCurrentTargetReps() to get the specific target for this set
-    final currentTargetReps = _getCurrentTargetReps();
     final recordedReps = _recordedReps[_currentExerciseIndex]?[_currentSet]?.toString();
-    _repsController.text = recordedReps ?? currentTargetReps;
+    // Start empty so the target shows only as a hint (placeholder), not pre-filled.
+    _repsController.text = recordedReps ?? '';
   }
 
   void _playBeep() async {
@@ -566,30 +565,33 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
-                      Column(
-                        children: [
-                          Text(
-                            'EJERCICIO ${_currentExerciseIndex + 1} / $totalExercises',
-                            style: TextStyle(
-                              color: AppColors.textLight.withValues(alpha: 0.5),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.2,
+                      Flexible(
+                        child: Column(
+                          children: [
+                            Text(
+                              'EJERCICIO ${_currentExerciseIndex + 1} / $totalExercises',
+                              style: TextStyle(
+                                color: AppColors.textLight.withValues(alpha: 0.5),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.2,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 26,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.5,
+                            const SizedBox(height: 4),
+                            Text(
+                              name,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 26,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.5,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       // Invisible button for balance
                        const SizedBox(width: 48),
@@ -658,7 +660,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                         final lastLog = _getLastLog();
                         final prevWeight = lastLog['weight'] as num?;
                         final prevReps = lastLog['reps'] as num?;
-                        
+                        final targetReps = _getCurrentTargetReps();
+
                         return Row(
                           children: [
                             Expanded(
@@ -679,6 +682,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                                 color: AppColors.success,
                                 isInteger: true,
                                 previousValue: prevReps?.toDouble(),
+                                hintText: targetReps.isNotEmpty ? targetReps : '0',
                               ),
                             ),
                           ],
@@ -1017,7 +1021,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        '$_restSecondsRemaining',
+                        _restSecondsRemaining > 59
+                            ? '${_restSecondsRemaining ~/ 60}:${(_restSecondsRemaining % 60).toString().padLeft(2, '0')}'
+                            : '$_restSecondsRemaining',
                         style: const TextStyle(
                           fontSize: 80,
                           fontWeight: FontWeight.bold,
@@ -1025,9 +1031,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                           height: 1,
                         ),
                       ),
-                      const Text(
-                        'segundos',
-                        style: TextStyle(
+                      Text(
+                        _restSecondsRemaining > 59 ? 'minutos' : 'segundos',
+                        style: const TextStyle(
                           fontSize: 16,
                           color: Colors.white70,
                         ),
@@ -1629,6 +1635,7 @@ class _InputStatBox extends StatefulWidget {
   final Color color;
   final bool isInteger;
   final double? previousValue;
+  final String hintText;
 
   const _InputStatBox({
     required this.label,
@@ -1637,6 +1644,7 @@ class _InputStatBox extends StatefulWidget {
     required this.color,
     this.isInteger = false,
     this.previousValue,
+    this.hintText = '0',
   });
 
   @override
@@ -1737,7 +1745,7 @@ class _InputStatBoxState extends State<_InputStatBox> {
                 ),
                 decoration: InputDecoration(
                   isDense: true,
-                  hintText: '0',
+                  hintText: widget.hintText,
                   hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.1)),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,

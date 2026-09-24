@@ -30,6 +30,34 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen>
         started.day == now.day;
   }
 
+  Future<bool?> _confirmOtherDay(BuildContext context, int dayNumber) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'Entrenar otro día',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          'Estás por entrenar el Día $dayNumber fuera de orden. '
+          '¿Querés continuar de todos modos?',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<bool?> _confirmRetrain(BuildContext context) {
     return showDialog<bool>(
       context: context,
@@ -333,47 +361,46 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen>
                                   width: double.infinity,
                                   height: 50,
                                   child: ElevatedButton.icon(
-                                    onPressed: isToday
-                                        ? () async {
-                                            // Block accidental double workouts:
-                                            // if today's session is already
-                                            // completed, ask before re-entering
-                                            final last = lastSessionAsync
-                                                .valueOrNull;
-                                            if (_completedToday(last)) {
-                                              final retry =
-                                                  await _confirmRetrain(
-                                                    context,
-                                                  );
-                                              if (retry != true) return;
-                                            }
-                                            if (!context.mounted) return;
-                                            Navigator.push(
+                                    onPressed: () async {
+                                      // Out-of-order day: confirm before
+                                      // training a day that is not today's.
+                                      if (!isToday) {
+                                        final proceed =
+                                            await _confirmOtherDay(
                                               context,
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    WorkoutSessionScreen(
-                                                      routine: routine,
-                                                      exercises: dayExercises
-                                                          .cast<
-                                                            Map<String, dynamic>
-                                                          >(),
-                                                      dayNumber: dayNum,
-                                                    ),
-                                              ),
+                                              dayNum,
                                             );
-                                          }
-                                        : null,
-                                    icon: isToday
-                                        ? const Icon(Icons.play_arrow, size: 20)
-                                        : const Icon(
-                                            Icons.lock_clock,
-                                            size: 20,
+                                        if (proceed != true) return;
+                                      } else {
+                                        // Block accidental double workouts:
+                                        // if today's session is already
+                                        // completed, ask before re-entering
+                                        final last =
+                                            lastSessionAsync.valueOrNull;
+                                        if (_completedToday(last)) {
+                                          final retry =
+                                              await _confirmRetrain(context);
+                                          if (retry != true) return;
+                                        }
+                                      }
+                                      if (!context.mounted) return;
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => WorkoutSessionScreen(
+                                            routine: routine,
+                                            exercises: dayExercises
+                                                .cast<Map<String, dynamic>>(),
+                                            dayNumber: dayNum,
                                           ),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.play_arrow, size: 20),
                                     label: Text(
                                       isToday
                                           ? 'Empezar Entrenamiento'
-                                          : 'Disponible el día correspondiente',
+                                          : 'Entrenar este día',
                                       style: const TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.bold,
@@ -382,7 +409,7 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen>
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: isToday
                                           ? AppColors.success
-                                          : Colors.grey,
+                                          : AppColors.primary,
                                       foregroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(14),

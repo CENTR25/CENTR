@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/student_service.dart';
 
@@ -156,10 +157,79 @@ class _StudentWeightScreenState extends ConsumerState<StudentWeightScreen> {
                 },
               ),
             ),
+
+            const SizedBox(height: 32),
+
+            // Detailed list
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Registro Detallado',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Consumer(
+              builder: (context, ref, _) {
+                final historyAsync = ref.watch(myWeightHistoryProvider);
+                return historyAsync.when(
+                  data: (history) => _buildHistoryList(history),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                );
+              },
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildHistoryList(List<Map<String, dynamic>> history) {
+    if (history.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Text(
+          'Sin registros',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
+    }
+
+    // Provider data is oldest-first (for the chart); show most-recent-first.
+    final entries = history.reversed.toList();
+    final dateFormat = DateFormat('dd/MM/yyyy');
+
+    return Column(
+      children: [
+        for (final entry in entries)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _formatEntryDate(entry, dateFormat),
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+                Text(
+                  '${(entry['body_weight'] as num?)?.toStringAsFixed(1) ?? '-'} kg',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _formatEntryDate(Map<String, dynamic> entry, DateFormat dateFormat) {
+    final raw = entry['date'] ?? entry['created_at'];
+    final parsed = raw is String ? DateTime.tryParse(raw) : null;
+    return parsed != null ? dateFormat.format(parsed) : '-';
   }
 
   Widget _buildChart(List<Map<String, dynamic>> history) {

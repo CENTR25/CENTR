@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/string_utils.dart';
 import '../../../services/trainer_service.dart';
 import '../../../services/storage_service.dart';
 import 'package:north_star/utils/exercise_category.dart';
@@ -21,6 +22,7 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String? _selectedMuscleGroup;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -70,13 +72,42 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen>
           ),
         ],
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          // All exercises
-          _ExerciseList(muscleGroup: _selectedMuscleGroup),
-          // My custom exercises
-          _ExerciseList(muscleGroup: _selectedMuscleGroup, customOnly: true),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Buscar ejercicio...',
+                prefixIcon: const Icon(Icons.search_rounded),
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (val) => setState(() => _searchQuery = val),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // All exercises
+                _ExerciseList(
+                  muscleGroup: _selectedMuscleGroup,
+                  searchQuery: _searchQuery,
+                ),
+                // My custom exercises
+                _ExerciseList(
+                  muscleGroup: _selectedMuscleGroup,
+                  searchQuery: _searchQuery,
+                  customOnly: true,
+                ),
+              ],
+            ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -102,8 +133,13 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen>
 class _ExerciseList extends ConsumerWidget {
   final String? muscleGroup;
   final bool customOnly;
+  final String searchQuery;
 
-  const _ExerciseList({this.muscleGroup, this.customOnly = false});
+  const _ExerciseList({
+    this.muscleGroup,
+    this.customOnly = false,
+    this.searchQuery = '',
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -124,6 +160,14 @@ class _ExerciseList extends ConsumerWidget {
         if (customOnly) {
           filtered = filtered
               .where((e) => e['created_by_trainer'] != null)
+              .toList();
+        }
+
+        // Filter by search (accent + case insensitive)
+        if (searchQuery.isNotEmpty) {
+          final q = foldSearch(searchQuery);
+          filtered = filtered
+              .where((e) => foldSearch(e['name'] as String? ?? '').contains(q))
               .toList();
         }
 

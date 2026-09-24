@@ -9,6 +9,7 @@ import '../../../services/affiliated_brand_service.dart';
 import '../../../models/affiliated_brand_model.dart';
 import '../widgets/trainer_sheets.dart';
 import 'trainers_list_screen.dart';
+import 'admin_exercises_screen.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -26,6 +27,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     _NavItem(icon: Icons.card_membership_rounded, label: 'Planes'),
     _NavItem(icon: Icons.newspaper_rounded, label: 'Noticias'),
     _NavItem(icon: Icons.local_offer_rounded, label: 'Marcas'),
+    _NavItem(icon: Icons.fitness_center_rounded, label: 'Ejercicios'),
     _NavItem(icon: Icons.settings_rounded, label: 'Config'),
   ];
 
@@ -72,6 +74,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       case 4:
         return _BrandsView();
       case 5:
+        return const AdminExercisesView();
+      case 6:
         return _SettingsView();
       default:
         return _DashboardView();

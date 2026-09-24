@@ -159,6 +159,58 @@ class AdminService {
     await _invokeAdminAuth({'action': 'delete_user', 'user_id': userId});
   }
 
+  // ==================== GLOBAL EXERCISES ====================
+
+  /// Columns needed for the admin exercise list — never select('*').
+  static const _exerciseColumns =
+      'id, name, muscle_group, category, equipment, is_hidden, source, created_at';
+
+  /// Global exercises (created_by_trainer IS NULL): seed + admin-created.
+  /// Admins see hidden rows too (RLS). Ordered by name.
+  Future<List<Map<String, dynamic>>> getGlobalExercises() async {
+    final response = await _client
+        .from('exercises')
+        .select(_exerciseColumns)
+        .isFilter('created_by_trainer', null)
+        .order('name');
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Create a new global exercise visible to every trainer/athlete.
+  Future<Map<String, dynamic>> createGlobalExercise({
+    required String name,
+    required String muscleGroup,
+    String? category,
+    List<String>? equipment,
+  }) async {
+    final response = await _client
+        .from('exercises')
+        .insert({
+          'name': name,
+          'muscle_group': muscleGroup,
+          if (category != null && category.isNotEmpty) 'category': category,
+          if (equipment != null && equipment.isNotEmpty) 'equipment': equipment,
+          'created_by_trainer': null,
+          'is_public': true,
+          'is_hidden': false,
+          'source': 'global',
+          'created_at': DateTime.now().toIso8601String(),
+        })
+        .select(_exerciseColumns)
+        .single();
+
+    return response;
+  }
+
+  /// Hide or unhide a global exercise (add-only management — no field edits).
+  Future<void> setGlobalExerciseHidden(String exerciseId, bool hidden) async {
+    await _client
+        .from('exercises')
+        .update({'is_hidden': hidden})
+        .eq('id', exerciseId);
+  }
+
   // ==================== INVITATIONS ====================
 
   /// Generate invitation token (cryptographically random — it is the sole
@@ -345,4 +397,11 @@ final adminStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 final subscriptionPlansProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final service = ref.watch(adminServiceProvider);
   return service.getSubscriptionPlans();
+});
+
+/// Provider for global exercises (admin management)
+final globalExercisesProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.watch(adminServiceProvider);
+  return service.getGlobalExercises();
 });

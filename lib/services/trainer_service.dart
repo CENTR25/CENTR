@@ -39,6 +39,34 @@ class TrainerService {
   /// Public accessor for the current trainer's `trainers.id` (UI ownership checks).
   Future<String?> getTrainerId() => _getTrainerId();
 
+  // ==================== PREFERENCES ====================
+
+  /// Get the current trainer's default rest (seconds) for new exercises.
+  /// Falls back to 60 if no trainer row / value is found.
+  Future<int> getDefaultRestSeconds() async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return 60;
+
+    final result = await _client
+        .from('trainers')
+        .select('default_rest_seconds')
+        .eq('id', trainerId)
+        .maybeSingle();
+
+    return (result?['default_rest_seconds'] as int?) ?? 60;
+  }
+
+  /// Update the current trainer's default rest (seconds) for new exercises.
+  Future<void> updateDefaultRestSeconds(int seconds) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return;
+
+    await _client
+        .from('trainers')
+        .update({'default_rest_seconds': seconds})
+        .eq('id', trainerId);
+  }
+
   // ==================== STUDENTS ====================
 
   /// Get all students for current trainer
@@ -488,13 +516,23 @@ class TrainerService {
     int sets = 3,
     String? reps,
     String? restTime,
-    int orderIndex = 0,
+    int orderIndex = -1,
     String? notes,
   }) async {
     // Parse rest time to seconds
     int restSeconds = 60;
     if (restTime != null) {
       restSeconds = int.tryParse(restTime.replaceAll('s', '')) ?? 60;
+    }
+
+    // If no explicit order given, append at the end of this day's list
+    if (orderIndex < 0) {
+      final existing = await _client
+          .from('routine_exercises')
+          .select('id')
+          .eq('routine_id', routineId)
+          .eq('day_number', dayNumber);
+      orderIndex = (existing as List).length;
     }
 
     await _client.from('routine_exercises').insert({

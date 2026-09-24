@@ -15,6 +15,7 @@ import 'student_check_in_screen.dart';
 import 'student_routine_screen.dart';
 import 'student_recipes_screen.dart';
 import 'student_check_in_history_screen.dart';
+import 'required_reading_screen.dart';
 
 class StudentDashboardScreen extends ConsumerStatefulWidget {
   const StudentDashboardScreen({super.key});
@@ -559,6 +560,22 @@ class _HomeContent extends ConsumerWidget {
             ),
 
             const SizedBox(height: 24),
+
+            // -- LECTURA OBLIGATORIA (per-trainer, only if set) --
+            Consumer(
+              builder: (context, ref, _) {
+                final readingAsync =
+                    ref.watch(trainerRequiredReadingProvider);
+                final content = readingAsync.valueOrNull;
+                if (content == null || content.trim().isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: _RequiredReadingBanner(content: content),
+                );
+              },
+            ),
 
             // -- CUOTA / RENEWAL CHIP --
             Consumer(
@@ -1305,6 +1322,65 @@ class _HomeContent extends ConsumerWidget {
       default:
         return Icons.newspaper_rounded;
     }
+  }
+}
+
+// ----- Lectura Obligatoria banner ----- //
+class _RequiredReadingBanner extends StatelessWidget {
+  final String content;
+
+  const _RequiredReadingBanner({required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RequiredReadingScreen(content: content),
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.success.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.visibility_outlined,
+                color: AppColors.success, size: 22),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Lectura Obligatoria',
+                style: TextStyle(
+                  color: AppColors.success,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Leer',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

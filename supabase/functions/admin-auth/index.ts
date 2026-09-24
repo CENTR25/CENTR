@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
   try {
     const { action, ...params } = await req.json();
 
-    const requireAdmin = async () => {
+    const getCaller = async () => {
       const jwt = (req.headers.get("Authorization") ?? "").replace(
         "Bearer ",
         "",
@@ -40,7 +40,12 @@ Deno.serve(async (req) => {
         .select("role")
         .eq("id", user.id)
         .single();
-      if (profile?.role !== "admin") throw new Error("No autorizado");
+      return { user, role: profile?.role as string | undefined };
+    };
+
+    const requireAdmin = async () => {
+      const { role } = await getCaller();
+      if (role !== "admin") throw new Error("No autorizado");
     };
 
     if (action === "create_trainer") {
@@ -73,6 +78,46 @@ Deno.serve(async (req) => {
       }
       const { error } = await admin.auth.admin.deleteUser(user_id);
       if (error) throw error;
+      return json({ ok: true });
+    }
+
+    // Delete one of the caller's own students (or any, if the caller is admin).
+    // Cascade FKs remove the profile + athlete rows once the auth user is gone.
+    if (action === "delete_student") {
+      const { athlete_id } = params;
+      if (!athlete_id) throw new Error("athlete_id es requerido");
+      const caller = await getCaller();
+
+      const { data: athlete } = await admin
+        .from("athletes")
+        .select("id, user_id, trainer_id")
+        .eq("id", athlete_id)
+        .maybeSingle();
+      if (!athlete) throw new Error("Alumno no encontrado");
+
+      if (caller.role !== "admin") {
+        const { data: trainer } = await admin
+          .from("trainers")
+          .select("id")
+          .eq("user_id", caller.user.id)
+          .maybeSingle();
+        if (!trainer || trainer.id !== athlete.trainer_id) {
+          throw new Error("No autorizado");
+        }
+      }
+
+      if (athlete.user_id) {
+        // Deleting the auth user cascades to profiles → athletes.
+        const { error } = await admin.auth.admin.deleteUser(athlete.user_id);
+        if (error) throw error;
+      } else {
+        // Half-created athlete with no auth account: drop the row directly.
+        const { error } = await admin
+          .from("athletes")
+          .delete()
+          .eq("id", athlete_id);
+        if (error) throw error;
+      }
       return json({ ok: true });
     }
 

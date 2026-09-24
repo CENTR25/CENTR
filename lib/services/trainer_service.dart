@@ -67,6 +67,32 @@ class TrainerService {
         .eq('id', trainerId);
   }
 
+  /// Get the current trainer's "Lectura Obligatoria" text (null if unset).
+  Future<String?> getRequiredReading() async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return null;
+
+    final result = await _client
+        .from('trainers')
+        .select('required_reading')
+        .eq('id', trainerId)
+        .maybeSingle();
+
+    return result?['required_reading'] as String?;
+  }
+
+  /// Save the current trainer's "Lectura Obligatoria" text. Empty clears it.
+  Future<void> updateRequiredReading(String text) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return;
+
+    final trimmed = text.trim();
+    await _client
+        .from('trainers')
+        .update({'required_reading': trimmed.isEmpty ? null : trimmed})
+        .eq('id', trainerId);
+  }
+
   // ==================== STUDENTS ====================
 
   /// Get all students for current trainer
@@ -155,6 +181,22 @@ class TrainerService {
       'date': dateStr,
       'body_weight': weight,
     });
+  }
+
+  /// Permanently delete one of the trainer's students. Removes the auth user,
+  /// which cascades to their profile and athlete rows. Server verifies the
+  /// caller owns the athlete.
+  Future<void> deleteStudent(String athleteId) async {
+    try {
+      await _client.functions.invoke(
+        'admin-auth',
+        body: {'action': 'delete_student', 'athlete_id': athleteId},
+      );
+    } on FunctionException catch (e) {
+      final details = e.details;
+      final message = details is Map ? details['error']?.toString() : null;
+      throw Exception(message ?? 'No se pudo eliminar el alumno (${e.status})');
+    }
   }
 
   /// Update athlete supplements
@@ -1439,6 +1481,12 @@ final myStudentsProvider = FutureProvider<List<Map<String, dynamic>>>((
 ) async {
   final service = ref.watch(trainerServiceProvider);
   return service.getMyStudents();
+});
+
+/// Provider for the trainer's own "Lectura Obligatoria" text.
+final myRequiredReadingProvider = FutureProvider<String?>((ref) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getRequiredReading();
 });
 
 /// Provider for trainer's routines

@@ -33,6 +33,15 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         title: const Text('Detalle del Alumno'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: AppColors.error),
+            tooltip: 'Eliminar alumno',
+            onPressed: () => _confirmDelete(
+              studentAsync.valueOrNull?['name'] as String?,
+            ),
+          ),
+        ],
       ),
       body: studentAsync.when(
         data: (student) {
@@ -474,6 +483,51 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
       );
     } catch (e) {
       if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDelete(String? name) async {
+    final label = (name == null || name.trim().isEmpty) ? 'este alumno' : name;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar alumno'),
+        content: Text(
+          '¿Seguro que querés eliminar a $label? Se borrará su cuenta y todos '
+          'sus datos de forma permanente. Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref.read(trainerServiceProvider).deleteStudent(widget.studentId);
+      ref.invalidate(myStudentsProvider);
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Alumno eliminado'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
         );

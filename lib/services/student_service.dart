@@ -34,6 +34,29 @@ class StudentService {
     return athlete?['id'] as String?;
   }
 
+  /// Get the "Lectura Obligatoria" text set by the student's trainer, or null.
+  Future<String?> getTrainerRequiredReading() async {
+    final userId = currentUserId;
+    if (userId == null) return null;
+
+    final athlete = await _client
+        .from('athletes')
+        .select('trainer_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    final trainerId = athlete?['trainer_id'] as String?;
+    if (trainerId == null) return null;
+
+    final trainer = await _client
+        .from('trainers')
+        .select('required_reading')
+        .eq('id', trainerId)
+        .maybeSingle();
+
+    return trainer?['required_reading'] as String?;
+  }
+
   /// Get the active check-in form assigned by the student's trainer.
   ///
   /// The student-to-trainer relationship is stored in `athletes.trainer_id`
@@ -930,6 +953,12 @@ final activeMealPlanProvider = FutureProvider<Map<String, dynamic>?>((
 ) async {
   final service = ref.read(studentServiceProvider);
   return service.getMyActiveMealPlan();
+});
+
+/// Provider for the "Lectura Obligatoria" text set by the student's trainer.
+final trainerRequiredReadingProvider = FutureProvider<String?>((ref) async {
+  final service = ref.read(studentServiceProvider);
+  return service.getTrainerRequiredReading();
 });
 
 /// Provider for student's active routine

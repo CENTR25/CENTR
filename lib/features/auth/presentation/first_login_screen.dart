@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/routing/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/admin_service.dart';
 
@@ -208,7 +210,7 @@ class _FirstLoginScreenState extends ConsumerState<FirstLoginScreen> {
         );
 
         // Navigate to login screen
-        Navigator.of(context).pushReplacementNamed('/login');
+        context.go(AppRoutes.login);
       }
     } catch (e) {
       setState(() => _isLoading = false);

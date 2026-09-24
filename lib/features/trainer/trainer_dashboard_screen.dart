@@ -18,6 +18,7 @@ import 'routine_detail_screen.dart';
 import 'meal_plan_detail_screen.dart';
 import 'create_meal_plan_sheet.dart';
 import 'exercise_library_screen.dart';
+import 'required_reading_editor_screen.dart';
 
 class TrainerDashboardScreen extends ConsumerStatefulWidget {
   const TrainerDashboardScreen({super.key});
@@ -2901,6 +2902,17 @@ class _ProfileView extends ConsumerWidget {
             const SizedBox(height: 24),
 
             // Menu items
+            _MenuItem(
+              icon: Icons.menu_book_rounded,
+              title: 'Lectura Obligatoria',
+              subtitle: 'Aviso que verán tus alumnos al iniciar',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const RequiredReadingEditorScreen(),
+                ),
+              ),
+            ),
             _MenuItem(
               icon: Icons.card_membership_rounded,
               title: 'Mi Suscripción',

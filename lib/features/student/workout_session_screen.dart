@@ -583,7 +583,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 26,
+                                fontSize: 22,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: -0.5,
                               ),

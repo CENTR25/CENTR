@@ -31,6 +31,12 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   
   // Workout state
   late List<Map<String, dynamic>> _orderedExercises;
+  // Visit order as indices into _orderedExercises. Skipping an exercise moves
+  // its index to the end here, so _orderedExercises (and the position-keyed
+  // recorded/history maps) stay stable. _currentExerciseIndex is always
+  // _visitOrder[_visitPos].
+  late List<int> _visitOrder;
+  int _visitPos = 0;
   int _currentExerciseIndex = 0;
   int _currentSet = 1;
   bool _isResting = false;
@@ -94,9 +100,10 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   void initState() {
     super.initState();
     _orderedExercises = List.from(widget.exercises);
-    _orderedExercises.sort((a, b) => 
+    _orderedExercises.sort((a, b) =>
       (a['order_index'] as int).compareTo(b['order_index'] as int));
-    
+    _visitOrder = List<int>.generate(_orderedExercises.length, (i) => i);
+
     _countdownController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -378,8 +385,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
         _currentSet++;
       } else {
         _currentSet = 1;
-        if (_currentExerciseIndex < _orderedExercises.length - 1) {
-          _currentExerciseIndex++;
+        if (_visitPos < _visitOrder.length - 1) {
+          _visitPos++;
+          _currentExerciseIndex = _visitOrder[_visitPos];
         } else {
           _completeWorkout();
         }
@@ -425,12 +433,29 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       _startRest();
     } else {
       // Last set of this exercise
-      if (_currentExerciseIndex < _orderedExercises.length - 1) {
+      if (_visitPos < _visitOrder.length - 1) {
         _startRest();
       } else {
         _completeWorkout();
       }
     }
+  }
+
+  /// Move the current exercise to the end of the visit order (machine busy).
+  /// Its sets/reps are requested again when we loop back to it. No-op if this
+  /// is already the last exercise to do.
+  void _skipExercise() {
+    if (_visitPos >= _visitOrder.length - 1) return;
+    setState(() {
+      final skipped = _visitOrder.removeAt(_visitPos);
+      _visitOrder.add(skipped);
+      // Discard any partial progress so it starts fresh when revisited.
+      _recordedWeights.remove(skipped);
+      _recordedReps.remove(skipped);
+      _currentExerciseIndex = _visitOrder[_visitPos];
+      _currentSet = 1;
+    });
+    _updateWeightController();
   }
 
   void _completeWorkout() {
@@ -540,9 +565,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     final notes = exercise['comment'];
     final restSeconds = (exercise['rest_seconds'] as int?) ?? 60;
     
-    // Calculate progress
-    final totalExercises = _orderedExercises.length;
-    final exerciseProgress = (_currentExerciseIndex + (_currentSet - 1) / totalSets) / totalExercises;
+    // Calculate progress by visit position (advances even after a skip).
+    final totalExercises = _visitOrder.length;
+    final exerciseProgress = (_visitPos + (_currentSet - 1) / totalSets) / totalExercises;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -569,7 +594,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                         child: Column(
                           children: [
                             Text(
-                              'EJERCICIO ${_currentExerciseIndex + 1} / $totalExercises',
+                              'EJERCICIO ${_visitPos + 1} / $totalExercises',
                               style: TextStyle(
                                 color: AppColors.textLight.withValues(alpha: 0.5),
                                 fontSize: 10,
@@ -789,6 +814,40 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                   ),
                   const SizedBox(width: 16),
                   */
+                  // Skip-to-next button (machine busy) — only if another
+                  // exercise is still pending. The skipped one comes back later.
+                  if (_visitPos < _visitOrder.length - 1) ...[
+                    SizedBox(
+                      height: 56,
+                      child: OutlinedButton(
+                        onPressed: _isPaused ? null : _skipExercise,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textLight,
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.15),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.skip_next_rounded, size: 22),
+                            Text(
+                              'Saltar',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                   // Finish Set Button
                   Expanded(
                     child: SizedBox(
@@ -826,7 +885,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   void _showExitDialog() {
     _togglePause(); // Pause while showing dialog
     final elapsed = _totalElapsed;
-    final completedSets = (_currentExerciseIndex * 4) + _currentSet - 1; // Approximate
+    final completedSets = _recordedWeights.values
+        .fold<int>(0, (sum, sets) => sum + sets.length);
     
     showDialog(
       context: context,
@@ -863,7 +923,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
             const SizedBox(height: 12),
             _ExitStatRow(icon: Icons.timer, label: 'Tiempo', value: _formatDuration(elapsed)),
             _ExitStatRow(icon: Icons.fitness_center, label: 'Series', value: '$completedSets completadas'),
-            _ExitStatRow(icon: Icons.directions_run, label: 'Ejercicio', value: '${_currentExerciseIndex + 1} de ${_orderedExercises.length}'),
+            _ExitStatRow(icon: Icons.directions_run, label: 'Ejercicio', value: '${_visitPos + 1} de ${_visitOrder.length}'),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
@@ -927,8 +987,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     String nextInfo;
     if (_currentSet < totalSets) {
       nextInfo = 'Serie ${_currentSet + 1} de $totalSets';
-    } else if (_currentExerciseIndex < _orderedExercises.length - 1) {
-      final nextExercise = _orderedExercises[_currentExerciseIndex + 1];
+    } else if (_visitPos < _visitOrder.length - 1) {
+      final nextExercise = _orderedExercises[_visitOrder[_visitPos + 1]];
       final nextData = nextExercise['exercises'] as Map<String, dynamic>;
       nextInfo = nextData['name'] ?? 'Siguiente ejercicio';
     } else {

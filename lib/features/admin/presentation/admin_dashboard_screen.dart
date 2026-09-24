@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/admin_service.dart';
+import '../../../services/storage_service.dart';
 import '../../../services/news_service.dart';
 import '../../../models/news_model.dart';
 import '../../../services/affiliated_brand_service.dart';
@@ -1417,6 +1419,38 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
   late TextEditingController _logoController;
   bool _isActive = true;
   bool _isLoading = false;
+  bool _isUploadingLogo = false;
+
+  /// Pick a logo from the gallery, upload it, and put the resulting URL into
+  /// the logo field. Uses bytes so it works on web too.
+  Future<void> _pickLogo() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+    );
+    if (picked == null) return;
+
+    setState(() => _isUploadingLogo = true);
+    try {
+      final bytes = await picked.readAsBytes();
+      final ext = picked.name.contains('.')
+          ? picked.name.split('.').last.toLowerCase()
+          : 'jpg';
+      final url = await ref
+          .read(storageServiceProvider)
+          .uploadBrandLogoBytes(bytes, ext);
+      if (!mounted) return;
+      setState(() => _logoController.text = url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingLogo = false);
+    }
+  }
 
   @override
   void initState() {
@@ -1598,11 +1632,58 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
               TextFormField(
                 controller: _logoController,
                 keyboardType: TextInputType.url,
+                onChanged: (_) => setState(() {}),
                 decoration: const InputDecoration(
                   labelText: 'URL del logo (Opcional)',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.image_outlined),
+                  helperText: 'Pegá una URL o subí una imagen de tu galería',
                 ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  if (_logoController.text.trim().isNotEmpty) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        _logoController.text.trim(),
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.broken_image_outlined,
+                          color: AppColors.textLight,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isUploadingLogo ? null : _pickLogo,
+                      icon: _isUploadingLogo
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.photo_library_outlined, size: 18),
+                      label: Text(
+                        _isUploadingLogo
+                            ? 'Subiendo...'
+                            : 'Subir logo desde galería',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: BorderSide(
+                          color: AppColors.primary.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               SwitchListTile(

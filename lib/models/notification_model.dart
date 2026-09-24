@@ -102,10 +102,7 @@ class NotificationModel {
     return NotificationModel(
       id: json['id'] as String,
       userId: json['user_id'] as String,
-      type: NotificationType.values.firstWhere(
-        (t) => t.name == json['type'],
-        orElse: () => NotificationType.general,
-      ),
+      type: _parseType(json['type'] as String?),
       title: json['title'] as String,
       message: json['message'] as String,
       data: json['data'] as Map<String, dynamic>?,
@@ -114,6 +111,18 @@ class NotificationModel {
     );
   }
   
+  // The DB has both camelCase ('firstLogin') and snake_case ('first_login',
+  // 'new_student') type strings from different insert paths. Normalize by
+  // dropping underscores + casing so each maps to the right enum (and icon).
+  static NotificationType _parseType(String? raw) {
+    if (raw == null) return NotificationType.general;
+    final normalized = raw.replaceAll('_', '').toLowerCase();
+    return NotificationType.values.firstWhere(
+      (t) => t.name.toLowerCase() == normalized,
+      orElse: () => NotificationType.general,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

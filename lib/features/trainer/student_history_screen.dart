@@ -449,20 +449,84 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
     );
   }
 
+  static const List<Color> _setColors = [
+    AppColors.primary,
+    AppColors.accent,
+    AppColors.success,
+    AppColors.info,
+    AppColors.warning,
+    AppColors.primaryLight,
+  ];
+
+  // Best (max) weight logged in a session, across all its sets.
+  num _sessionMax(Map<String, dynamic> point) {
+    num m = 0;
+    (point['sets'] as Map<String, dynamic>? ?? {}).forEach((_, v) {
+      if (v is num && v > m) m = v;
+    });
+    return m;
+  }
+
   Widget _exerciseChart(List<Map<String, dynamic>> points) {
-    // Last 8 data points, chronological.
+    // Last 8 sessions, chronological.
     final recent = points.length > 8
         ? points.sublist(points.length - 8)
         : points;
-    final spots = [
-      for (int i = 0; i < recent.length; i++)
-        FlSpot(i.toDouble(), (recent[i]['weight'] as num).toDouble()),
-    ];
-    final ys = spots.map((s) => s.y).toList();
-    final maxW = ys.reduce((a, b) => a > b ? a : b);
-    final minW = ys.reduce((a, b) => a < b ? a : b);
+
+    // Union of all serie numbers seen, sorted (Serie 1, 2, 3...).
+    final setNums = <int>{};
+    for (final p in recent) {
+      (p['sets'] as Map<String, dynamic>? ?? {}).forEach((k, _) {
+        final n = int.tryParse(k);
+        if (n != null) setNums.add(n);
+      });
+    }
+    final sortedSets = setNums.toList()..sort();
+
+    // One line per serie; track global min/max for the Y axis.
+    double? maxW;
+    double? minW;
+    final bars = <LineChartBarData>[];
+    for (int si = 0; si < sortedSets.length; si++) {
+      final setNum = sortedSets[si];
+      final color = _setColors[si % _setColors.length];
+      final barSpots = <FlSpot>[];
+      for (int i = 0; i < recent.length; i++) {
+        final sets = recent[i]['sets'] as Map<String, dynamic>? ?? {};
+        final w = sets['$setNum'];
+        if (w is num) {
+          final y = w.toDouble();
+          barSpots.add(FlSpot(i.toDouble(), y));
+          maxW = (maxW == null || y > maxW) ? y : maxW;
+          minW = (minW == null || y < minW) ? y : minW;
+        }
+      }
+      if (barSpots.isEmpty) continue;
+      bars.add(
+        LineChartBarData(
+          spots: barSpots,
+          isCurved: true,
+          color: color,
+          barWidth: 3,
+          dotData: FlDotData(
+            show: true,
+            getDotPainter: (spot, percent, barData, index) =>
+                FlDotCirclePainter(
+              radius: 3.5,
+              color: color,
+              strokeWidth: 2,
+              strokeColor: Colors.white,
+            ),
+          ),
+        ),
+      );
+    }
+
+    maxW ??= 0;
+    minW ??= 0;
+    final lastMax = _sessionMax(recent.last);
     final delta = recent.length >= 2
-        ? (recent.last['weight'] as num) - (recent[recent.length - 2]['weight'] as num)
+        ? lastMax - _sessionMax(recent[recent.length - 2])
         : 0;
 
     return Container(
@@ -478,7 +542,7 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
           Row(
             children: [
               Text(
-                '${(recent.last['weight'] as num).toString().replaceAll('.0', '')} kg',
+                '${lastMax.toString().replaceAll('.0', '')} kg',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -575,30 +639,40 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
                 maxX: (recent.length - 1).toDouble(),
                 minY: (minW - 5).clamp(0, double.infinity).toDouble(),
                 maxY: maxW + 5,
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: spots,
-                    isCurved: true,
-                    color: AppColors.primary,
-                    barWidth: 4,
-                    dotData: FlDotData(
-                      show: true,
-                      getDotPainter: (spot, percent, barData, index) =>
-                          FlDotCirclePainter(
-                        radius: 4,
-                        color: AppColors.primary,
-                        strokeWidth: 2,
-                        strokeColor: Colors.white,
-                      ),
-                    ),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                    ),
-                  ),
-                ],
+                lineBarsData: bars,
               ),
             ),
+          ),
+          const SizedBox(height: 16),
+          // Legend: which colour is which serie.
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              for (int si = 0; si < sortedSets.length; si++)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: _setColors[si % _setColors.length],
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Serie ${sortedSets[si]}',
+                      style: TextStyle(
+                        color: AppColors.textLight,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ),
         ],
       ),

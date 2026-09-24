@@ -1129,14 +1129,16 @@ class TrainerService {
         if (exIdx == null || exIdx >= names.length) return;
         final sets = setsRaw as Map<String, dynamic>?;
         if (sets == null) return;
-        num top = 0;
-        for (final v in sets.values) {
-          if (v is num && v > top) top = v;
-        }
-        if (top <= 0) return;
+        // Keep the weight of each individual set so the chart can show one line
+        // per serie over time. setNumber (as string) -> weight.
+        final perSet = <String, num>{};
+        sets.forEach((setStr, v) {
+          if (v is num && v > 0) perSet[setStr] = v;
+        });
+        if (perSet.isEmpty) return;
         (progress[names[exIdx]] ??= []).add({
           'date': startedAt,
-          'weight': top,
+          'sets': perSet,
         });
       });
     }

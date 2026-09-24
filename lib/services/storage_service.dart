@@ -236,6 +236,27 @@ class StorageService {
     final url = _client.storage.from(_bucketName).getPublicUrl(path);
     return url;
   }
+
+  /// Upload an affiliated-brand logo from raw bytes (web-safe). Returns the
+  /// public URL to store in affiliated_brands.logo_url.
+  Future<String> uploadBrandLogoBytes(
+    Uint8List bytes,
+    String extension,
+  ) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final path = 'brand_logos/logo_$timestamp.$extension';
+
+    await _client.storage.from(_bucketName).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+            upsert: true,
+          ),
+        );
+
+    return _client.storage.from(_bucketName).getPublicUrl(path);
+  }
 }
 
 /// Provider for StorageService

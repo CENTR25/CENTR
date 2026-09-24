@@ -12,13 +12,13 @@ import '../../../services/trainer_service.dart';
 import '../../../services/storage_service.dart';
 import '../../../services/news_service.dart';
 import '../../../services/notification_providers.dart';
-import '../../../models/notification_model.dart';
 import 'student_detail_screen.dart';
 import 'routine_detail_screen.dart';
 import 'meal_plan_detail_screen.dart';
 import 'create_meal_plan_sheet.dart';
 import 'exercise_library_screen.dart';
 import 'required_reading_editor_screen.dart';
+import '../shared/notifications_sheet.dart';
 
 class TrainerDashboardScreen extends ConsumerStatefulWidget {
   const TrainerDashboardScreen({super.key});
@@ -308,17 +308,42 @@ class _HomeViewState extends ConsumerState<_HomeView> {
                     ),
                   ],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.send_rounded, color: AppColors.primary),
-                  tooltip: 'Enviar notificación a todos',
-                  onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => const _BroadcastNotificationSheet(),
-                    );
-                  },
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (user?.id != null)
+                      TextButton(
+                        onPressed: () =>
+                            showNotificationsSheet(context, user!.id),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primaryLight,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: const Size(0, 0),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'Ver todas',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.send_rounded,
+                          color: AppColors.primary),
+                      tooltip: 'Enviar notificación a todos',
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) =>
+                              const _BroadcastNotificationSheet(),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -767,19 +792,6 @@ class _QuickActionCard extends StatelessWidget {
 class _NotificationsDashboard extends ConsumerWidget {
   const _NotificationsDashboard();
 
-  NotificationCardType _mapType(NotificationType type) {
-    switch (type) {
-      case NotificationType.workoutCompleted:
-        return NotificationCardType.workoutCompleted;
-      case NotificationType.subscriptionExpiring:
-        return NotificationCardType.renewal;
-      case NotificationType.paymentReceived:
-        return NotificationCardType.monthlyReport;
-      default:
-        return NotificationCardType.weightRecord;
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
@@ -800,7 +812,8 @@ class _NotificationsDashboard extends ConsumerWidget {
         return Column(
           children: recent.map((notif) {
             return _NotificationCard(
-              type: _mapType(notif.type),
+              icon: notif.type.iconData,
+              accentColor: notif.type.color,
               title: notif.title,
               subtitle: notif.message,
               date: notif.createdAt,
@@ -885,72 +898,27 @@ class _EmptyNotificationsCard extends StatelessWidget {
   }
 }
 
-enum NotificationCardType {
-  monthlyReport,  // Verde
-  weightRecord,   // Amarillo
-  renewal,        // Rojo
-  workoutCompleted, // Azul
-}
-
 class _NotificationCard extends StatelessWidget {
-  final NotificationCardType type;
+  final IconData icon;
+  final Color accentColor;
   final String title;
   final String subtitle;
   final DateTime? date;
   final VoidCallback? onTap;
-  final String? actionLabel;
 
   const _NotificationCard({
-    required this.type,
+    required this.icon,
+    required this.accentColor,
     required this.title,
     required this.subtitle,
     this.date,
     this.onTap,
-  }) : actionLabel = null;
-
-  Color get _tagColor {
-    switch (type) {
-      case NotificationCardType.monthlyReport:
-        return AppColors.notificationGreen;
-      case NotificationCardType.weightRecord:
-        return AppColors.notificationYellow;
-      case NotificationCardType.renewal:
-        return AppColors.notificationRed;
-      case NotificationCardType.workoutCompleted:
-        return AppColors.primary;
-    }
-  }
-
-  String get _tagLabel {
-    switch (type) {
-      case NotificationCardType.monthlyReport:
-        return 'REPORTE MENSUAL';
-      case NotificationCardType.weightRecord:
-        return 'PESAJE';
-      case NotificationCardType.renewal:
-        return 'VENCIMIENTO';
-      case NotificationCardType.workoutCompleted:
-        return 'ENTRENAMIENTO';
-    }
-  }
-
-  IconData get _icon {
-    switch (type) {
-      case NotificationCardType.monthlyReport:
-        return Icons.description_outlined;
-      case NotificationCardType.weightRecord:
-        return Icons.monitor_weight_outlined;
-      case NotificationCardType.renewal:
-        return Icons.warning_amber_rounded;
-      case NotificationCardType.workoutCompleted:
-        return Icons.fitness_center_rounded;
-    }
-  }
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       color: AppColors.surface,
       elevation: 4,
       shadowColor: Colors.black.withValues(alpha: 0.3),
@@ -962,17 +930,17 @@ class _NotificationCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               // Icono con color
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _tagColor.withValues(alpha: 0.15),
+                  color: accentColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(15),
                 ),
-                child: Icon(_icon, color: _tagColor, size: 28),
+                child: Icon(icon, color: accentColor, size: 26),
               ),
               const SizedBox(width: 16),
               // Contenido
@@ -980,27 +948,10 @@ class _NotificationCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Etiqueta de color
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _tagColor.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _tagColor.withValues(alpha: 0.5)),
-                      ),
-                      child: Text(
-                        _tagLabel,
-                        style: TextStyle(
-                          color: _tagColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
                     Text(
                       title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -1010,6 +961,8 @@ class _NotificationCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: AppColors.textLight,
                         fontSize: 14,

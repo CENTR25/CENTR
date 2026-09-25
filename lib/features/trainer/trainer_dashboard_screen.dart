@@ -293,6 +293,12 @@ class _HomeViewState extends ConsumerState<_HomeView> {
 
             const SizedBox(height: 24),
 
+            // Resumen del equipo primero: check-ins y vencimientos tienen prioridad
+            // sobre las notificaciones.
+            const _TeamSummarySection(),
+
+            const SizedBox(height: 24),
+
             // Dashboard de Notificaciones
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -355,11 +361,6 @@ class _HomeViewState extends ConsumerState<_HomeView> {
 
             // Notificaciones con colores
             const _NotificationsDashboard(),
-
-            const SizedBox(height: 24),
-
-            // Resumen del equipo
-            const _TeamSummarySection(),
           ],
         ),
       ),

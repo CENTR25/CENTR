@@ -444,6 +444,41 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   /// Move the current exercise to the end of the visit order (machine busy).
   /// Its sets/reps are requested again when we loop back to it. No-op if this
   /// is already the last exercise to do.
+  Future<void> _confirmSkipExercise() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          '¿Saltar ejercicio?',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text(
+          'Este ejercicio pasará al final y perderás el progreso registrado en él. Podrás retomarlo más tarde.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Saltar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) _skipExercise();
+  }
+
   void _skipExercise() {
     if (_visitPos >= _visitOrder.length - 1) return;
     setState(() {
@@ -564,6 +599,13 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     final totalSets = (exercise['sets'] as int?) ?? 3;
     final notes = exercise['comment'];
     final restSeconds = (exercise['rest_seconds'] as int?) ?? 60;
+    // Exercise demo media (video / gif / youtube). Restored: it fills the
+    // player's main area and shows the technique. `?.toString()` avoids the
+    // web cast throw on Supabase JS values.
+    final rawMedia =
+        (exerciseData['video_url'] ?? exerciseData['gif_url'])?.toString();
+    final videoUrl =
+        (rawMedia != null && rawMedia.trim().isNotEmpty) ? rawMedia : null;
     
     // Calculate progress by visit position (advances even after a skip).
     final totalExercises = _visitOrder.length;
@@ -673,6 +715,57 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
+                    // Exercise demo (video / gif) — fills the main area.
+                    Container(
+                      height: 200,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: videoUrl != null
+                            ? _VideoPlayerWidget(
+                                key: ValueKey(videoUrl),
+                                url: videoUrl,
+                              )
+                            : Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          Colors.white.withValues(alpha: 0.05),
+                                          Colors.white.withValues(alpha: 0.02),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.fitness_center_rounded,
+                                    size: 64,
+                                    color: Colors.white.withValues(alpha: 0.1),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
                     // History Info
                     _HistoryInfoRow(
                       lastLog: _getLastLog(),
@@ -820,7 +913,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                     SizedBox(
                       height: 56,
                       child: OutlinedButton(
-                        onPressed: _isPaused ? null : _skipExercise,
+                        onPressed: _isPaused ? null : _confirmSkipExercise,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.textLight,
                           side: BorderSide(
@@ -1525,7 +1618,7 @@ class _StatCard extends StatelessWidget {
 class _VideoPlayerWidget extends StatefulWidget {
   final String url;
 
-  const _VideoPlayerWidget({required this.url});
+  const _VideoPlayerWidget({super.key, required this.url});
 
   @override
   State<_VideoPlayerWidget> createState() => _VideoPlayerWidgetState();

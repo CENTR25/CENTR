@@ -1,105 +1,187 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/string_utils.dart';
 import '../../../services/admin_service.dart';
 
-/// Admin management of the GLOBAL exercise library (add-only).
-/// Admins can add new global exercises (visible to every trainer) and
-/// hide/unhide existing ones. There is NO destructive editing of shared fields.
-class AdminExercisesView extends ConsumerWidget {
+/// Admin management of the GLOBAL exercise library.
+/// Admins can add, edit, delete global exercises and hide/unhide them.
+class AdminExercisesView extends ConsumerStatefulWidget {
   const AdminExercisesView({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminExercisesView> createState() => _AdminExercisesViewState();
+}
+
+class _AdminExercisesViewState extends ConsumerState<AdminExercisesView> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final exercisesAsync = ref.watch(globalExercisesProvider);
 
     return Scaffold(
-      body: exercisesAsync.when(
-        data: (exercises) {
-          if (exercises.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.fitness_center_rounded,
-                      size: 64, color: AppColors.textSecondary),
-                  const SizedBox(height: 16),
-                  const Text('No hay ejercicios globales',
-                      style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  Text('Agrega el primer ejercicio para todos los entrenadores',
-                      style: TextStyle(color: AppColors.textSecondary),
-                      textAlign: TextAlign.center),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: exercises.length,
-            itemBuilder: (context, index) {
-              final ex = exercises[index];
-              final id = ex['id'] as String;
-              final name = (ex['name'] as String?) ?? 'Ejercicio';
-              final muscle = (ex['muscle_group'] as String?) ?? '';
-              final category = ex['category'] as String?;
-              final isHidden = ex['is_hidden'] == true;
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                    child: const Icon(Icons.fitness_center_rounded,
-                        color: AppColors.primary),
-                  ),
-                  title: Text(name,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 4),
-                      Text(
-                        [muscle, if (category != null) category]
-                            .where((s) => s.isNotEmpty)
-                            .join(' · '),
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isHidden
-                              ? Colors.grey.withValues(alpha: 0.1)
-                              : AppColors.success.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          isHidden ? 'Oculto' : 'Visible',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isHidden ? Colors.grey : AppColors.success,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  trailing: TextButton(
-                    onPressed: () =>
-                        _toggleHidden(context, ref, id, name, isHidden),
-                    child: Text(isHidden ? 'Mostrar' : 'Ocultar'),
-                  ),
+      body: Column(
+        children: [
+          // ── Search bar ──────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Buscar ejercicio...',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              );
-            },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+              onChanged: (v) => setState(() => _searchQuery = v),
+            ),
+          ),
+
+          // ── List ────────────────────────────────────────────────────────
+          Expanded(
+            child: exercisesAsync.when(
+              data: (exercises) {
+                // Accent-insensitive filter reusing the shared foldSearch helper.
+                final q = foldSearch(_searchQuery.trim());
+                final filtered = q.isEmpty
+                    ? exercises
+                    : exercises
+                        .where((e) =>
+                            foldSearch(e['name'] as String? ?? '').contains(q))
+                        .toList();
+
+                if (filtered.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.fitness_center_rounded,
+                            size: 64, color: AppColors.textSecondary),
+                        const SizedBox(height: 16),
+                        Text(
+                          q.isEmpty
+                              ? 'No hay ejercicios globales'
+                              : 'Sin resultados para "$_searchQuery"',
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w600),
+                        ),
+                        if (q.isEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Agrega el primer ejercicio para todos los entrenadores',
+                            style: TextStyle(color: AppColors.textSecondary),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final ex = filtered[index];
+                    final name = (ex['name'] as String?) ?? 'Ejercicio';
+                    final muscle = (ex['muscle_group'] as String?) ?? '';
+                    final category = ex['category'] as String?;
+                    final isHidden = ex['is_hidden'] == true;
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              AppColors.primary.withValues(alpha: 0.1),
+                          child: const Icon(Icons.fitness_center_rounded,
+                              color: AppColors.primary),
+                        ),
+                        title: Text(name,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text(
+                              [muscle, if (category != null) category]
+                                  .where((s) => s.isNotEmpty)
+                                  .join(' · '),
+                              style:
+                                  TextStyle(color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: isHidden
+                                    ? Colors.grey.withValues(alpha: 0.1)
+                                    : AppColors.success.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                isHidden ? 'Oculto' : 'Visible',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isHidden
+                                      ? Colors.grey
+                                      : AppColors.success,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (value) =>
+                              _handleAction(context, value, ex),
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                                value: 'edit', child: Text('Editar')),
+                            PopupMenuItem(
+                              value: 'toggle',
+                              child: Text(isHidden ? 'Mostrar' : 'Ocultar'),
+                            ),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Eliminar',
+                                  style:
+                                      TextStyle(color: AppColors.error)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Error: $e')),
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateSheet(context),
@@ -115,55 +197,144 @@ class AdminExercisesView extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const _CreateExerciseSheet(),
+      builder: (context) => const _AdminExerciseSheet(),
     );
   }
 
-  Future<void> _toggleHidden(
+  void _showEditSheet(BuildContext context, Map<String, dynamic> ex) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _AdminExerciseSheet(exerciseToEdit: ex),
+    );
+  }
+
+  Future<void> _handleAction(
     BuildContext context,
-    WidgetRef ref,
-    String id,
-    String name,
-    bool isHidden,
+    String action,
+    Map<String, dynamic> ex,
   ) async {
-    try {
-      await ref
-          .read(adminServiceProvider)
-          .setGlobalExerciseHidden(id, !isHidden);
-      ref.invalidate(globalExercisesProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(isHidden
-                  ? 'Ejercicio visible'
-                  : 'Ejercicio oculto')),
+    final id = ex['id'] as String;
+    final name = (ex['name'] as String?) ?? 'Ejercicio';
+    final isHidden = ex['is_hidden'] == true;
+
+    switch (action) {
+      case 'edit':
+        _showEditSheet(context, ex);
+        break;
+
+      case 'toggle':
+        try {
+          await ref
+              .read(adminServiceProvider)
+              .setGlobalExerciseHidden(id, !isHidden);
+          ref.invalidate(globalExercisesProvider);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  content: Text(isHidden
+                      ? 'Ejercicio visible'
+                      : 'Ejercicio oculto')),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  content: Text('Error: $e'),
+                  backgroundColor: AppColors.error),
+            );
+          }
+        }
+        break;
+
+      case 'delete':
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Eliminar ejercicio'),
+            content: Text(
+              '¿Eliminar "$name"? Esta acción no se puede deshacer.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
         );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
-        );
-      }
+
+        if (confirmed == true) {
+          try {
+            await ref
+                .read(adminServiceProvider)
+                .deleteGlobalExercise(id);
+            ref.invalidate(globalExercisesProvider);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Ejercicio eliminado'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content: Text('Error: $e'),
+                    backgroundColor: AppColors.error),
+              );
+            }
+          }
+        }
+        break;
     }
   }
 }
 
-class _CreateExerciseSheet extends ConsumerStatefulWidget {
-  const _CreateExerciseSheet();
+// ── Create / Edit exercise sheet ────────────────────────────────────────────
+class _AdminExerciseSheet extends ConsumerStatefulWidget {
+  final Map<String, dynamic>? exerciseToEdit;
+
+  const _AdminExerciseSheet({this.exerciseToEdit});
 
   @override
-  ConsumerState<_CreateExerciseSheet> createState() =>
-      _CreateExerciseSheetState();
+  ConsumerState<_AdminExerciseSheet> createState() =>
+      _AdminExerciseSheetState();
 }
 
-class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
+class _AdminExerciseSheetState extends ConsumerState<_AdminExerciseSheet> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _muscleController = TextEditingController();
   final _categoryController = TextEditingController();
   final _equipmentController = TextEditingController();
   bool _isLoading = false;
+
+  bool get _isEditMode => widget.exerciseToEdit != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.exerciseToEdit case final ex?) {
+      _nameController.text = ex['name'] as String? ?? '';
+      _muscleController.text = ex['muscle_group'] as String? ?? '';
+      _categoryController.text = ex['category'] as String? ?? '';
+      final rawEquip = ex['equipment'];
+      if (rawEquip is List) {
+        _equipmentController.text = rawEquip.cast<String>().join(', ');
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -187,27 +358,40 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
           .toList();
       final category = _categoryController.text.trim();
 
-      await ref.read(adminServiceProvider).createGlobalExercise(
-            name: _nameController.text.trim(),
-            muscleGroup: _muscleController.text.trim(),
-            category: category.isEmpty ? null : category,
-            equipment: equipment.isEmpty ? null : equipment,
-          );
+      if (_isEditMode) {
+        await ref.read(adminServiceProvider).updateGlobalExercise(
+              widget.exerciseToEdit!['id'] as String,
+              name: _nameController.text.trim(),
+              muscleGroup: _muscleController.text.trim(),
+              category: category.isEmpty ? null : category,
+              equipment: equipment.isEmpty ? null : equipment,
+            );
+      } else {
+        await ref.read(adminServiceProvider).createGlobalExercise(
+              name: _nameController.text.trim(),
+              muscleGroup: _muscleController.text.trim(),
+              category: category.isEmpty ? null : category,
+              equipment: equipment.isEmpty ? null : equipment,
+            );
+      }
 
       ref.invalidate(globalExercisesProvider);
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Ejercicio creado'),
-              backgroundColor: AppColors.success),
+          SnackBar(
+            content: Text(
+                _isEditMode ? 'Ejercicio actualizado' : 'Ejercicio creado'),
+            backgroundColor: AppColors.success,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Error: $e'), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -238,9 +422,11 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Agregar ejercicio',
-                      style: TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(
+                    _isEditMode ? 'Editar ejercicio' : 'Agregar ejercicio',
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
@@ -305,7 +491,9 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
                           width: 24,
                           child: CircularProgressIndicator(
                               color: Colors.white, strokeWidth: 2))
-                      : const Text('Crear ejercicio'),
+                      : Text(_isEditMode
+                          ? 'Guardar cambios'
+                          : 'Crear ejercicio'),
                 ),
               ),
             ],

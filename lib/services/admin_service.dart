@@ -203,12 +203,34 @@ class AdminService {
     return response;
   }
 
-  /// Hide or unhide a global exercise (add-only management — no field edits).
+  /// Hide or unhide a global exercise.
   Future<void> setGlobalExerciseHidden(String exerciseId, bool hidden) async {
     await _client
         .from('exercises')
         .update({'is_hidden': hidden})
         .eq('id', exerciseId);
+  }
+
+  /// Update the editable fields of a global exercise.
+  Future<void> updateGlobalExercise(
+    String exerciseId, {
+    required String name,
+    required String muscleGroup,
+    String? category,
+    List<String>? equipment,
+  }) async {
+    final updates = <String, dynamic>{
+      'name': name,
+      'muscle_group': muscleGroup,
+      'category': (category != null && category.isNotEmpty) ? category : null,
+      if (equipment != null) 'equipment': equipment,
+    };
+    await _client.from('exercises').update(updates).eq('id', exerciseId);
+  }
+
+  /// Permanently delete a global exercise. RLS restricts this to admin.
+  Future<void> deleteGlobalExercise(String exerciseId) async {
+    await _client.from('exercises').delete().eq('id', exerciseId);
   }
 
   // ==================== INVITATIONS ====================

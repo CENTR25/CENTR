@@ -510,6 +510,7 @@ class _HomeContent extends ConsumerWidget {
                       ),
                       child: IconButton(
                         icon: Stack(
+                          clipBehavior: Clip.none,
                           children: [
                             const Icon(
                               Icons.notifications_none_rounded,
@@ -518,8 +519,8 @@ class _HomeContent extends ConsumerWidget {
                             ),
                             if (count > 0)
                               Positioned(
-                                right: 0,
-                                top: 0,
+                                right: -6,
+                                top: -6,
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 5,
@@ -604,6 +605,65 @@ class _HomeContent extends ConsumerWidget {
                   ),
                 ),
               ],
+            ),
+
+            // -- BANNER: notificaciones nuevas --
+            // Sin push notifications, atraemos la atención del alumno aquí.
+            Consumer(
+              builder: (context, ref, _) {
+                final userId = ref.watch(currentUserProvider)?.id;
+                final count = userId != null
+                    ? (ref.watch(unreadCountProvider(userId)).valueOrNull ?? 0)
+                    : 0;
+                if (count == 0) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 20),
+                  child: InkWell(
+                    onTap: () => showNotificationsSheet(context, userId!),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.studentColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppColors.studentColor.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.notifications_active_rounded,
+                            color: AppColors.studentColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              count == 1
+                                  ? 'Tienes una notificación nueva'
+                                  : 'Tienes $count notificaciones nuevas',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.white54,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
 
             const SizedBox(height: 24),

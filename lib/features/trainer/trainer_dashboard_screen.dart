@@ -18,6 +18,7 @@ import 'meal_plan_detail_screen.dart';
 import 'create_meal_plan_sheet.dart';
 import 'exercise_library_screen.dart';
 import 'required_reading_editor_screen.dart';
+import 'trainer_benefits_screen.dart';
 import '../shared/notifications_sheet.dart';
 
 class TrainerDashboardScreen extends ConsumerStatefulWidget {
@@ -239,6 +240,9 @@ class _HomeViewState extends ConsumerState<_HomeView> {
 
             const SizedBox(height: 24),
 
+            // Primeros pasos (auto-oculta cuando están todos completos)
+            const _FirstStepsChecklist(),
+
             // Quick actions - Solo Invitar Alumno
             const Row(
               children: [
@@ -358,6 +362,144 @@ class _HomeViewState extends ConsumerState<_HomeView> {
             const _TeamSummarySection(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ==================== PRIMEROS PASOS ====================
+
+class _FirstStepsChecklist extends ConsumerWidget {
+  const _FirstStepsChecklist();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final steps = ref.watch(trainerFirstStepsProvider).valueOrNull;
+    if (steps == null) return const SizedBox.shrink();
+
+    // Nothing left to do → hide the whole section.
+    if (steps.hasStudent &&
+        steps.hasRoutine &&
+        steps.hasReading &&
+        steps.hasVideo) {
+      return const SizedBox.shrink();
+    }
+
+    void refresh() => ref.invalidate(trainerFirstStepsProvider);
+
+    final items = <(bool, String, VoidCallback)>[
+      (
+        steps.hasStudent,
+        'Invita tu primer alumno',
+        () => showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const _InviteStudentSheet(),
+            ).then((_) => refresh()),
+      ),
+      (
+        steps.hasRoutine,
+        'Crea tu primera rutina',
+        () => showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const _CreateRoutineSheet(),
+            ).then((_) => refresh()),
+      ),
+      (
+        steps.hasReading,
+        'Completa la sección de lectura obligatoria',
+        () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const RequiredReadingEditorScreen(),
+              ),
+            ).then((_) => refresh()),
+      ),
+      (
+        steps.hasVideo,
+        'Agrega tus propios videos al listado de ejercicios',
+        () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ExerciseLibraryScreen()),
+            ).then((_) => refresh()),
+      ),
+    ];
+
+    final done = items.where((i) => i.$1).length;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.flag_rounded, color: AppColors.accent, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Primeros pasos',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$done/${items.length}',
+                style: const TextStyle(
+                  color: AppColors.accent,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final item in items)
+            InkWell(
+              onTap: item.$1 ? null : item.$3,
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      item.$1
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked,
+                      color: item.$1 ? AppColors.success : Colors.white38,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        item.$2,
+                        style: TextStyle(
+                          color: item.$1 ? Colors.white54 : Colors.white,
+                          fontSize: 14,
+                          decoration:
+                              item.$1 ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                    ),
+                    if (!item.$1)
+                      const Icon(Icons.chevron_right,
+                          color: Colors.white38, size: 20),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -2863,6 +3005,17 @@ class _ProfileView extends ConsumerWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => const RequiredReadingEditorScreen(),
+                ),
+              ),
+            ),
+            _MenuItem(
+              icon: Icons.star_rounded,
+              title: 'Beneficios',
+              subtitle: 'Descuentos de marcas afiliadas',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TrainerBenefitsScreen(),
                 ),
               ),
             ),

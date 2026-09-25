@@ -8,6 +8,7 @@ import 'meal_plan_detail_screen.dart';
 import 'assignment_sheets.dart';
 import 'student_history_screen.dart';
 import 'intake_view_screen.dart';
+import 'check_in_comparison_screen.dart';
 
 class StudentDetailScreen extends ConsumerStatefulWidget {
   final String studentId;
@@ -431,7 +432,28 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 const SizedBox(height: 32),
 
                 // Check-ins Section
-                const _SectionHeaderNoAction(title: 'Fotos Check-in'),
+                Builder(
+                  builder: (context) {
+                    final checkIns = (student['check_ins'] as List?) ?? [];
+                    if (checkIns.length >= 2) {
+                      return _SectionHeader(
+                        title: 'Fotos Check-in',
+                        action: 'Comparar',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CheckInComparisonScreen(
+                              checkIns: List<Map<String, dynamic>>.from(
+                                checkIns,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return const _SectionHeaderNoAction(title: 'Fotos Check-in');
+                  },
+                ),
                 const SizedBox(height: 8),
                 _buildCheckInsGallery(student),
               ],
@@ -946,7 +968,13 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         itemCount: checkIns.length,
         itemBuilder: (context, index) {
           final checkIn = checkIns[index] as Map<String, dynamic>;
-          final photoUrl = checkIn['photo_url'] as String?;
+          final photoList = (checkIn['photo_urls'] as List?)
+              ?.whereType<String>()
+              .where((s) => s.isNotEmpty)
+              .toList();
+          final photoUrl = (photoList != null && photoList.isNotEmpty)
+              ? photoList.first
+              : checkIn['photo_url'] as String?;
           
           return GestureDetector(
             onTap: photoUrl != null
@@ -1379,18 +1407,28 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
           children: [
             TextField(
               controller: dailyController,
+              minLines: 3,
+              maxLines: 6,
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
               decoration: const InputDecoration(
                 labelText: 'Suplementos Diarios',
                 hintText: 'Ej: Proteína, Creatina...',
+                alignLabelWithHint: true,
               ),
               style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: chemicalController,
+              minLines: 3,
+              maxLines: 6,
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
               decoration: const InputDecoration(
                 labelText: 'Suplementación Química',
                 hintText: 'Ej: Texto para atletas...',
+                alignLabelWithHint: true,
               ),
               style: const TextStyle(color: Colors.white),
             ),

@@ -34,19 +34,21 @@ class StudentService {
     return athlete?['id'] as String?;
   }
 
-  /// Get the "Lectura Obligatoria" text set by the student's trainer, or null.
-  Future<String?> getTrainerRequiredReading() async {
+  /// Get the "Lectura Obligatoria" text set by the student's trainer plus
+  /// whether this student has already acknowledged it.
+  Future<({String? content, bool accepted})> getTrainerRequiredReading() async {
     final userId = currentUserId;
-    if (userId == null) return null;
+    if (userId == null) return (content: null, accepted: false);
 
     final athlete = await _client
         .from('athletes')
-        .select('trainer_id')
+        .select('trainer_id, required_reading_accepted_at')
         .eq('user_id', userId)
         .maybeSingle();
 
     final trainerId = athlete?['trainer_id'] as String?;
-    if (trainerId == null) return null;
+    final accepted = athlete?['required_reading_accepted_at'] != null;
+    if (trainerId == null) return (content: null, accepted: accepted);
 
     final trainer = await _client
         .from('trainers')
@@ -54,7 +56,19 @@ class StudentService {
         .eq('id', trainerId)
         .maybeSingle();
 
-    return trainer?['required_reading'] as String?;
+    return (content: trainer?['required_reading'] as String?, accepted: accepted);
+  }
+
+  /// Mark the trainer's "Lectura Obligatoria" as read by this student.
+  Future<void> acceptRequiredReading() async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    await _client
+        .from('athletes')
+        .update({
+          'required_reading_accepted_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('user_id', userId);
   }
 
   /// Get the active check-in form assigned by the student's trainer.
@@ -955,8 +969,10 @@ final activeMealPlanProvider = FutureProvider<Map<String, dynamic>?>((
   return service.getMyActiveMealPlan();
 });
 
-/// Provider for the "Lectura Obligatoria" text set by the student's trainer.
-final trainerRequiredReadingProvider = FutureProvider<String?>((ref) async {
+/// Provider for the "Lectura Obligatoria" text set by the student's trainer,
+/// along with whether the student has already acknowledged it.
+final trainerRequiredReadingProvider =
+    FutureProvider<({String? content, bool accepted})>((ref) async {
   final service = ref.read(studentServiceProvider);
   return service.getTrainerRequiredReading();
 });

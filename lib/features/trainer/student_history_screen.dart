@@ -65,7 +65,7 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
         onPressed: _logInPerson,
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add),
-        label: const Text('Registrar en persona'),
+        label: const Text('Registro manual'),
       ),
     );
   }
@@ -311,6 +311,8 @@ class _ProgressDashboard extends ConsumerStatefulWidget {
 
 class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
   String? _selectedExercise;
+  // null = show all series together; otherwise a single serie number.
+  int? _selectedSet;
 
   @override
   Widget build(BuildContext context) {
@@ -361,8 +363,22 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
               const SizedBox(height: 12),
               _exercisePicker(names, selected),
               const SizedBox(height: 12),
-              _exerciseChart(
-                (exercises[selected] as List).cast<Map<String, dynamic>>(),
+              Builder(
+                builder: (_) {
+                  final points = (exercises[selected] as List)
+                      .cast<Map<String, dynamic>>();
+                  final series = _seriesOf(points);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (series.length > 1) ...[
+                        _setSelector(series),
+                        const SizedBox(height: 12),
+                      ],
+                      _exerciseChart(points),
+                    ],
+                  );
+                },
               ),
             ] else
               Text(
@@ -443,7 +459,10 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
             for (final n in names)
               DropdownMenuItem(value: n, child: Text(n)),
           ],
-          onChanged: (v) => setState(() => _selectedExercise = v),
+          onChanged: (v) => setState(() {
+            _selectedExercise = v;
+            _selectedSet = null; // series differ per exercise
+          }),
         ),
       ),
     );
@@ -457,6 +476,63 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
     AppColors.warning,
     AppColors.primaryLight,
   ];
+
+  // Last 8 sessions (chronological), matching what the chart plots.
+  List<Map<String, dynamic>> _recent(List<Map<String, dynamic>> points) =>
+      points.length > 8 ? points.sublist(points.length - 8) : points;
+
+  // Sorted serie numbers present across the recent window.
+  List<int> _seriesOf(List<Map<String, dynamic>> points) {
+    final setNums = <int>{};
+    for (final p in _recent(points)) {
+      (p['sets'] as Map<String, dynamic>? ?? {}).forEach((k, _) {
+        final n = int.tryParse(k);
+        if (n != null) setNums.add(n);
+      });
+    }
+    return setNums.toList()..sort();
+  }
+
+  // Chips to view all series together or isolate a single serie's graph.
+  Widget _setSelector(List<int> series) {
+    Widget chip(String label, bool selected, VoidCallback onTap) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary : AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected
+                  ? AppColors.primary
+                  : Colors.white.withValues(alpha: 0.1),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : AppColors.textLight,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        chip('Todas', _selectedSet == null,
+            () => setState(() => _selectedSet = null)),
+        for (final s in series)
+          chip('Serie $s', _selectedSet == s,
+              () => setState(() => _selectedSet = s)),
+      ],
+    );
+  }
 
   // Best (max) weight logged in a session, across all its sets.
   num _sessionMax(Map<String, dynamic> point) {
@@ -482,6 +558,10 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
       });
     }
     final sortedSets = setNums.toList()..sort();
+    // When a single serie is selected, isolate it into its own graph.
+    final activeSet = (_selectedSet != null && sortedSets.contains(_selectedSet))
+        ? _selectedSet
+        : null;
 
     // One line per serie; track global min/max for the Y axis.
     double? maxW;
@@ -489,6 +569,7 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
     final bars = <LineChartBarData>[];
     for (int si = 0; si < sortedSets.length; si++) {
       final setNum = sortedSets[si];
+      if (activeSet != null && setNum != activeSet) continue;
       final color = _setColors[si % _setColors.length];
       final barSpots = <FlSpot>[];
       for (int i = 0; i < recent.length; i++) {
@@ -524,9 +605,13 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
 
     maxW ??= 0;
     minW ??= 0;
-    final lastMax = _sessionMax(recent.last);
+    // Header/delta reflect the isolated serie when one is selected.
+    num sessionValue(Map<String, dynamic> point) => activeSet != null
+        ? ((point['sets'] as Map<String, dynamic>?)?['$activeSet'] as num? ?? 0)
+        : _sessionMax(point);
+    final lastMax = sessionValue(recent.last);
     final delta = recent.length >= 2
-        ? lastMax - _sessionMax(recent[recent.length - 2])
+        ? lastMax - sessionValue(recent[recent.length - 2])
         : 0;
 
     return Container(
@@ -650,6 +735,7 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
             runSpacing: 8,
             children: [
               for (int si = 0; si < sortedSets.length; si++)
+                if (activeSet == null || sortedSets[si] == activeSet)
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

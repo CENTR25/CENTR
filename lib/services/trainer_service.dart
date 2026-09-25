@@ -1028,6 +1028,51 @@ class TrainerService {
   // ==================== STATS ====================
 
   /// Get trainer stats
+  /// Onboarding "Primeros pasos" progress: has the trainer done each first step?
+  /// Lightweight existence checks (limit 1) — cheap enough for the home screen.
+  Future<({bool hasStudent, bool hasRoutine, bool hasReading, bool hasVideo})>
+  getFirstSteps() async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) {
+      return (
+        hasStudent: false,
+        hasRoutine: false,
+        hasReading: false,
+        hasVideo: false,
+      );
+    }
+
+    final students = await _client
+        .from('athletes')
+        .select('id')
+        .eq('trainer_id', trainerId)
+        .limit(1);
+    final routines = await _client
+        .from('routines')
+        .select('id')
+        .eq('trainer_id', trainerId)
+        .limit(1);
+    final reading = await _client
+        .from('trainers')
+        .select('required_reading')
+        .eq('id', trainerId)
+        .maybeSingle();
+    final videos = await _client
+        .from('exercises')
+        .select('id')
+        .eq('created_by_trainer', trainerId)
+        .not('video_url', 'is', null)
+        .limit(1);
+
+    return (
+      hasStudent: students.isNotEmpty,
+      hasRoutine: routines.isNotEmpty,
+      hasReading: (reading?['required_reading'] as String?)?.trim().isNotEmpty ??
+          false,
+      hasVideo: videos.isNotEmpty,
+    );
+  }
+
   Future<Map<String, dynamic>> getTrainerStats() async {
     final trainerId = await _getTrainerId();
     if (trainerId == null) return {};
@@ -1576,4 +1621,13 @@ final myCheckInFormProvider = FutureProvider<Map<String, dynamic>?>((
 final trainerStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final service = ref.watch(trainerServiceProvider);
   return service.getTrainerStats();
+});
+
+/// Provider for the "Primeros pasos" onboarding checklist.
+final trainerFirstStepsProvider = FutureProvider<
+    ({bool hasStudent, bool hasRoutine, bool hasReading, bool hasVideo})>((
+  ref,
+) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getFirstSteps();
 });

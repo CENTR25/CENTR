@@ -635,6 +635,12 @@ class _GridPhotoViewerState extends State<_GridPhotoViewer> {
 
   @override
   Widget build(BuildContext context) {
+    // Cap the decode to ~1.5x screen resolution. Full-res camera photos
+    // otherwise overflow the iOS image cache and evict the grid thumbnails,
+    // which then render black when this viewer is popped. The 1.5x headroom
+    // keeps InteractiveViewer zoom sharp.
+    final mq = MediaQuery.of(context);
+    final decodeWidth = (mq.size.width * mq.devicePixelRatio * 1.5).round();
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -654,6 +660,7 @@ class _GridPhotoViewerState extends State<_GridPhotoViewer> {
             child: CachedNetworkImage(
               imageUrl: widget.urls[i],
               fit: BoxFit.contain,
+              memCacheWidth: decodeWidth,
               placeholder: (_, __) => const CircularProgressIndicator(
                 color: AppColors.primary,
               ),

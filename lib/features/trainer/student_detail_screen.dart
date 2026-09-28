@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/trainer_service.dart';
 import '../student/student_check_in_history_screen.dart';
@@ -1028,28 +1029,28 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 fit: StackFit.expand,
                 children: [
                   allUrls.isNotEmpty
-                      ? Image.network(
-                          allUrls.first,
+                      ? CachedNetworkImage(
+                          imageUrl: allUrls.first,
                           // ValueKey stops Flutter web from recycling the wrong
-                          // <img> on nav back; cacheWidth caps the decode so a
+                          // image on nav back; memCacheWidth caps the decode so a
                           // full-res photo can't blow the cache and go black.
                           key: ValueKey(allUrls.first),
-                          cacheWidth: 300,
+                          memCacheWidth: 300,
                           fit: BoxFit.cover,
-                          loadingBuilder: (_, child, progress) => progress == null
-                              ? child
-                              : const Center(
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: AppColors.primary),
-                                ),
-                          errorBuilder: (_, __, ___) =>
+                          placeholder: (_, __) => const Center(
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: AppColors.primary),
+                          ),
+                          errorWidget: (_, __, ___) =>
                               const Icon(Icons.broken_image_rounded, color: Colors.grey),
                         )
                       : const Icon(Icons.photo_rounded, color: Colors.grey),
-                  // Visible edit-date button (long-press also works).
+                  // Tappable date bar at the bottom doubles as the edit-date
+                  // affordance — no more overlay covering the photo.
                   Positioned(
-                    top: 2,
-                    left: 2,
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
                     child: GestureDetector(
                       onTap: () => _setAssignedDate(
                         context,
@@ -1057,59 +1058,42 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                         assignedRaw,
                       ),
                       child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.edit_calendar_rounded,
-                            color: Colors.white, size: 15),
-                      ),
-                    ),
-                  ),
-                  // Date label at bottom
-                  if (dateStr.isNotEmpty)
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 5, horizontal: 6),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.bottomCenter,
                             end: Alignment.topCenter,
                             colors: [
-                              Colors.black.withValues(alpha: 0.75),
+                              Colors.black.withValues(alpha: 0.8),
                               Colors.transparent,
                             ],
                           ),
                         ),
-                        child: Text(
-                          dateStr,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              dateStr.isNotEmpty ? dateStr : 'Fecha',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.edit_calendar_rounded,
+                              color: assignedRaw != null
+                                  ? AppColors.accent
+                                  : Colors.white,
+                              size: 13,
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  // Assigned-date indicator dot
-                  if (assignedRaw != null)
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppColors.accent,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
+                  ),
                 ],
               ),
             ),

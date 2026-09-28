@@ -12,7 +12,7 @@ class AffiliatedBrandService {
 
   static const _columns =
       'id, name, discount_code, banner_text, website_url, instagram_url, '
-      'logo_url, is_active, display_order, created_at, updated_at';
+      'logo_url, is_active, display_order, benefit_description, created_at, updated_at';
 
   /// Active brands (students).
   Future<List<AffiliatedBrand>> getActiveBrands() async {
@@ -60,6 +60,7 @@ class AffiliatedBrandService {
     String? logoUrl,
     bool isActive = true,
     int displayOrder = 0,
+    String? benefitDescription,
   }) async {
     try {
       final response = await _client
@@ -73,6 +74,7 @@ class AffiliatedBrandService {
             'logo_url': logoUrl,
             'is_active': isActive,
             'display_order': displayOrder,
+            'benefit_description': benefitDescription,
           })
           .select(_columns)
           .single();
@@ -94,6 +96,7 @@ class AffiliatedBrandService {
     String? logoUrl,
     bool? isActive,
     int? displayOrder,
+    String? benefitDescription,
   }) async {
     try {
       final updates = <String, dynamic>{
@@ -108,6 +111,7 @@ class AffiliatedBrandService {
       updates['website_url'] = websiteUrl;
       updates['instagram_url'] = instagramUrl;
       updates['logo_url'] = logoUrl;
+      updates['benefit_description'] = benefitDescription;
       if (isActive != null) updates['is_active'] = isActive;
       if (displayOrder != null) updates['display_order'] = displayOrder;
 
@@ -126,6 +130,18 @@ class AffiliatedBrandService {
     } catch (e) {
       debugPrint('Error deleting brand: $e');
       return false;
+    }
+  }
+
+  /// Persist new display_order values after a reorder operation.
+  Future<void> reorderBrands(List<AffiliatedBrand> ordered) async {
+    for (var i = 0; i < ordered.length; i++) {
+      if (ordered[i].displayOrder != i) {
+        await _client
+            .from('affiliated_brands')
+            .update({'display_order': i})
+            .eq('id', ordered[i].id);
+      }
     }
   }
 }

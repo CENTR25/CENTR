@@ -247,6 +247,14 @@ class SupabaseService {
         .eq('user_id', userId);
   }
 
+  /// Delete a single notification (owner-only, Diego adds the DELETE policy).
+  Future<void> deleteNotification(String notificationId) async {
+    await _client
+        .from('notifications')
+        .delete()
+        .eq('id', notificationId);
+  }
+
   // ==================== INVITATIONS ====================
 
   /// Create invitation link for a user

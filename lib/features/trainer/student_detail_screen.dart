@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/trainer_service.dart';
+import '../student/student_check_in_history_screen.dart';
 import 'routine_detail_screen.dart';
 import 'meal_plan_detail_screen.dart';
 import 'assignment_sheets.dart';
@@ -435,17 +436,17 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 Builder(
                   builder: (context) {
                     final checkIns = (student['check_ins'] as List?) ?? [];
-                    if (checkIns.length >= 2) {
+                    if (checkIns.isNotEmpty) {
                       return _SectionHeader(
                         title: 'Fotos Check-in',
-                        action: 'Comparar',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CheckInComparisonScreen(
-                              checkIns: List<Map<String, dynamic>>.from(
-                                checkIns,
-                              ),
+                        action: 'Expandir',
+                        onTap: () => showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => CheckInGridSheet(
+                            checkIns: List<Map<String, dynamic>>.from(
+                              checkIns,
                             ),
                           ),
                         ),
@@ -962,24 +963,58 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     }
 
     return SizedBox(
-      height: 120,
+      height: 140,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: checkIns.length,
         itemBuilder: (context, index) {
           final checkIn = checkIns[index] as Map<String, dynamic>;
-          final photoList = (checkIn['photo_urls'] as List?)
-              ?.whereType<String>()
-              .where((s) => s.isNotEmpty)
-              .toList();
-          final photoUrl = (photoList != null && photoList.isNotEmpty)
-              ? photoList.first
-              : checkIn['photo_url'] as String?;
-          
+
+          // Build the full URL list from check_in_photos-normalised field.
+          final allUrls = (checkIn['photo_urls'] as List?)
+                  ?.whereType<String>()
+                  .where((s) => s.isNotEmpty)
+                  .toList() ??
+              (checkIn['photo_url'] != null
+                  ? [checkIn['photo_url'] as String]
+                  : <String>[]);
+
+          // Date: prefer assigned_date, fall back to created_at.
+          final assignedRaw = checkIn['assigned_date'] as String?;
+          final createdRaw = checkIn['created_at'] as String?;
+          final dateStr = () {
+            if (assignedRaw != null) {
+              final d = DateTime.tryParse(assignedRaw);
+              if (d != null) {
+                return '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}';
+              }
+            }
+            if (createdRaw != null) {
+              final d = DateTime.tryParse(createdRaw)?.toLocal();
+              if (d != null) {
+                return '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}';
+              }
+            }
+            return '';
+          }();
+
           return GestureDetector(
-            onTap: photoUrl != null
-                ? () => _showPhotoViewer(context, photoUrl)
+            onTap: allUrls.isNotEmpty
+                ? () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CheckInPhotoViewerScreen(
+                          urls: allUrls,
+                          initialIndex: 0,
+                        ),
+                      ),
+                    )
                 : null,
+            onLongPress: () => _setAssignedDate(
+              context,
+              checkIn['id'] as String,
+              assignedRaw,
+            ),
             child: Container(
               width: 100,
               margin: EdgeInsets.only(right: index < checkIns.length - 1 ? 12 : 0),
@@ -989,20 +1024,68 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               clipBehavior: Clip.antiAlias,
-              child: photoUrl != null
-                  ? Image.network(
-                      photoUrl,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (_, child, progress) => progress == null
-                          ? child
-                          : const Center(
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: AppColors.primary),
-                            ),
-                      errorBuilder: (_, __, ___) =>
-                          const Icon(Icons.broken_image_rounded, color: Colors.grey),
-                    )
-                  : const Icon(Icons.photo_rounded, color: Colors.grey),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  allUrls.isNotEmpty
+                      ? Image.network(
+                          allUrls.first,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (_, child, progress) => progress == null
+                              ? child
+                              : const Center(
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: AppColors.primary),
+                                ),
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.broken_image_rounded, color: Colors.grey),
+                        )
+                      : const Icon(Icons.photo_rounded, color: Colors.grey),
+                  // Date label at bottom
+                  if (dateStr.isNotEmpty)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.75),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                        child: Text(
+                          dateStr,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Assigned-date indicator dot
+                  if (assignedRaw != null)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: AppColors.accent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           );
         },
@@ -1010,44 +1093,57 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     );
   }
 
-  void _showPhotoViewer(BuildContext context, String photoUrl) {
-    showDialog(
+  /// Trainer assigns (or clears) the `assigned_date` for a check-in.
+  Future<void> _setAssignedDate(
+    BuildContext context,
+    String checkInId,
+    String? currentAssigned,
+  ) async {
+    // Capture messenger before any async gap.
+    final messenger = ScaffoldMessenger.of(context);
+
+    final now = DateTime.now();
+    final initial = currentAssigned != null
+        ? (DateTime.tryParse(currentAssigned) ?? now)
+        : now;
+
+    final picked = await showDatePicker(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.9),
-      builder: (context) => GestureDetector(
-        onTap: () => Navigator.pop(context),
-        child: Stack(
-          children: [
-            Center(
-              child: InteractiveViewer(
-                child: Image.network(
-                  photoUrl,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (_, child, progress) => progress == null
-                      ? child
-                      : const Center(
-                          child: CircularProgressIndicator(
-                              color: AppColors.primary),
-                        ),
-                  errorBuilder: (_, __, ___) => const Icon(
-                      Icons.broken_image_rounded,
-                      color: Colors.grey,
-                      size: 64),
-                ),
-              ),
-            ),
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 8,
-              right: 8,
-              child: IconButton(
-                icon: const Icon(Icons.close_rounded, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-          ],
-        ),
-      ),
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Fecha asignada del check-in',
+      cancelText: 'Cancelar',
+      confirmText: 'Guardar',
     );
+    if (picked == null) return;
+
+    // Format as DATE string yyyy-MM-dd.
+    final dateStr =
+        '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    try {
+      await ref
+          .read(trainerServiceProvider)
+          .setCheckInAssignedDate(checkInId, dateStr);
+      ref.invalidate(studentDetailProvider(widget.studentId));
+      if (mounted) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Fecha de check-in actualizada'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildActivityHistory(Map<String, dynamic> student) {

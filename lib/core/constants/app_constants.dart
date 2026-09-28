@@ -18,6 +18,10 @@ class AppConstants {
 
   // Base URL for trainer first-login links (invitation token flow).
   static const String firstLoginBaseUrl = 'https://prgs.pages.dev/first-login';
+
+  // WhatsApp CTA for brands/marketing inquiries.
+  // TODO: set real PRGS WhatsApp number.
+  static const String prgsBrandsWhatsappUrl = 'https://wa.me/000000000';
 }
 
 /// Supabase configuration

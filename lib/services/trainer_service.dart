@@ -156,16 +156,33 @@ class TrainerService {
     if (response == null) return null;
 
     // check_ins keys on the profile user_id, not athlete_id, so it can't be
-    // embedded in the query above
+    // embedded in the query above. Also join check_in_photos for full URLs.
     final userId = response['user_id'] as String?;
     if (userId != null) {
       final checkIns = await _client
           .from('check_ins')
-          .select()
+          .select(
+            'id, created_at, photo_url, photo_urls, comment, assigned_date, '
+            'check_in_photos(id, photo_url, order_index)',
+          )
           .eq('user_id', userId)
           .order('created_at', ascending: false)
           .limit(20);
-      response['check_ins'] = List<Map<String, dynamic>>.from(checkIns);
+      // Normalise photo_urls from check_in_photos when available.
+      final normalised = (checkIns as List).map((raw) {
+        final ci = Map<String, dynamic>.from(raw as Map);
+        final photos = ci['check_in_photos'] as List?;
+        if (photos != null && photos.isNotEmpty) {
+          final sorted = List<Map<String, dynamic>>.from(photos)
+            ..sort((a, b) =>
+                ((a['order_index'] as int?) ?? 0)
+                    .compareTo((b['order_index'] as int?) ?? 0));
+          ci['photo_urls'] =
+              sorted.map((p) => p['photo_url'] as String).toList();
+        }
+        return ci;
+      }).toList();
+      response['check_ins'] = normalised;
     }
 
     return response;
@@ -1142,7 +1159,7 @@ class TrainerService {
           .from('routine_exercises')
           .select('routine_id, day_number, order_index, exercises(name)')
           .inFilter('routine_id', routineIds)
-          .order('order_index');
+          .order('order_index', ascending: true);
       for (final r in re as List) {
         final key = '${r['routine_id']}|${r['day_number']}';
         (namesByKey[key] ??= []).add(
@@ -1242,7 +1259,7 @@ class TrainerService {
         .select('id, sets, reps_target, order_index, exercises(name)')
         .eq('routine_id', routineId)
         .eq('day_number', dayNumber)
-        .order('order_index');
+        .order('order_index', ascending: true);
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -1289,6 +1306,17 @@ class TrainerService {
           'is_completed': true,
         })
         .eq('id', sessionId);
+  }
+
+  /// Assign (or update) the manual date for a student's check-in.
+  Future<void> setCheckInAssignedDate(
+    String checkInId,
+    String dateStr, // yyyy-MM-dd
+  ) async {
+    await _client
+        .from('check_ins')
+        .update({'assigned_date': dateStr})
+        .eq('id', checkInId);
   }
 
   /// Log an in-person session the athlete didn't record.

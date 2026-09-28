@@ -1930,14 +1930,24 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
 
   Future<void> _shareViaWhatsApp() async {
     if (_inviteLink == null) return;
-    
+
     final message = Uri.encodeComponent(
       '¡Únete a mi equipo de entrenamiento! 💪\n\nRegístrate aquí: $_inviteLink'
     );
     final whatsappUrl = Uri.parse('https://wa.me/?text=$message');
-    
+
     if (await canLaunchUrl(whatsappUrl)) {
       await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Enlace enviado por WhatsApp!'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -121,6 +121,7 @@ class _StudentCheckInScreenState extends ConsumerState<StudentCheckInScreen> {
 
       if (mounted) {
         ref.invalidate(checkInStatusProvider);
+        ref.invalidate(myCheckInsProvider);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('¡Check-in enviado a tu entrenador!'),

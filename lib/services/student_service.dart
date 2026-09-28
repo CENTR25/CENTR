@@ -443,13 +443,25 @@ class StudentService {
         .from('check_ins')
         .insert({
           'user_id': userId,
-          'photo_url': photoUrls.first,
+          'photo_url': photoUrls.first, // backward-compat NOT NULL column
           'photo_urls': photoUrls,
           'comment': comment,
           'created_at': now,
         })
         .select()
         .single();
+
+    final checkInId = checkInRow['id'] as String;
+
+    // Write all photos to the canonical check_in_photos child table.
+    for (var i = 0; i < photoUrls.length; i++) {
+      await _client.from('check_in_photos').insert({
+        'check_in_id': checkInId,
+        'photo_url': photoUrls[i],
+        'order_index': i,
+        'created_at': now,
+      });
+    }
 
     if (athleteId != null) {
       await _client
@@ -461,7 +473,7 @@ class StudentService {
 
     if (formId != null && formResponses != null && formResponses.isNotEmpty) {
       await _client.from('check_in_form_responses').insert({
-        'check_in_id': checkInRow['id'],
+        'check_in_id': checkInId,
         'athlete_id': athleteId,
         'form_id': formId,
         'responses': formResponses,
@@ -470,19 +482,40 @@ class StudentService {
     }
   }
 
-  /// Get all check-ins for the current student (newest first)
+  /// Get all check-ins for the current student (newest first).
+  /// Also joins check_in_photos child rows (ordered by order_index) so callers
+  /// always have the full canonical photo list.
   Future<List<Map<String, dynamic>>> getMyCheckIns({int limit = 50}) async {
     final userId = currentUserId;
     if (userId == null) return [];
 
     final response = await _client
         .from('check_ins')
-        .select('id, created_at, photo_url, photo_urls, comment')
+        .select(
+          'id, created_at, photo_url, photo_urls, comment, assigned_date, '
+          'check_in_photos(id, photo_url, order_index)',
+        )
         .eq('user_id', userId)
         .order('created_at', ascending: false)
         .limit(limit);
 
-    return List<Map<String, dynamic>>.from(response);
+    // Normalise: if check_in_photos rows exist, overwrite photo_urls from them
+    // (ordered) so the UI has one consistent array regardless of write path.
+    final rows = List<Map<String, dynamic>>.from(response);
+    for (var i = 0; i < rows.length; i++) {
+      final photos = rows[i]['check_in_photos'] as List?;
+      if (photos != null && photos.isNotEmpty) {
+        final sorted = List<Map<String, dynamic>>.from(photos)
+          ..sort((a, b) =>
+              ((a['order_index'] as int?) ?? 0)
+                  .compareTo((b['order_index'] as int?) ?? 0));
+        rows[i] = {
+          ...rows[i],
+          'photo_urls': sorted.map((p) => p['photo_url'] as String).toList(),
+        };
+      }
+    }
+    return rows;
   }
 
   /// Get last check-in date for current user

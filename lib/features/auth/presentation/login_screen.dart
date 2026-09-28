@@ -127,7 +127,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: 24),
                 
                 const Text(
-                  'CENTR',
+                  'PRGS',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
@@ -286,7 +286,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 
                 // Footer text
                 Text(
-                  '© 2026 CENTR',
+                  '© 2026 PRGS',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 12,

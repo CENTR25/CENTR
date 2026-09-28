@@ -135,16 +135,40 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
 
   Future<void> _logInPerson() async {
     final service = ref.read(trainerServiceProvider);
-    final routine = await service.getActiveRoutineForAthlete(widget.studentId);
-    if (!mounted) return;
-    if (routine == null || (routine['days'] as List).isEmpty) {
+    Map<String, dynamic>? routine;
+    try {
+      routine = await service.getActiveRoutineForAthlete(widget.studentId);
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El alumno no tiene una rutina activa')),
+        SnackBar(
+          content: Text('Error al cargar la rutina: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+    if (routine == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('El alumno no tiene una rutina activa'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+    final days = (routine['days'] as List).cast<int>();
+    if (days.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('La rutina activa no tiene días configurados'),
+          backgroundColor: AppColors.warning,
+        ),
       );
       return;
     }
 
-    final days = (routine['days'] as List).cast<int>();
     final day = await showModalBottomSheet<int>(
       context: context,
       backgroundColor: AppColors.surface,
@@ -181,7 +205,7 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
         builder: (_) => SessionDetailScreen(
           session: null,
           athleteId: widget.studentId,
-          routineId: routine['routine_id'] as String,
+          routineId: routine!['routine_id'] as String,
           dayNumber: day,
           routineTitle: routine['title'] as String,
         ),
@@ -521,16 +545,19 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
       );
     }
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        chip('Todas', _selectedSet == null,
-            () => setState(() => _selectedSet = null)),
-        for (final s in series)
-          chip('Serie $s', _selectedSet == s,
-              () => setState(() => _selectedSet = s)),
-      ],
+    return SizedBox(
+      width: double.infinity,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          chip('Todas', _selectedSet == null,
+              () => setState(() => _selectedSet = null)),
+          for (final s in series)
+            chip('Serie $s', _selectedSet == s,
+                () => setState(() => _selectedSet = s)),
+        ],
+      ),
     );
   }
 

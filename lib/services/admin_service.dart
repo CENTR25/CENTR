@@ -270,7 +270,7 @@ class AdminService {
     
     debugPrint('📧 Invitation Email:');
     debugPrint('To: $email');
-    debugPrint('Subject: Invitación a CENTR');
+    debugPrint('Subject: Invitación a PRGS');
     debugPrint('Link: $inviteLink');
     debugPrint('Temp Password: $tempPassword');
     

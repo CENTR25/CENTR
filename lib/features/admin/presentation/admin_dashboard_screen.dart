@@ -48,7 +48,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               child: const Icon(Icons.star_rounded, color: AppColors.primary, size: 20),
             ),
             const SizedBox(width: 10),
-            const Text('CENTR'),
+            const Text('PRGS'),
           ],
         ),
         actions: [
@@ -1243,12 +1243,32 @@ class _BrandsView extends ConsumerWidget {
             );
           }
 
-          return ListView.builder(
+          return ReorderableListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: brands.length,
+            onReorderItem: (oldIndex, newIndex) async {
+              final reordered = List<AffiliatedBrand>.from(brands);
+              final moved = reordered.removeAt(oldIndex);
+              reordered.insert(newIndex, moved);
+              // Persist immediately
+              try {
+                await ref
+                    .read(affiliatedBrandServiceProvider)
+                    .reorderBrands(reordered);
+                ref.invalidate(allBrandsProvider);
+                ref.invalidate(activeBrandsProvider);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error al reordenar: $e')),
+                  );
+                }
+              }
+            },
             itemBuilder: (context, index) {
               final brand = brands[index];
               return Card(
+                key: ValueKey(brand.id),
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
                   leading: CircleAvatar(
@@ -1267,6 +1287,9 @@ class _BrandsView extends ConsumerWidget {
                       const SizedBox(height: 4),
                       if (brand.discountCode?.isNotEmpty ?? false)
                         Text('Código: ${brand.discountCode}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      if (brand.benefitDescription?.isNotEmpty ?? false)
+                        Text(brand.benefitDescription!, maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12, color: AppColors.textLight)),
                       const SizedBox(height: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1351,6 +1374,7 @@ class _BrandsView extends ConsumerWidget {
             logoUrl: brand.logoUrl,
             isActive: !brand.isActive,
             displayOrder: brand.displayOrder,
+            benefitDescription: brand.benefitDescription,
           );
           ref.invalidate(allBrandsProvider);
           ref.invalidate(activeBrandsProvider);
@@ -1417,6 +1441,7 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
   late TextEditingController _websiteController;
   late TextEditingController _instagramController;
   late TextEditingController _logoController;
+  late TextEditingController _benefitDescController;
   bool _isActive = true;
   bool _isLoading = false;
   bool _isUploadingLogo = false;
@@ -1460,8 +1485,20 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
     _codeController = TextEditingController(text: b?.discountCode ?? '');
     _bannerController = TextEditingController(text: b?.bannerText ?? '');
     _websiteController = TextEditingController(text: b?.websiteUrl ?? '');
-    _instagramController = TextEditingController(text: b?.instagramUrl ?? '');
+    // Store only the handle in the field for easy editing.
+    final rawInsta = b?.instagramUrl?.trim() ?? '';
+    String handleOnly = rawInsta;
+    if (rawInsta.contains('instagram.com/')) {
+      handleOnly = rawInsta
+          .replaceFirst(RegExp(r'https?://(www\.)?instagram\.com/'), '')
+          .replaceAll('/', '');
+    } else if (rawInsta.startsWith('@')) {
+      handleOnly = rawInsta.substring(1);
+    }
+    _instagramController = TextEditingController(text: handleOnly);
     _logoController = TextEditingController(text: b?.logoUrl ?? '');
+    _benefitDescController =
+        TextEditingController(text: b?.benefitDescription ?? '');
     _isActive = b?.isActive ?? true;
   }
 
@@ -1473,6 +1510,7 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
     _websiteController.dispose();
     _instagramController.dispose();
     _logoController.dispose();
+    _benefitDescController.dispose();
     super.dispose();
   }
 
@@ -1481,9 +1519,19 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
     return t.isEmpty ? null : t;
   }
 
+  /// Converts a bare instagram handle or partial URL to a full https URL.
+  String? _normalizeInstagram(TextEditingController c) {
+    final raw = c.text.trim();
+    if (raw.isEmpty) return null;
+    if (raw.startsWith('https://') || raw.startsWith('http://')) return raw;
+    final handle = raw.startsWith('@') ? raw.substring(1) : raw;
+    return 'https://instagram.com/$handle';
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_clean(_websiteController) == null && _clean(_instagramController) == null) {
+    final instagramUrl = _normalizeInstagram(_instagramController);
+    if (_clean(_websiteController) == null && instagramUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Agrega al menos un enlace: web o Instagram')),
       );
@@ -1502,10 +1550,11 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
           discountCode: _clean(_codeController),
           bannerText: _clean(_bannerController),
           websiteUrl: _clean(_websiteController),
-          instagramUrl: _clean(_instagramController),
+          instagramUrl: instagramUrl,
           logoUrl: _clean(_logoController),
           isActive: _isActive,
           displayOrder: widget.brand!.displayOrder,
+          benefitDescription: _clean(_benefitDescController),
         );
       } else {
         await service.createBrand(
@@ -1513,9 +1562,10 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
           discountCode: _clean(_codeController),
           bannerText: _clean(_bannerController),
           websiteUrl: _clean(_websiteController),
-          instagramUrl: _clean(_instagramController),
+          instagramUrl: instagramUrl,
           logoUrl: _clean(_logoController),
           isActive: _isActive,
+          benefitDescription: _clean(_benefitDescController),
         );
       }
 
@@ -1620,13 +1670,24 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _instagramController,
-                keyboardType: TextInputType.url,
+                keyboardType: TextInputType.text,
                 decoration: const InputDecoration(
-                  labelText: 'URL de Instagram',
+                  labelText: 'Instagram (handle o URL)',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.camera_alt_outlined),
-                  helperText: 'https://instagram.com/...',
+                  helperText: 'Ej: mi_marca  o  https://instagram.com/mi_marca',
                 ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _benefitDescController,
+                decoration: const InputDecoration(
+                  labelText: 'Beneficio (chip destacado, opcional)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.redeem_rounded),
+                  helperText: 'Ej: 15% OFF en toda la tienda',
+                ),
+                maxLines: 1,
               ),
               const SizedBox(height: 16),
               TextFormField(

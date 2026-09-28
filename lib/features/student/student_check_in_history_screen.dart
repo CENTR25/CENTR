@@ -3,13 +3,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/student_service.dart';
+import '../trainer/check_in_comparison_screen.dart' show CheckInGridSheet;
 
 class StudentCheckInHistoryScreen extends ConsumerWidget {
   const StudentCheckInHistoryScreen({super.key});
 
+  void _openGrid(
+    BuildContext context,
+    List<Map<String, dynamic>> checkIns,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => CheckInGridSheet(checkIns: checkIns),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final historyAsync = ref.watch(myCheckInsProvider);
+
+    // Resolve loaded check-ins for the AppBar action (null while loading).
+    final loadedCheckIns = historyAsync.valueOrNull;
+    final hasPhotos =
+        loadedCheckIns != null && loadedCheckIns.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -17,6 +35,14 @@ class StudentCheckInHistoryScreen extends ConsumerWidget {
         title: const Text('Mis Check-ins'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          if (hasPhotos)
+            IconButton(
+              icon: const Icon(Icons.grid_view_rounded),
+              tooltip: 'Expandir',
+              onPressed: () => _openGrid(context, loadedCheckIns),
+            ),
+        ],
       ),
       body: historyAsync.when(
         data: (checkIns) {
@@ -89,7 +115,12 @@ class _CheckInCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Prefer trainer-assigned date if set, otherwise show submission date.
+    final assignedRaw = checkIn['assigned_date'] as String?;
     final createdAt = DateTime.parse(checkIn['created_at'] as String).toLocal();
+    final displayDate = assignedRaw != null
+        ? (DateTime.tryParse(assignedRaw) ?? createdAt)
+        : createdAt;
     final comment = checkIn['comment'] as String?;
 
     // photo_urls is a jsonb array; fall back to single photo_url for older rows
@@ -119,9 +150,9 @@ class _CheckInCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${createdAt.day.toString().padLeft(2, '0')}/'
-                  '${createdAt.month.toString().padLeft(2, '0')}/'
-                  '${createdAt.year}',
+                  '${displayDate.day.toString().padLeft(2, '0')}/'
+                  '${displayDate.month.toString().padLeft(2, '0')}/'
+                  '${displayDate.year}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -228,7 +259,7 @@ class _CheckInCard extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _PhotoViewerScreen(
+        builder: (_) => CheckInPhotoViewerScreen(
           urls: urls,
           initialIndex: initialIndex,
         ),
@@ -237,20 +268,25 @@ class _CheckInCard extends StatelessWidget {
   }
 }
 
-class _PhotoViewerScreen extends StatefulWidget {
+/// Full-screen swipeable photo viewer. Shared by student history and trainer
+/// gallery (exported so trainer screens can reuse it).
+class CheckInPhotoViewerScreen extends StatefulWidget {
   final List<String> urls;
   final int initialIndex;
 
-  const _PhotoViewerScreen({
+  const CheckInPhotoViewerScreen({
+    super.key,
     required this.urls,
     required this.initialIndex,
   });
 
   @override
-  State<_PhotoViewerScreen> createState() => _PhotoViewerScreenState();
+  State<CheckInPhotoViewerScreen> createState() =>
+      _CheckInPhotoViewerScreenState();
 }
 
-class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
+class _CheckInPhotoViewerScreenState
+    extends State<CheckInPhotoViewerScreen> {
   late final PageController _controller;
   late int _current;
 

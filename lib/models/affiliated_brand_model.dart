@@ -9,6 +9,7 @@ class AffiliatedBrand {
   final String? logoUrl;
   final bool isActive;
   final int displayOrder;
+  final String? benefitDescription;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -22,12 +23,24 @@ class AffiliatedBrand {
     this.logoUrl,
     this.isActive = true,
     this.displayOrder = 0,
+    this.benefitDescription,
     this.createdAt,
     this.updatedAt,
   });
 
   bool get hasWebsite => (websiteUrl?.trim().isNotEmpty ?? false);
   bool get hasInstagram => (instagramUrl?.trim().isNotEmpty ?? false);
+
+  /// Returns a normalised instagram.com URL regardless of what was stored.
+  /// Handles: bare handle (@foo or foo), full URL, partial URL.
+  String? get instagramDisplayUrl {
+    final raw = instagramUrl?.trim() ?? '';
+    if (raw.isEmpty) return null;
+    if (raw.startsWith('https://') || raw.startsWith('http://')) return raw;
+    // Strip leading @ if present.
+    final handle = raw.startsWith('@') ? raw.substring(1) : raw;
+    return 'https://instagram.com/$handle';
+  }
 
   factory AffiliatedBrand.fromJson(Map<String, dynamic> json) {
     // Coerce instead of bare `as String` — Supabase JS on web can hand back
@@ -47,6 +60,7 @@ class AffiliatedBrand {
       logoUrl: asStr(json['logo_url']),
       isActive: (json['is_active'] as bool?) ?? true,
       displayOrder: (json['display_order'] as num?)?.toInt() ?? 0,
+      benefitDescription: asStr(json['benefit_description']),
       createdAt: asDate(json['created_at']),
       updatedAt: asDate(json['updated_at']),
     );
@@ -61,6 +75,7 @@ class AffiliatedBrand {
     String? logoUrl,
     bool? isActive,
     int? displayOrder,
+    String? benefitDescription,
   }) {
     return AffiliatedBrand(
       id: id,
@@ -72,6 +87,7 @@ class AffiliatedBrand {
       logoUrl: logoUrl ?? this.logoUrl,
       isActive: isActive ?? this.isActive,
       displayOrder: displayOrder ?? this.displayOrder,
+      benefitDescription: benefitDescription ?? this.benefitDescription,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

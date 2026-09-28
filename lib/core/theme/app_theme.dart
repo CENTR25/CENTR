@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// App color scheme - CENTR
+/// App color scheme - PRGS
 class AppColors {
   // Primary colors - Violeta
   static const Color primary = Color(0xFF78278A);      // Violeta principal

@@ -666,8 +666,6 @@ class _HomeContent extends ConsumerWidget {
               },
             ),
 
-            const SizedBox(height: 24),
-
             // -- LECTURA OBLIGATORIA (per-trainer, only if set) --
             Consumer(
               builder: (context, ref, _) {
@@ -680,7 +678,7 @@ class _HomeContent extends ConsumerWidget {
                   return const SizedBox.shrink();
                 }
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
+                  padding: const EdgeInsets.only(top: 20, bottom: 4),
                   child: _RequiredReadingBanner(content: content),
                 );
               },
@@ -698,8 +696,6 @@ class _HomeContent extends ConsumerWidget {
                 );
               },
             ),
-
-            const SizedBox(height: 24),
 
             // -- RENOVACIÓN / CHEQUEO MENSUAL --
             Consumer(
@@ -791,7 +787,7 @@ class _HomeContent extends ConsumerWidget {
                 // provider hasn't resolved yet
                 final s = await ref.read(mySupplementsProvider.future);
                 if (!context.mounted) return;
-                _showSupplementChecklist(
+                _showSupplementInfo(
                   context,
                   s['daily'] ?? '',
                   s['chemical'] ?? '',
@@ -950,34 +946,37 @@ class _HomeContent extends ConsumerWidget {
         ? 'Tu cuota vence en $daysLeft día${daysLeft == 1 ? '' : 's'}'
         : 'Tu cuota vence el $dateLabel';
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: chipColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: chipColor.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isUrgent ? Icons.warning_rounded : Icons.schedule_rounded,
-            color: chipColor,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: chipColor,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                letterSpacing: 0.2,
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: chipColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: chipColor.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isUrgent ? Icons.warning_rounded : Icons.schedule_rounded,
+              color: chipColor,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: chipColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  letterSpacing: 0.2,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1011,7 +1010,9 @@ class _HomeContent extends ConsumerWidget {
         ? 'ACTUALIZAR'
         : 'VER CHECK-IN';
 
-    return Container(
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1109,6 +1110,7 @@ class _HomeContent extends ConsumerWidget {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -1276,7 +1278,7 @@ class _HomeContent extends ConsumerWidget {
     return month >= 1 && month <= 12 ? names[month] : '';
   }
 
-  void _showSupplementChecklist(
+  void _showSupplementInfo(
     BuildContext context,
     String daily,
     String chemical,
@@ -1286,7 +1288,7 @@ class _HomeContent extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) =>
-          _SupplementChecklistModal(daily: daily, chemical: chemical),
+          _SupplementInfoModal(daily: daily, chemical: chemical),
     );
   }
 
@@ -1493,99 +1495,31 @@ class _RequiredReadingBanner extends StatelessWidget {
   }
 }
 
-// ----- Supplement Checklist Modal Component ----- //
-class _SupplementChecklistModal extends ConsumerStatefulWidget {
+// ----- Supplement Info Modal (read-only) ----- //
+class _SupplementInfoModal extends StatelessWidget {
   final String daily;
   final String chemical;
 
-  const _SupplementChecklistModal({
+  const _SupplementInfoModal({
     required this.daily,
     required this.chemical,
   });
 
   @override
-  ConsumerState<_SupplementChecklistModal> createState() =>
-      _SupplementChecklistModalState();
-}
-
-class _SupplementChecklistModalState
-    extends ConsumerState<_SupplementChecklistModal> {
-  // We'll track checked items locally.
-  // In a real app, you might parse the strings into lists.
-  // For now, we'll treat lines as items.
-
-  late List<String> dailyItems;
-  late List<String> chemicalItems;
-
-  // Set of checked items (composite key: section_index)
-  final Set<String> _checkedItems = {};
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _parseItems();
-    _loadProgress();
-  }
-
-  void _parseItems() {
-    dailyItems = widget.daily
-        .split('\n')
-        .where((s) => s.trim().isNotEmpty)
-        .map((s) => s.trim())
-        .toList();
-
-    chemicalItems = widget.chemical
-        .split('\n')
-        .where((s) => s.trim().isNotEmpty)
-        .map((s) => s.trim())
-        .toList();
-  }
-
-  Future<void> _loadProgress() async {
-    // Fetch today's log properly using the service
-    final log = await ref.read(studentServiceProvider).getTodaySupplementLog();
-
-    if (log != null && log['ticked_items'] != null) {
-      final ticked = List<String>.from(log['ticked_items']);
-      setState(() {
-        _checkedItems.addAll(ticked);
-        _isLoading = false;
-      });
-    } else {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _toggleItem(String key) async {
-    setState(() {
-      if (_checkedItems.contains(key)) {
-        _checkedItems.remove(key);
-      } else {
-        _checkedItems.add(key);
-      }
-    });
-
-    // Persist immediately
-    await ref
-        .read(studentServiceProvider)
-        .logSupplements(tickedItems: _checkedItems.toList());
-
-    // Refresh the master provider to update streaks if we had any logic there
-    // ref.refresh(mySupplementsProvider); // Not strictly needed unless checking completion
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final hasDaily = daily.trim().isNotEmpty;
+    final hasChemical = chemical.trim().isNotEmpty;
+
     return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Drag handle
           Center(
@@ -1605,13 +1539,19 @@ class _SupplementChecklistModalState
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Checklist Diario',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                const Row(
+                  children: [
+                    Icon(Icons.medication_outlined, color: AppColors.accent, size: 22),
+                    SizedBox(width: 10),
+                    Text(
+                      'Suplementación',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
@@ -1623,113 +1563,86 @@ class _SupplementChecklistModalState
 
           const Divider(color: Colors.white10),
 
-          if (_isLoading)
-            const Expanded(child: Center(child: CircularProgressIndicator()))
-          else
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(24),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (dailyItems.isNotEmpty) ...[
+                  if (hasDaily) ...[
                     const Text(
                       'SUPLEMENTOS DIARIOS',
                       style: TextStyle(
                         color: AppColors.accent,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: 1.0,
+                        fontSize: 11,
+                        letterSpacing: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    ...dailyItems.asMap().entries.map((e) {
-                      final key = 'daily_${e.key}';
-                      return _buildCheckItem(key, e.value);
-                    }),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      child: Text(
+                        daily.trim(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          height: 1.55,
+                        ),
+                      ),
+                    ),
+                    if (hasChemical) const SizedBox(height: 28),
                   ],
-
-                  if (chemicalItems.isNotEmpty) ...[
+                  if (hasChemical) ...[
                     const Text(
                       'QUÍMICA / CICLO',
                       style: TextStyle(
                         color: Colors.purpleAccent,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: 1.0,
+                        fontSize: 11,
+                        letterSpacing: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    ...chemicalItems.asMap().entries.map((e) {
-                      final key = 'chem_${e.key}';
-                      return _buildCheckItem(key, e.value);
-                    }),
-                  ],
-
-                  if (dailyItems.isEmpty && chemicalItems.isEmpty)
-                    const Center(
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
                       child: Text(
-                        'No hay items para mostrar',
-                        style: TextStyle(color: Colors.white54),
+                        chemical.trim(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          height: 1.55,
+                        ),
                       ),
                     ),
-
-                  const SizedBox(height: 40),
+                  ],
+                  if (!hasDaily && !hasChemical)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text(
+                          'Tu entrenador aún no asignó suplementos.',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCheckItem(String key, String label) {
-    final isChecked = _checkedItems.contains(key);
-
-    return InkWell(
-      onTap: () => _toggleItem(key),
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isChecked
-              ? AppColors.primary.withValues(alpha: 0.1)
-              : Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isChecked ? AppColors.primary : Colors.transparent,
           ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isChecked ? AppColors.primary : Colors.transparent,
-                border: Border.all(
-                  color: isChecked ? AppColors.primary : Colors.white54,
-                  width: 2,
-                ),
-              ),
-              child: isChecked
-                  ? const Icon(Icons.check, size: 16, color: Colors.white)
-                  : null,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: isChecked ? Colors.white : Colors.white70,
-                  decoration: isChecked ? TextDecoration.lineThrough : null,
-                  decorationColor: Colors.white54,
-                ),
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }

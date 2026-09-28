@@ -27,6 +27,8 @@ class NotificationsSheet extends ConsumerStatefulWidget {
 
 class _NotificationsSheetState extends ConsumerState<NotificationsSheet> {
   bool _markingAll = false;
+  // Optimistic deletions: IDs removed by swipe before the provider refreshes.
+  final Set<String> _deleted = {};
 
   Future<void> _markAllAsRead() async {
     setState(() => _markingAll = true);
@@ -50,6 +52,21 @@ class _NotificationsSheetState extends ConsumerState<NotificationsSheet> {
       ref.invalidate(unreadCountProvider);
     } catch (e) {
       debugPrint('Error marking notification as read: $e');
+    }
+  }
+
+  Future<void> _deleteNotification(String notificationId) async {
+    // Optimistically hide immediately.
+    setState(() => _deleted.add(notificationId));
+    try {
+      final service = ref.read(supabaseServiceProvider);
+      await service.deleteNotification(notificationId);
+      ref.invalidate(notificationsProvider);
+      ref.invalidate(unreadCountProvider);
+    } catch (e) {
+      debugPrint('Error deleting notification: $e');
+      // Restore on failure.
+      if (mounted) setState(() => _deleted.remove(notificationId));
     }
   }
 
@@ -202,21 +219,68 @@ class _NotificationsSheetState extends ConsumerState<NotificationsSheet> {
                       );
                     }
 
+                    final visible = notifications
+                        .where((n) => !_deleted.contains(n.id))
+                        .toList();
+                    if (visible.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.notifications_off_rounded,
+                                color: Colors.white.withValues(alpha: 0.2),
+                                size: 64,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No hay notificaciones',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
                     return ListView.separated(
                       controller: scrollController,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: notifications.length,
+                      itemCount: visible.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
-                        final notif = notifications[index];
-                        return _NotificationTile(
-                          notification: notif,
-                          timeAgo: _timeAgo(notif.createdAt),
-                          onTap: () {
-                            if (!notif.isRead) {
-                              _markAsRead(notif.id);
-                            }
-                          },
+                        final notif = visible[index];
+                        return Dismissible(
+                          key: ValueKey(notif.id),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withValues(alpha: 0.8),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                          onDismissed: (_) => _deleteNotification(notif.id),
+                          child: _NotificationTile(
+                            notification: notif,
+                            timeAgo: _timeAgo(notif.createdAt),
+                            onTap: () {
+                              if (!notif.isRead) {
+                                _markAsRead(notif.id);
+                              }
+                            },
+                          ),
                         );
                       },
                     );
@@ -252,12 +316,12 @@ class _NotificationTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: notification.isRead
               ? Colors.white.withValues(alpha: 0.03)
-              : notification.type.color.withValues(alpha: 0.08),
+              : const Color(0xFFFFFDE7).withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: notification.isRead
                 ? Colors.white.withValues(alpha: 0.05)
-                : notification.type.color.withValues(alpha: 0.2),
+                : const Color(0xFFFFD600).withValues(alpha: 0.25),
           ),
         ),
         child: Row(
@@ -300,8 +364,8 @@ class _NotificationTile extends StatelessWidget {
                         Container(
                           width: 8,
                           height: 8,
-                          decoration: BoxDecoration(
-                            color: notification.type.color,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFFFD600),
                             shape: BoxShape.circle,
                           ),
                         ),

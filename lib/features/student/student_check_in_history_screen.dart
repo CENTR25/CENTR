@@ -228,6 +228,10 @@ class _CheckInCard extends StatelessWidget {
                         child: CachedNetworkImage(
                           imageUrl: photoUrls[i],
                           fit: BoxFit.cover,
+                          // Decode at thumbnail size only — stops full-res
+                          // decodes from blowing the iOS image cache and
+                          // rendering black after the viewer closes.
+                          memCacheWidth: 300,
                           placeholder: (_, __) => const Center(
                             child: CircularProgressIndicator(
                               strokeWidth: 2,

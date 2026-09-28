@@ -1030,6 +1030,11 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                   allUrls.isNotEmpty
                       ? Image.network(
                           allUrls.first,
+                          // ValueKey stops Flutter web from recycling the wrong
+                          // <img> on nav back; cacheWidth caps the decode so a
+                          // full-res photo can't blow the cache and go black.
+                          key: ValueKey(allUrls.first),
+                          cacheWidth: 300,
                           fit: BoxFit.cover,
                           loadingBuilder: (_, child, progress) => progress == null
                               ? child
@@ -1041,6 +1046,27 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                               const Icon(Icons.broken_image_rounded, color: Colors.grey),
                         )
                       : const Icon(Icons.photo_rounded, color: Colors.grey),
+                  // Visible edit-date button (long-press also works).
+                  Positioned(
+                    top: 2,
+                    left: 2,
+                    child: GestureDetector(
+                      onTap: () => _setAssignedDate(
+                        context,
+                        checkIn['id'] as String,
+                        assignedRaw,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.edit_calendar_rounded,
+                            color: Colors.white, size: 15),
+                      ),
+                    ),
+                  ),
                   // Date label at bottom
                   if (dateStr.isNotEmpty)
                     Positioned(

@@ -1332,6 +1332,7 @@ class TrainerService {
       'athlete_id': athleteId,
       'routine_id': routineId,
       'day_number': dayNumber,
+      'started_at': DateTime.now().toUtc().toIso8601String(),
       'set_logs': setLogs,
       'reps_logs': repsLogs,
       'sets_completed': setsCompleted,

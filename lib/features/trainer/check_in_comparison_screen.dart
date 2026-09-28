@@ -451,6 +451,10 @@ class _CheckInGridSheetState extends State<CheckInGridSheet> {
                             ? CachedNetworkImage(
                                 imageUrl: thumb,
                                 fit: BoxFit.cover,
+                                // Thumbnail-size decode — prevents full-res
+                                // decodes from evicting the cache and turning
+                                // grid cells black after the viewer closes.
+                                memCacheWidth: 300,
                                 placeholder: (_, __) => Container(
                                   color: AppColors.surfaceVariant,
                                   child: const Center(

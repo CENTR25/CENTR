@@ -85,12 +85,25 @@ class _NotificationsSheetState extends ConsumerState<NotificationsSheet> {
   Widget build(BuildContext context) {
     final notificationsAsync = ref.watch(notificationsProvider(widget.userId));
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      builder: (context, scrollController) {
-        return Container(
+    // Stack a full-screen tap-catcher behind the sheet so tapping the exposed
+    // area above it closes the sheet (expand:false leaves that area free — with
+    // the default expand:true the sheet swallows those taps and only dragging
+    // down would dismiss it).
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).pop(),
+          ),
+        ),
+        DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          builder: (context, scrollController) {
+            return Container(
           decoration: const BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -290,7 +303,9 @@ class _NotificationsSheetState extends ConsumerState<NotificationsSheet> {
             ],
           ),
         );
-      },
+          },
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,6 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/check_in_photo.dart';
 
 /// Side-by-side comparison of two check-ins' photos so the trainer can gauge
 /// progress over time. Optimised for wide screens (web/desktop): two columns
@@ -448,28 +448,11 @@ class _CheckInGridSheetState extends State<CheckInGridSheet> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
                         child: thumb != null
-                            ? CachedNetworkImage(
-                                imageUrl: thumb,
-                                fit: BoxFit.cover,
-                                // Thumbnail-size decode — prevents full-res
-                                // decodes from evicting the cache and turning
-                                // grid cells black after the viewer closes.
-                                memCacheWidth: 300,
-                                placeholder: (_, __) => Container(
-                                  color: AppColors.surfaceVariant,
-                                  child: const Center(
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ),
-                                errorWidget: (_, __, ___) => Container(
-                                  color: AppColors.surfaceVariant,
-                                  child: const Icon(
-                                    Icons.broken_image_rounded,
-                                    color: Colors.white24,
-                                  ),
+                            ? Container(
+                                color: AppColors.surfaceVariant,
+                                child: CheckInPhoto(
+                                  url: thumb,
+                                  cacheWidth: 300,
                                 ),
                               )
                             : Container(
@@ -635,12 +618,6 @@ class _GridPhotoViewerState extends State<_GridPhotoViewer> {
 
   @override
   Widget build(BuildContext context) {
-    // Cap the decode to ~1.5x screen resolution. Full-res camera photos
-    // otherwise overflow the iOS image cache and evict the grid thumbnails,
-    // which then render black when this viewer is popped. The 1.5x headroom
-    // keeps InteractiveViewer zoom sharp.
-    final mq = MediaQuery.of(context);
-    final decodeWidth = (mq.size.width * mq.devicePixelRatio * 1.5).round();
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -657,18 +634,10 @@ class _GridPhotoViewerState extends State<_GridPhotoViewer> {
         onPageChanged: (i) => setState(() => _current = i),
         itemBuilder: (_, i) => InteractiveViewer(
           child: Center(
-            child: CachedNetworkImage(
-              imageUrl: widget.urls[i],
+            child: CheckInPhoto(
+              url: widget.urls[i],
               fit: BoxFit.contain,
-              memCacheWidth: decodeWidth,
-              placeholder: (_, __) => const CircularProgressIndicator(
-                color: AppColors.primary,
-              ),
-              errorWidget: (_, __, ___) => const Icon(
-                Icons.broken_image_rounded,
-                color: Colors.white24,
-                size: 64,
-              ),
+              errorIconSize: 64,
             ),
           ),
         ),

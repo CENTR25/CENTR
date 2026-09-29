@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/check_in_photo.dart';
 import '../../services/trainer_service.dart';
 import '../student/student_check_in_history_screen.dart';
 import 'routine_detail_screen.dart';
@@ -1029,20 +1029,10 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 fit: StackFit.expand,
                 children: [
                   allUrls.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: allUrls.first,
-                          // ValueKey stops Flutter web from recycling the wrong
-                          // image on nav back; memCacheWidth caps the decode so a
-                          // full-res photo can't blow the cache and go black.
+                      ? CheckInPhoto(
                           key: ValueKey(allUrls.first),
-                          memCacheWidth: 300,
-                          fit: BoxFit.cover,
-                          placeholder: (_, __) => const Center(
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: AppColors.primary),
-                          ),
-                          errorWidget: (_, __, ___) =>
-                              const Icon(Icons.broken_image_rounded, color: Colors.grey),
+                          url: allUrls.first,
+                          cacheWidth: 300,
                         )
                       : const Icon(Icons.photo_rounded, color: Colors.grey),
                   // Tappable date bar at the bottom doubles as the edit-date

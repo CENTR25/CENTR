@@ -1,7 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/check_in_photo.dart';
 import '../../services/student_service.dart';
 import '../trainer/check_in_comparison_screen.dart' show CheckInGridSheet;
 
@@ -225,23 +225,9 @@ class _CheckInCard extends StatelessWidget {
                           color: AppColors.surfaceVariant,
                         ),
                         clipBehavior: Clip.antiAlias,
-                        child: CachedNetworkImage(
-                          imageUrl: photoUrls[i],
-                          fit: BoxFit.cover,
-                          // Decode at thumbnail size only — stops full-res
-                          // decodes from blowing the iOS image cache and
-                          // rendering black after the viewer closes.
-                          memCacheWidth: 300,
-                          placeholder: (_, __) => const Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          errorWidget: (_, __, ___) => const Icon(
-                            Icons.broken_image_rounded,
-                            color: Colors.white24,
-                          ),
+                        child: CheckInPhoto(
+                          url: photoUrls[i],
+                          cacheWidth: 300,
                         ),
                       ),
                     );
@@ -309,12 +295,6 @@ class _CheckInPhotoViewerScreenState
 
   @override
   Widget build(BuildContext context) {
-    // Cap the decode to ~1.5x screen resolution. Full-res camera photos
-    // (3-4k px) otherwise overflow the iOS image cache and evict the list
-    // thumbnails, which then render black when the viewer is popped. The 1.5x
-    // headroom keeps InteractiveViewer zoom sharp.
-    final mq = MediaQuery.of(context);
-    final decodeWidth = (mq.size.width * mq.devicePixelRatio * 1.5).round();
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -332,18 +312,10 @@ class _CheckInPhotoViewerScreenState
         itemBuilder: (context, i) {
           return InteractiveViewer(
             child: Center(
-              child: CachedNetworkImage(
-                imageUrl: widget.urls[i],
+              child: CheckInPhoto(
+                url: widget.urls[i],
                 fit: BoxFit.contain,
-                memCacheWidth: decodeWidth,
-                placeholder: (_, __) => const CircularProgressIndicator(
-                  color: AppColors.primary,
-                ),
-                errorWidget: (_, __, ___) => const Icon(
-                  Icons.broken_image_rounded,
-                  color: Colors.white24,
-                  size: 64,
-                ),
+                errorIconSize: 64,
               ),
             ),
           );

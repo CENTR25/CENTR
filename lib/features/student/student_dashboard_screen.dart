@@ -13,6 +13,7 @@ import 'student_check_in_screen.dart';
 import 'student_routine_screen.dart';
 import 'student_recipes_screen.dart';
 import 'student_check_in_history_screen.dart';
+import 'student_workout_history_screen.dart';
 import 'required_reading_screen.dart';
 
 class StudentDashboardScreen extends ConsumerStatefulWidget {
@@ -239,6 +240,25 @@ class _StudentDashboardScreenState
                 context,
                 MaterialPageRoute(
                   builder: (_) => const StudentCheckInHistoryScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(
+              Icons.fitness_center_outlined,
+              color: Colors.white,
+            ),
+            title: const Text(
+              'Historial de Entrenamientos',
+              style: TextStyle(color: Colors.white),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const StudentWorkoutHistoryScreen(),
                 ),
               );
             },

@@ -71,8 +71,17 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
 
   Duration get _totalElapsed => _totalStopwatch.elapsed + _backgroundTime;
   
-  // Audio
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  // Audio — duck (lower) the athlete's music for the beep instead of pausing
+  // it. iOS -> playback + duckOthers; Android -> gainTransientMayDuck. Web
+  // ignores this and mixes by default. respectSilence:false so the timer alert
+  // still fires on silent/vibrate in a loud gym.
+  final AudioPlayer _audioPlayer = AudioPlayer()
+    ..setAudioContext(
+      AudioContextConfig(
+        focus: AudioContextConfigFocus.duckOthers,
+        respectSilence: false,
+      ).build(),
+    );
   
   // Animation
   late AnimationController _countdownController;

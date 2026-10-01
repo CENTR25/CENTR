@@ -12,11 +12,13 @@ import '../../../services/trainer_service.dart';
 import '../../../services/storage_service.dart';
 import '../../../services/news_service.dart';
 import '../../../services/notification_providers.dart';
+import '../../../models/trainer_task_model.dart';
 import 'student_detail_screen.dart';
 import 'routine_detail_screen.dart';
 import 'meal_plan_detail_screen.dart';
 import 'create_meal_plan_sheet.dart';
 import 'exercise_library_screen.dart';
+import 'trainer_agenda_screen.dart';
 import 'required_reading_editor_screen.dart';
 import 'trainer_benefits_screen.dart';
 import '../shared/notifications_sheet.dart';
@@ -43,6 +45,7 @@ class _TrainerDashboardScreenState extends ConsumerState<TrainerDashboardScreen>
     _NavItem(icon: Icons.people_rounded, label: 'Alumnos'),
     _NavItem(icon: Icons.fitness_center_rounded, label: 'Rutinas'),
     _NavItem(icon: Icons.restaurant_menu_rounded, label: 'Comidas'),
+    _NavItem(icon: Icons.calendar_today_rounded, label: 'Agenda'),
     _NavItem(icon: Icons.person_rounded, label: 'Perfil'),
   ];
 
@@ -63,6 +66,7 @@ class _TrainerDashboardScreenState extends ConsumerState<TrainerDashboardScreen>
         _StudentsView(),
         _RoutinesView(),
         _MealPlansView(),
+        TrainerAgendaScreen(),
         _ProfileView(),
       ],
     );
@@ -291,6 +295,26 @@ class _HomeViewState extends ConsumerState<_HomeView> {
               ),
             ),
 
+            const SizedBox(height: 12),
+
+            // Agenda y pendientes
+            _QuickActionCard(
+              icon: Icons.calendar_today_rounded,
+              label: 'Agenda y pendientes',
+              color: AppColors.info,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TrainerAgendaScreen(),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Pendientes de hoy / vencidos
+            const _PendingTasksCard(),
+
             const SizedBox(height: 24),
 
             // Resumen del equipo primero: check-ins y vencimientos tienen prioridad
@@ -508,12 +532,24 @@ class _FirstStepsChecklist extends ConsumerWidget {
 
 // ==================== TEAM SUMMARY ====================
 
-class _TeamSummarySection extends ConsumerWidget {
+class _TeamSummarySection extends ConsumerStatefulWidget {
   const _TeamSummarySection();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final renewalsAsync = ref.watch(upcomingRenewalsProvider);
+  ConsumerState<_TeamSummarySection> createState() =>
+      _TeamSummarySectionState();
+}
+
+class _TeamSummarySectionState extends ConsumerState<_TeamSummarySection> {
+  bool _renewalsExpanded = false;
+  bool _checkInsExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // Collapsed = next 5 days; expanded = next 30 days + recently vencidos.
+    final renewalsAsync = ref.watch(
+      _renewalsExpanded ? expandedRenewalsProvider : upcomingRenewalsProvider,
+    );
     final studentsAsync = ref.watch(myStudentsProvider);
 
     return Column(
@@ -658,6 +694,12 @@ class _TeamSummarySection extends ConsumerWidget {
                 ),
               );
             }),
+          _ExpandToggle(
+            expanded: _renewalsExpanded,
+            collapsedLabel: 'Ver todos los vencimientos',
+            onTap: () =>
+                setState(() => _renewalsExpanded = !_renewalsExpanded),
+          ),
         ],
       ),
     );
@@ -675,6 +717,16 @@ class _TeamSummarySection extends ConsumerWidget {
       final last = DateTime.tryParse(raw);
       return last == null || last.isBefore(sevenDaysAgo);
     }).toList();
+
+    // Most overdue first: never-checked-in (null) at top, then oldest check-in.
+    pending.sort((a, b) {
+      final ar = a['last_check_in_at'] as String?;
+      final br = b['last_check_in_at'] as String?;
+      if (ar == null && br == null) return 0;
+      if (ar == null) return -1;
+      if (br == null) return 1;
+      return DateTime.parse(ar).compareTo(DateTime.parse(br));
+    });
 
     return Container(
       width: double.infinity,
@@ -732,7 +784,7 @@ class _TeamSummarySection extends ConsumerWidget {
               ),
             )
           else
-            ...pending.take(5).map((athlete) {
+            ...(_checkInsExpanded ? pending : pending.take(5)).map((athlete) {
               final name = athlete['name'] as String? ?? 'Alumno';
               final raw = athlete['last_check_in_at'] as String?;
               final last = raw != null ? DateTime.tryParse(raw) : null;
@@ -780,14 +832,186 @@ class _TeamSummarySection extends ConsumerWidget {
               );
             }),
           if (pending.length > 5)
+            _ExpandToggle(
+              expanded: _checkInsExpanded,
+              collapsedLabel: 'Ver todos (${pending.length})',
+              onTap: () =>
+                  setState(() => _checkInsExpanded = !_checkInsExpanded),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shared "Ver todos / Ver menos" toggle used by the team-summary cards.
+class _ExpandToggle extends StatelessWidget {
+  final bool expanded;
+  final String collapsedLabel;
+  final VoidCallback onTap;
+
+  const _ExpandToggle({
+    required this.expanded,
+    required this.collapsedLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 2),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
             Text(
-              '+ ${pending.length - 5} más',
-              style: TextStyle(
-                color: AppColors.textLight,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
+              expanded ? 'Ver menos' : collapsedLabel,
+              style: const TextStyle(
+                color: AppColors.primaryLight,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
             ),
+            const SizedBox(width: 4),
+            Icon(
+              expanded
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.keyboard_arrow_down_rounded,
+              color: AppColors.primaryLight,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Home card — tasks due today or overdue. Taps through to the Agenda screen.
+class _PendingTasksCard extends ConsumerStatefulWidget {
+  const _PendingTasksCard();
+
+  @override
+  ConsumerState<_PendingTasksCard> createState() => _PendingTasksCardState();
+}
+
+class _PendingTasksCardState extends ConsumerState<_PendingTasksCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final tasksAsync = ref.watch(trainerTasksProvider);
+    return tasksAsync.when(
+      loading: () => const _SummaryCardShimmer(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (tasks) {
+        final pending = tasks.where((t) => t.isDueTodayOrOverdue).toList();
+        final shown = _expanded ? pending : pending.take(3).toList();
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: pending.isEmpty
+                  ? AppColors.success.withValues(alpha: 0.25)
+                  : AppColors.warning.withValues(alpha: 0.35),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    pending.isEmpty
+                        ? Icons.check_circle_rounded
+                        : Icons.checklist_rounded,
+                    color: pending.isEmpty
+                        ? AppColors.success
+                        : AppColors.warning,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Pendientes',
+                    style: TextStyle(
+                      color: pending.isEmpty
+                          ? AppColors.success
+                          : AppColors.warning,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TrainerAgendaScreen(),
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primaryLight,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 0),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('Ver agenda',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (pending.isEmpty)
+                Text(
+                  'Sin pendientes para hoy',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontStyle: FontStyle.italic,
+                    fontSize: 14,
+                  ),
+                )
+              else
+                ...shown.map(_taskRow),
+              if (pending.length > 3)
+                _ExpandToggle(
+                  expanded: _expanded,
+                  collapsedLabel: 'Ver todos (${pending.length})',
+                  onTap: () => setState(() => _expanded = !_expanded),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _taskRow(TrainerTask t) {
+    final dateLabel = t.dueDate != null
+        ? '${t.dueDate!.day.toString().padLeft(2, '0')}/${t.dueDate!.month.toString().padLeft(2, '0')}'
+        : null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              t.athleteName != null ? '${t.title} · ${t.athleteName}' : t.title,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+          Text(
+            t.isOverdue ? 'Vencido${dateLabel != null ? ' · $dateLabel' : ''}' : 'Hoy',
+            style: TextStyle(
+              color: t.isOverdue ? AppColors.error : AppColors.warning,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+          ),
         ],
       ),
     );
@@ -3008,6 +3232,17 @@ class _ProfileView extends ConsumerWidget {
             const SizedBox(height: 24),
 
             // Menu items
+            _MenuItem(
+              icon: Icons.calendar_today_rounded,
+              title: 'Agenda',
+              subtitle: 'Pendientes y horarios de tus alumnos',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TrainerAgendaScreen(),
+                ),
+              ),
+            ),
             _MenuItem(
               icon: Icons.menu_book_rounded,
               title: 'Lectura Obligatoria',

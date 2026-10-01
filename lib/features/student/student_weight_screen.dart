@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
@@ -23,7 +24,9 @@ class _StudentWeightScreenState extends ConsumerState<StudentWeightScreen> {
   }
 
   Future<void> _saveWeight() async {
-    final weight = double.tryParse(_weightController.text);
+    // Accept the Spanish decimal comma (5,4) as well as a dot.
+    final weight =
+        double.tryParse(_weightController.text.trim().replaceAll(',', '.'));
     if (weight == null || weight <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ingresa un peso válido')),
@@ -94,6 +97,9 @@ class _StudentWeightScreenState extends ConsumerState<StudentWeightScreen> {
                         child: TextField(
                           controller: _weightController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                          ],
                           textAlign: TextAlign.center,
                           style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold),
                           decoration: const InputDecoration(

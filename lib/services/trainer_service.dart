@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'storage_service.dart';
 import '../core/constants/app_constants.dart';
+import '../models/trainer_task_model.dart';
+import '../models/athlete_schedule_slot.dart';
 
 /// Service for trainer-specific operations
 class TrainerService {
@@ -1449,13 +1451,15 @@ class TrainerService {
   /// Returns only columns needed for the home widget — no heavy joins.
   Future<List<Map<String, dynamic>>> getUpcomingRenewals({
     int withinDays = 5,
+    int pastDays = 0, // include recently-expired plans (lower bound today-pastDays)
   }) async {
     final trainerId = await _getTrainerId();
     if (trainerId == null) return [];
 
     final today = DateTime.now();
+    final from = today.subtract(Duration(days: pastDays));
     final todayStr =
-        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+        '${from.year}-${from.month.toString().padLeft(2, '0')}-${from.day.toString().padLeft(2, '0')}';
     final limit = today.add(Duration(days: withinDays));
     final limitStr =
         '${limit.year}-${limit.month.toString().padLeft(2, '0')}-${limit.day.toString().padLeft(2, '0')}';
@@ -1543,6 +1547,101 @@ class TrainerService {
       debugPrint('⚠️ checkAndNotifyUpcomingRenewals error: $e');
     }
   }
+
+  // ==================== AGENDA: TASKS ====================
+
+  /// All of the current trainer's tasks, soonest due first (nulls last),
+  /// completed items last. Joins athlete name for display.
+  Future<List<TrainerTask>> getTasks() async {
+    final response = await _client
+        .from('trainer_tasks')
+        .select('*, athletes(name)')
+        .order('is_done')
+        .order('due_date', nullsFirst: false)
+        .order('created_at');
+    return List<Map<String, dynamic>>.from(response)
+        .map(TrainerTask.fromJson)
+        .toList();
+  }
+
+  Future<void> createTask({
+    required String title,
+    String? notes,
+    DateTime? dueDate,
+    String? athleteId,
+  }) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return;
+    await _client.from('trainer_tasks').insert({
+      'trainer_id': trainerId,
+      'title': title,
+      'notes': notes,
+      'due_date': dueDate != null ? _dateStr(dueDate) : null,
+      'athlete_id': athleteId,
+    });
+  }
+
+  Future<void> updateTask({
+    required String id,
+    required String title,
+    String? notes,
+    DateTime? dueDate,
+    String? athleteId,
+  }) async {
+    await _client.from('trainer_tasks').update({
+      'title': title,
+      'notes': notes,
+      'due_date': dueDate != null ? _dateStr(dueDate) : null,
+      'athlete_id': athleteId,
+    }).eq('id', id);
+  }
+
+  Future<void> setTaskDone(String id, bool isDone) async {
+    await _client.from('trainer_tasks').update({'is_done': isDone}).eq('id', id);
+  }
+
+  Future<void> deleteTask(String id) async {
+    await _client.from('trainer_tasks').delete().eq('id', id);
+  }
+
+  // ==================== AGENDA: WEEKLY SCHEDULE ====================
+
+  /// All recurring training slots for the current trainer's athletes.
+  Future<List<AthleteScheduleSlot>> getScheduleSlots() async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return [];
+    // Filter athletes by trainer via the FK relationship; RLS also enforces it.
+    final response = await _client
+        .from('athlete_training_schedule')
+        .select('*, athletes!inner(name, trainer_id)')
+        .eq('athletes.trainer_id', trainerId)
+        .order('day_of_week')
+        .order('start_time');
+    return List<Map<String, dynamic>>.from(response)
+        .map(AthleteScheduleSlot.fromJson)
+        .toList();
+  }
+
+  Future<void> createScheduleSlot({
+    required String athleteId,
+    required int dayOfWeek,
+    required String startTime, // "HH:mm"
+    String? notes,
+  }) async {
+    await _client.from('athlete_training_schedule').insert({
+      'athlete_id': athleteId,
+      'day_of_week': dayOfWeek,
+      'start_time': startTime,
+      'notes': notes,
+    });
+  }
+
+  Future<void> deleteScheduleSlot(String id) async {
+    await _client.from('athlete_training_schedule').delete().eq('id', id);
+  }
+
+  String _dateStr(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }
 
 /// Provider for TrainerService
@@ -1638,6 +1737,13 @@ final upcomingRenewalsProvider =
   return service.getUpcomingRenewals(withinDays: 5);
 });
 
+/// Expanded "Ver todos" list: next 30 days + plans that lapsed in the last 7.
+final expandedRenewalsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getUpcomingRenewals(withinDays: 30, pastDays: 7);
+});
+
 /// Provider for trainer's check-in form
 final myCheckInFormProvider = FutureProvider<Map<String, dynamic>?>((
   ref,
@@ -1659,4 +1765,15 @@ final trainerFirstStepsProvider = FutureProvider<
 ) async {
   final service = ref.watch(trainerServiceProvider);
   return service.getFirstSteps();
+});
+
+/// Trainer agenda — dated to-do tasks.
+final trainerTasksProvider = FutureProvider<List<TrainerTask>>((ref) async {
+  return ref.watch(trainerServiceProvider).getTasks();
+});
+
+/// Trainer agenda — weekly recurring athlete training slots.
+final trainerScheduleProvider =
+    FutureProvider<List<AthleteScheduleSlot>>((ref) async {
+  return ref.watch(trainerServiceProvider).getScheduleSlots();
 });

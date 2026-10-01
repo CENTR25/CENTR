@@ -772,6 +772,44 @@ class StudentService {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  /// All completed sessions for the current student, most recent first.
+  /// Joins routine title for the history list. Used by the workout-history
+  /// screen (student drawer → "Historial de Entrenamientos").
+  Future<List<Map<String, dynamic>>> getMyWorkoutSessions({
+    int limit = 100,
+  }) async {
+    final athleteId = await _getAthleteId();
+    if (athleteId == null) return [];
+
+    final response = await _client
+        .from('workout_sessions')
+        .select('*, routines(title)')
+        .eq('athlete_id', athleteId)
+        .eq('is_completed', true)
+        .order('started_at', ascending: false)
+        .limit(limit);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Student correction of their own session's recorded weights/reps.
+  /// Mirrors TrainerService.updateSessionLogs but RLS-scoped to the athlete.
+  Future<void> updateMyWorkoutSession({
+    required String sessionId,
+    required Map<String, Map<String, num>> setLogs,
+    required Map<String, Map<String, num>> repsLogs,
+    required int setsCompleted,
+  }) async {
+    await _client
+        .from('workout_sessions')
+        .update({
+          'set_logs': setLogs,
+          'reps_logs': repsLogs,
+          'sets_completed': setsCompleted,
+        })
+        .eq('id', sessionId);
+  }
+
   // ==================== MEAL COMPLETIONS ====================
 
   String get _todayDateStr {

@@ -81,18 +81,12 @@ const List<IntakeSection> kIntakeSections = [
         required: true,
       ),
       IntakeField(
-        key: 'height',
-        label: 'Estatura',
-        type: IntakeFieldType.text,
+        key: 'sexo',
+        label: 'Sexo',
+        type: IntakeFieldType.singleChoice,
         required: true,
-        helper: 'Por ej. 1.75 m',
-      ),
-      IntakeField(
-        key: 'current_weight',
-        label: 'Peso Actual',
-        type: IntakeFieldType.text,
-        required: true,
-        helper: 'Por ej. 72 kg',
+        options: ['Masculino', 'Femenino'],
+        allowOther: true,
       ),
       IntakeField(
         key: 'initial_video_call',

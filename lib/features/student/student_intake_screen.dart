@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/theme/app_theme.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../core/constants/intake_form.dart';
 import '../../services/auth_service.dart';
 import '../../services/student_service.dart';
+import 'intake_audio_field.dart';
 
 /// One-time "Formulario para conocer al Atleta" the student completes after
 /// onboarding, before reaching the dashboard. Renders from [kIntakeSections]
@@ -66,7 +68,13 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
     );
   }
 
+  String get _authUid => Supabase.instance.client.auth.currentUser?.id ?? '';
+
   bool _isFieldAnswered(IntakeField field) {
+    if (field.allowAudio &&
+        (_responses['${field.key}_audio'] as String?)?.isNotEmpty == true) {
+      return true;
+    }
     final value = _responses[field.key];
     if (field.type == IntakeFieldType.multiChoice) {
       return value is List && value.isNotEmpty;
@@ -110,7 +118,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Por favor completá los campos obligatorios (*).'),
-        backgroundColor: AppColors.warning,
+        backgroundColor: RedesignColors.warning,
       ),
     );
   }
@@ -133,6 +141,14 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
           cleaned[field.key] = value.trim();
         }
       }
+      // Include any recorded voice-note URLs (stored under `<key>_audio`).
+      for (final field in kIntakeFields) {
+        if (!field.allowAudio) continue;
+        final audio = _responses['${field.key}_audio'];
+        if (audio is String && audio.isNotEmpty) {
+          cleaned['${field.key}_audio'] = audio;
+        }
+      }
 
       await ref.read(studentServiceProvider).submitIntake(cleaned);
       await ref.read(authProvider.notifier).refreshProfile();
@@ -141,7 +157,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          SnackBar(content: Text('Error: $e'), backgroundColor: RedesignColors.danger),
         );
       }
     } finally {
@@ -152,24 +168,27 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
   @override
   Widget build(BuildContext context) {
     final isLast = _currentPage == kIntakeSections.length - 1;
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                onPageChanged: (p) => setState(() => _currentPage = p),
-                itemCount: kIntakeSections.length,
-                itemBuilder: (context, index) =>
-                    _buildSectionPage(kIntakeSections[index]),
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: PageView.builder(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (p) => setState(() => _currentPage = p),
+                  itemCount: kIntakeSections.length,
+                  itemBuilder: (context, index) =>
+                      _buildSectionPage(kIntakeSections[index]),
+                ),
               ),
-            ),
-            _buildNav(isLast),
-          ],
+              _buildNav(isLast),
+            ],
+          ),
         ),
       ),
     );
@@ -190,8 +209,8 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 3),
                   decoration: BoxDecoration(
                     color: i <= _currentPage
-                        ? AppColors.studentColor
-                        : AppColors.surfaceVariant,
+                        ? RedesignColors.actionPrimary
+                        : RedesignColors.primario700,
                     borderRadius: BorderRadius.circular(3),
                   ),
                 ),
@@ -201,7 +220,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
           const SizedBox(height: 8),
           Text(
             'Paso ${_currentPage + 1} de ${kIntakeSections.length}',
-            style: const TextStyle(color: AppColors.textLight, fontSize: 12),
+            style: const TextStyle(color: RedesignColors.primario300, fontSize: 12),
           ),
         ],
       ),
@@ -228,7 +247,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
             const Text(
               'Completá con la mayor cantidad de información posible para que tu '
               'plan sea lo más personalizado posible.',
-              style: TextStyle(color: AppColors.textLight, fontSize: 13),
+              style: TextStyle(color: RedesignColors.primario300, fontSize: 13),
             ),
             const SizedBox(height: 20),
           ],
@@ -237,10 +256,10 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.studentColor.withValues(alpha: 0.15),
+                  color: RedesignColors.actionPrimary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(section.icon, color: AppColors.studentColor, size: 22),
+                child: Icon(section.icon, color: RedesignColors.actionPrimary, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -259,7 +278,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
                       Text(
                         section.subtitle!,
                         style: const TextStyle(
-                          color: AppColors.textLight,
+                          color: RedesignColors.primario300,
                           fontSize: 12,
                         ),
                       ),
@@ -294,7 +313,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
                 if (field.required)
                   const TextSpan(
                     text: ' *',
-                    style: TextStyle(color: AppColors.studentColor),
+                    style: TextStyle(color: RedesignColors.actionPrimary),
                   ),
               ],
             ),
@@ -304,7 +323,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
             Text(
               field.helper!,
               style: TextStyle(
-                color: AppColors.textLight.withValues(alpha: 0.7),
+                color: RedesignColors.primario300.withValues(alpha: 0.7),
                 fontSize: 12,
               ),
             ),
@@ -317,6 +336,31 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
             IntakeFieldType.singleChoice => _buildSingleChoice(field),
             IntakeFieldType.multiChoice => _buildMultiChoice(field),
           },
+          if (field.allowAudio) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.08))),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('o', style: TextStyle(color: RedesignColors.primario300.withValues(alpha: 0.7), fontSize: 12)),
+                ),
+                Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.08))),
+              ],
+            ),
+            const SizedBox(height: 12),
+            IntakeAudioField(
+              userId: _authUid,
+              initialUrl: _responses['${field.key}_audio'] as String?,
+              onChanged: (url) => setState(() {
+                if (url == null) {
+                  _responses.remove('${field.key}_audio');
+                } else {
+                  _responses['${field.key}_audio'] = url;
+                }
+              }),
+            ),
+          ],
         ],
       ),
     );
@@ -325,9 +369,9 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
   InputDecoration _inputDecoration(String? hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: AppColors.textLight.withValues(alpha: 0.4)),
+      hintStyle: TextStyle(color: RedesignColors.primario300.withValues(alpha: 0.4)),
       filled: true,
-      fillColor: AppColors.surface,
+      fillColor: RedesignColors.surface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -335,7 +379,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.studentColor, width: 1.5),
+        borderSide: const BorderSide(color: RedesignColors.actionPrimaryDark, width: 1.5),
       ),
     );
   }
@@ -361,7 +405,8 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
           number ? [FilteringTextInputFormatter.digitsOnly] : null,
       textCapitalization:
           multiline ? TextCapitalization.sentences : TextCapitalization.none,
-      decoration: _inputDecoration(multiline ? 'Escribí tu respuesta...' : null),
+      decoration: _inputDecoration(
+          multiline ? 'Escribí tu respuesta...' : field.placeholder),
       onChanged: (v) => setState(() => _responses[field.key] = v),
     );
   }
@@ -448,12 +493,12 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: selected
-                ? AppColors.studentColor.withValues(alpha: 0.15)
-                : AppColors.surface,
+                ? RedesignColors.actionPrimary.withValues(alpha: 0.15)
+                : RedesignColors.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected
-                  ? AppColors.studentColor
+                  ? RedesignColors.actionPrimary
                   : Colors.white.withValues(alpha: 0.08),
               width: selected ? 1.5 : 1,
             ),
@@ -468,7 +513,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
                     : (selected
                         ? Icons.check_box_rounded
                         : Icons.check_box_outline_blank_rounded),
-                color: selected ? AppColors.studentColor : AppColors.textLight,
+                color: selected ? RedesignColors.actionPrimary : RedesignColors.primario300,
                 size: 22,
               ),
               const SizedBox(width: 12),
@@ -476,7 +521,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
                 child: Text(
                   label,
                   style: TextStyle(
-                    color: selected ? Colors.white : AppColors.textLight,
+                    color: selected ? Colors.white : RedesignColors.primario300,
                     fontSize: 14,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                   ),
@@ -556,7 +601,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: RedesignColors.background,
         border: Border(
           top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
         ),
@@ -568,7 +613,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
               onPressed: _prev,
               child: const Text(
                 'Atrás',
-                style: TextStyle(color: AppColors.textLight),
+                style: TextStyle(color: RedesignColors.primario300),
               ),
             )
           else
@@ -577,12 +622,12 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
           ElevatedButton(
             onPressed: _isLoading ? null : (isLast ? _submit : _next),
             style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  isLast ? AppColors.success : AppColors.studentColor,
-              foregroundColor: Colors.white,
+              backgroundColor: RedesignColors.actionPrimary,
+              foregroundColor: RedesignColors.onActionPrimary,
+              minimumSize: const Size(0, 52), // override theme's full-width min (we're in a Row)
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(30),
               ),
             ),
             child: _isLoading
@@ -590,7 +635,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                      color: Colors.white,
+                      color: RedesignColors.onActionPrimary,
                       strokeWidth: 2,
                     ),
                   )

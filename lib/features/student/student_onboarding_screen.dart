@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../services/student_service.dart';
 import '../../services/auth_service.dart';
 
@@ -59,7 +59,7 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
             style: const TextStyle(
               fontSize: 48,
               fontWeight: FontWeight.bold,
-              color: AppColors.studentColor,
+              color: RedesignColors.actionPrimaryDark,
             ),
             decoration: const InputDecoration(
               isDense: true,
@@ -78,7 +78,7 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w600,
-            color: AppColors.studentColor.withValues(alpha: 0.7),
+            color: RedesignColors.actionPrimaryDark.withValues(alpha: 0.7),
           ),
         ),
       ],
@@ -107,7 +107,7 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
     setState(() => _isLoading = true);
     try {
       final studentService = ref.read(studentServiceProvider);
-      
+
       // Update profile and log initial metrics
       await studentService.completeOnboarding(
         weight: _weight,
@@ -124,7 +124,7 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          SnackBar(content: Text('Error: $e'), backgroundColor: RedesignColors.danger),
         );
       }
     } finally {
@@ -134,89 +134,94 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Progress Indicator
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Row(
-                children: List.generate(4, (index) {
-                  return Expanded(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      height: 6,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: index <= _currentPage 
-                            ? AppColors.studentColor 
-                            : AppColors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(3),
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Progress Indicator
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Row(
+                  children: List.generate(4, (index) {
+                    return Expanded(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        height: 6,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          color: index <= _currentPage
+                              ? RedesignColors.actionPrimary
+                              : RedesignColors.primario700,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  }),
+                ),
               ),
-            ),
 
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                onPageChanged: (page) => setState(() => _currentPage = page),
-                children: [
-                  _buildWelcomePage(),
-                  _buildHeightPage(),
-                  _buildWeightPage(),
-                  _buildGoalPage(),
-                ],
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (page) => setState(() => _currentPage = page),
+                  children: [
+                    _buildWelcomePage(),
+                    _buildHeightPage(),
+                    _buildWeightPage(),
+                    _buildGoalPage(),
+                  ],
+                ),
               ),
-            ),
 
-            // Navigation Buttons
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (_currentPage > 0)
-                    TextButton(
-                      onPressed: _prevPage,
-                      child: const Text('Atrás', style: TextStyle(color: AppColors.textSecondary)),
-                    )
-                  else
-                    const SizedBox(width: 80),
+              // Navigation Buttons
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (_currentPage > 0)
+                      TextButton(
+                        onPressed: _prevPage,
+                        child: const Text('Atrás', style: TextStyle(color: RedesignColors.primario300)),
+                      )
+                    else
+                      const SizedBox(width: 80),
 
-                  if (_currentPage < 3)
-                    ElevatedButton(
-                      onPressed: _nextPage,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.studentColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    if (_currentPage < 3)
+                      ElevatedButton(
+                        onPressed: _nextPage,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: RedesignColors.actionPrimary,
+                          foregroundColor: RedesignColors.onActionPrimary,
+                          minimumSize: const Size(0, 52), // override theme's full-width min (we're in a Row)
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                        ),
+                        child: const Text('Siguiente'),
+                      )
+                    else
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _finishOnboarding,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: RedesignColors.actionPrimary,
+                          foregroundColor: RedesignColors.onActionPrimary,
+                          minimumSize: const Size(0, 52), // override theme's full-width min (we're in a Row)
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: RedesignColors.onActionPrimary, strokeWidth: 2))
+                            : const Text('¡Comenzar!'),
                       ),
-                      child: const Text('Siguiente'),
-                    )
-                  else
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _finishOnboarding,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      child: _isLoading 
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text('¡Comenzar!'),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -231,21 +236,21 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
           Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: AppColors.studentColor.withValues(alpha: 0.1),
+              color: RedesignColors.actionPrimary.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.fitness_center_rounded, size: 80, color: AppColors.studentColor),
+            child: const Icon(Icons.fitness_center_rounded, size: 80, color: RedesignColors.actionPrimary),
           ),
           const SizedBox(height: 32),
           const Text(
             '¡Bienvenido a tu Transformación!',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: RedesignColors.primario50),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           const Text(
             'Vamos a configurar tu perfil para personalizar tu experiencia. Solo tomará un minuto.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+            style: TextStyle(color: RedesignColors.primario300, fontSize: 16),
             textAlign: TextAlign.center,
           ),
         ],
@@ -272,14 +277,13 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Visual Ruler representation could go here
                 RotatedBox(
                   quarterTurns: -1,
                   child: SliderTheme(
                     data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: AppColors.studentColor,
-                      thumbColor: AppColors.studentColor,
-                      overlayColor: AppColors.studentColor.withValues(alpha: 0.2),
+                      activeTrackColor: RedesignColors.actionPrimary,
+                      thumbColor: RedesignColors.actionPrimary,
+                      overlayColor: RedesignColors.actionPrimary.withValues(alpha: 0.2),
                       trackHeight: 12,
                     ),
                     child: Slider(
@@ -319,8 +323,8 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: SliderTheme(
               data: SliderTheme.of(context).copyWith(
-                activeTrackColor: AppColors.studentColor,
-                thumbColor: AppColors.studentColor,
+                activeTrackColor: RedesignColors.actionPrimary,
+                thumbColor: RedesignColors.actionPrimary,
                 trackHeight: 12,
               ),
               child: Slider(
@@ -335,7 +339,7 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
             ),
           ),
           const SizedBox(height: 32),
-          Icon(Icons.monitor_weight_outlined, size: 100, color: AppColors.textLight.withValues(alpha: 0.2)),
+          Icon(Icons.monitor_weight_outlined, size: 100, color: RedesignColors.primario400.withValues(alpha: 0.2)),
         ],
       ),
     );
@@ -343,7 +347,7 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
 
   Widget _buildGoalPage() {
     final goals = ['Perder Peso', 'Ganar Músculo', 'Mantenerme', 'Mejorar Rendimiento'];
-    
+
     return _OnboardingStep(
       title: '¿Cuál es tu objetivo principal?',
       description: 'Tu entrenador adaptará el plan a esto.',
@@ -358,10 +362,10 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.studentColor : AppColors.surface,
+                  color: isSelected ? RedesignColors.actionPrimary : RedesignColors.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected ? AppColors.studentColor : AppColors.surfaceVariant,
+                    color: isSelected ? RedesignColors.actionPrimary : RedesignColors.primario700,
                     width: 2,
                   ),
                 ),
@@ -369,7 +373,7 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
                   children: [
                     Icon(
                       isSelected ? Icons.check_circle : Icons.circle_outlined,
-                      color: isSelected ? Colors.white : AppColors.textLight,
+                      color: isSelected ? RedesignColors.onActionPrimary : RedesignColors.primario400,
                     ),
                     const SizedBox(width: 16),
                     Text(
@@ -377,7 +381,7 @@ class _StudentOnboardingScreenState extends ConsumerState<StudentOnboardingScree
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        color: isSelected ? Colors.white : AppColors.textPrimary,
+                        color: isSelected ? RedesignColors.onActionPrimary : RedesignColors.primario50,
                       ),
                     ),
                   ],
@@ -410,13 +414,13 @@ class _OnboardingStep extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: RedesignColors.primario50),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
             description,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
+            style: const TextStyle(color: RedesignColors.primario300, fontSize: 16),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 48),

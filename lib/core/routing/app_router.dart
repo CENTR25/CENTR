@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:north_star/services/auth_service.dart';
 import 'package:north_star/models/user_model.dart';
 import 'package:north_star/features/auth/presentation/login_screen.dart';
+import 'package:north_star/features/auth/presentation/forgot_password_screen.dart';
 import 'package:north_star/features/auth/presentation/first_login_screen.dart';
 import 'package:north_star/features/auth/presentation/student_register_screen.dart';
 import 'package:north_star/features/admin/presentation/admin_dashboard_screen.dart';
@@ -130,8 +131,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.forgotPassword,
-        builder: (context, state) =>
-            const LoginScreen(), // ForgotPasswordScreen not yet implemented
+        builder: (context, state) => const ForgotPasswordScreen(),
       ),
 
       // First login (invitation)

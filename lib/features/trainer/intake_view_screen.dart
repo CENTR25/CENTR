@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
@@ -94,9 +95,11 @@ class IntakeViewScreen extends ConsumerWidget {
   }
 
   Widget _section(IntakeSection section, Map<String, dynamic> responses) {
-    // Only show fields that were answered.
+    // Only show fields that were answered (text/choice or a voice note).
     final answered = section.fields
-        .where((f) => _hasValue(responses[f.key]))
+        .where((f) =>
+            _hasValue(responses[f.key]) ||
+            (f.allowAudio && _hasValue(responses['${f.key}_audio'])))
         .toList();
     if (answered.isEmpty) return const SizedBox.shrink();
 
@@ -126,7 +129,7 @@ class IntakeViewScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 14),
-          ...answered.map((f) => _answer(f, responses[f.key])),
+          ...answered.map((f) => _answer(f, responses)),
         ],
       ),
     );
@@ -137,8 +140,10 @@ class IntakeViewScreen extends ConsumerWidget {
     return v is String && v.trim().isNotEmpty;
   }
 
-  Widget _answer(IntakeField field, dynamic value) {
-    final text = value is List ? value.join(', ') : value.toString();
+  Widget _answer(IntakeField field, Map<String, dynamic> responses) {
+    final value = responses[field.key];
+    final audioUrl = responses['${field.key}_audio'] as String?;
+    final text = value is List ? value.join(', ') : (value?.toString() ?? '');
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Column(
@@ -153,15 +158,89 @@ class IntakeViewScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              height: 1.4,
+          if (text.trim().isNotEmpty)
+            Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                height: 1.4,
+              ),
             ),
-          ),
+          if (audioUrl != null && audioUrl.isNotEmpty) ...[
+            if (text.trim().isNotEmpty) const SizedBox(height: 8),
+            _IntakeAudioPlayback(url: audioUrl),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// Compact play/pause control for a trainer listening to an intake voice note.
+class _IntakeAudioPlayback extends StatefulWidget {
+  const _IntakeAudioPlayback({required this.url});
+  final String url;
+
+  @override
+  State<_IntakeAudioPlayback> createState() => _IntakeAudioPlaybackState();
+}
+
+class _IntakeAudioPlaybackState extends State<_IntakeAudioPlayback> {
+  final AudioPlayer _player = AudioPlayer();
+  bool _playing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _playing = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    if (_playing) {
+      await _player.pause();
+      if (mounted) setState(() => _playing = false);
+    } else {
+      await _player.play(UrlSource(widget.url));
+      if (mounted) setState(() => _playing = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: _toggle,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF4DD8BB).withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF4DD8BB), width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              color: const Color(0xFF4DD8BB),
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Nota de voz',
+              style: TextStyle(color: Color(0xFF4DD8BB), fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
       ),
     );
   }

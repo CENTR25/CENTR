@@ -23,6 +23,13 @@ class IntakeField {
   /// Helper text shown under the label (the grey hint on the Google form).
   final String? helper;
 
+  /// Placeholder text shown inside the empty input (text/number fields).
+  final String? placeholder;
+
+  /// Whether this (longText) field also offers a voice-note recorder. The
+  /// uploaded audio URL is stored under `<key>_audio` in the responses.
+  final bool allowAudio;
+
   const IntakeField({
     required this.key,
     required this.label,
@@ -31,6 +38,8 @@ class IntakeField {
     this.options = const [],
     this.allowOther = false,
     this.helper,
+    this.placeholder,
+    this.allowAudio = false,
   });
 }
 
@@ -61,24 +70,27 @@ const List<IntakeSection> kIntakeSections = [
         label: 'Nombre y Apellido',
         type: IntakeFieldType.text,
         required: true,
+        placeholder: 'John Rodriguez',
       ),
       IntakeField(
         key: 'email',
         label: 'E-Mail',
         type: IntakeFieldType.text,
         required: true,
+        placeholder: 'correo@gmail.com',
       ),
       IntakeField(
         key: 'instagram',
         label: 'Instagram',
         type: IntakeFieldType.text,
-        required: true,
+        placeholder: '@usuario',
       ),
       IntakeField(
         key: 'age',
         label: 'Edad',
         type: IntakeFieldType.number,
         required: true,
+        placeholder: 'Ej. 25',
       ),
       IntakeField(
         key: 'sexo',
@@ -107,8 +119,10 @@ const List<IntakeSection> kIntakeSections = [
       IntakeField(
         key: 'training_experience',
         label: '¿Hace cuánto entrenas?',
-        type: IntakeFieldType.text,
+        type: IntakeFieldType.singleChoice,
         required: true,
+        options: ['3 meses', '6 meses', '1 año', '2 años'],
+        allowOther: true,
       ),
       IntakeField(
         key: 'previous_routine',
@@ -203,8 +217,9 @@ const List<IntakeSection> kIntakeSections = [
         label: 'Contame un poco sobre tu agenda y horarios diarios',
         type: IntakeFieldType.longText,
         required: true,
+        allowAudio: true,
         helper:
-            '¿A qué horario irías a entrenar? ¿A qué hora solés desayunar/almorzar/cenar? ¿Tenés tiempo para cocinarte? Horarios laborales.',
+            '¿A qué horario irías a entrenar? ¿A qué hora solés desayunar/almorzar/cenar? ¿Tenés tiempo para cocinarte? Horarios laborales. Podés escribir o grabar una nota de voz.',
       ),
     ],
   ),

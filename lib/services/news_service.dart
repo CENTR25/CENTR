@@ -46,7 +46,9 @@ class NewsService {
     }
   }
 
-  /// Create a new news article
+  /// Create a new news article.
+  /// [trainerId]: pass the caller's trainers.id for trainer-scoped news;
+  /// leave null (default) for global/admin news.
   Future<NewsArticle?> createNews({
     required String title,
     required String content,
@@ -55,6 +57,7 @@ class NewsService {
     String iconName = 'newspaper',
     bool isPublished = true,
     int displayOrder = 0,
+    String? trainerId,
   }) async {
     try {
       final response = await _client.from('news_articles').insert({
@@ -66,6 +69,7 @@ class NewsService {
         'is_published': isPublished,
         'display_order': displayOrder,
         'created_at': DateTime.now().toIso8601String(),
+        if (trainerId != null) 'trainer_id': trainerId,
       }).select().single();
 
       return NewsArticle.fromJson(response);
@@ -134,4 +138,47 @@ final publishedNewsProvider = FutureProvider<List<NewsArticle>>((ref) async {
 final allNewsProvider = FutureProvider<List<NewsArticle>>((ref) async {
   final service = ref.read(newsServiceProvider);
   return service.getAllNews();
+});
+
+/// Student feed: global news (trainer_id IS NULL) UNION the signed-in student's
+/// trainer news (trainer_id = their assigned trainer).
+/// If the student has no trainer assigned, only global articles are returned.
+final studentNewsProvider = FutureProvider<List<NewsArticle>>((ref) async {
+  final client = ref.read(supabaseClientProvider);
+
+  // 1. Look up the student's assigned trainer_id from athletes table.
+  final uid = client.auth.currentUser?.id;
+  if (uid == null) return [];
+
+  final athleteRow = await client
+      .from('athletes')
+      .select('trainer_id')
+      .eq('user_id', uid)
+      .maybeSingle();
+
+  final studentTrainerId = athleteRow?['trainer_id'] as String?;
+
+  // 2. Fetch published articles: global OR assigned trainer.
+  //    Using .or() with a column filter for the two cases.
+  final List<dynamic> response;
+  if (studentTrainerId != null) {
+    response = await client
+        .from('news_articles')
+        .select()
+        .eq('is_published', true)
+        .or('trainer_id.is.null,trainer_id.eq.$studentTrainerId')
+        .order('display_order', ascending: true)
+        .order('created_at', ascending: false);
+  } else {
+    // No trainer assigned — show only global news.
+    response = await client
+        .from('news_articles')
+        .select()
+        .eq('is_published', true)
+        .isFilter('trainer_id', null)
+        .order('display_order', ascending: true)
+        .order('created_at', ascending: false);
+  }
+
+  return response.map((json) => NewsArticle.fromJson(json as Map<String, dynamic>)).toList();
 });

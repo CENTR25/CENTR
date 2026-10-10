@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_theme.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/routing/app_router.dart';
+import '../../../core/theme/theme_redesign.dart';
 import '../../../services/auth_service.dart';
+import 'widgets/prgs_brand.dart';
+import 'widgets/redesign_text_field.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +21,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  String? _authError;
 
   @override
   void dispose() {
@@ -26,278 +32,219 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
-    
-    setState(() => _isLoading = true);
-    
+
+    setState(() {
+      _isLoading = true;
+      _authError = null;
+    });
+
     try {
-      debugPrint('🔐 Intentando login con: ${_emailController.text.trim()}');
-      
+      // NOTE: backend authenticates by EMAIL (signInWithEmail). The field is
+      // labelled "Nombre" per the Figma design — see the Nombre-vs-email flag.
       await ref.read(authProvider.notifier).signInWithEmail(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-      
-      if (mounted) {
-        final authState = ref.read(authProvider);
-        debugPrint('📊 Auth Status: ${authState.status}');
-        
-        if (authState.errorMessage != null) {
-          debugPrint('❌ Error: ${authState.errorMessage}');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(authState.errorMessage!),
-              backgroundColor: AppColors.error,
-              duration: const Duration(seconds: 4),
-            ),
+            _emailController.text.trim(),
+            _passwordController.text,
           );
-          ref.read(authProvider.notifier).clearError();
-        } else if (authState.user != null) {
-          debugPrint('✅ Login exitoso! Usuario: ${authState.user!.email}, Rol: ${authState.user!.role}');
-        }
+
+      if (!mounted) return;
+      // Only an explicit errorMessage means failure. On success the user is
+      // populated ASYNC by the auth-state listener, so user==null right here is
+      // NOT an error — the router's refreshListenable redirects to the dashboard.
+      final authState = ref.read(authProvider);
+      if (authState.errorMessage != null) {
+        setState(() => _authError = authState.errorMessage);
+        ref.read(authProvider.notifier).clearError();
       }
-    } catch (e) {
-      debugPrint('💥 Exception en login: $e');
+    } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        setState(() => _authError = 'El usuario o la contraseña no son correctos.');
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppColors.primary,
-              AppColors.primaryDark,
-            ],
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0, -0.75),
+              radius: 1.1,
+              colors: [
+                Color(0x1A01D2B2), // subtle teal glow behind the logo
+                RedesignColors.background,
+              ],
+              stops: [0.0, 0.55],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight - 48, // 48 = padding top + bottom
-                  ),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 40),
-                
-                // Logo
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(25),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.star_rounded,
-                    size: 50,
-                    color: AppColors.primary,
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                const Text(
-                  'PRGS',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 3,
-                  ),
-                ),
-                
-                const SizedBox(height: 48),
-                
-                // Login Card
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'Iniciar Sesión',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        
-                        const SizedBox(height: 8),
-                        
-                        const Text(
-                          'Ingresa tus credenciales para continuar',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textSecondary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        
-                        const SizedBox(height: 32),
-                        
-                        // Email field
-                        TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Correo electrónico',
-                            hintText: 'tu@email.com',
-                            prefixIcon: Icon(Icons.email_outlined),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Ingresa tu correo electrónico';
-                            }
-                            if (!value.contains('@')) {
-                              return 'Ingresa un correo válido';
-                            }
-                            return null;
-                          },
-                        ),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Password field
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: _obscurePassword,
-                          textInputAction: TextInputAction.done,
-                          onFieldSubmitted: (_) => _handleLogin(),
-                          decoration: InputDecoration(
-                            labelText: 'Contraseña',
-                            hintText: '••••••••',
-                            prefixIcon: const Icon(Icons.lock_outlined),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscurePassword 
-                                    ? Icons.visibility_outlined 
-                                    : Icons.visibility_off_outlined,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _obscurePassword = !_obscurePassword;
-                                });
-                              },
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 90), // ring top ≈ Figma Y137
+
+                          // ── Brand lockup (teal ring + "prgs") ────────────
+                          const Center(child: PrgsLogoLockup()),
+
+                          const SizedBox(height: 41), // wordmark → form top (Y342)
+
+                          // ── Title block ──────────────────────────────────
+                          Text(
+                            'Iniciar sesión',
+                            textAlign: TextAlign.center,
+                            style: RedesignType.headingMd.copyWith(
+                              color: RedesignColors.primario50,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Ingresa tu contraseña';
-                            }
-                            if (value.length < 6) {
-                              return 'La contraseña debe tener al menos 6 caracteres';
-                            }
-                            return null;
-                          },
-                        ),
-                        
-                        const SizedBox(height: 12),
-                        
-                        // Forgot password
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {
-                              // TODO: Navigate to forgot password
-                            },
-                            child: const Text('¿Olvidaste tu contraseña?'),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Ingresá tus datos para continuar',
+                            textAlign: TextAlign.center,
+                            style: RedesignType.bodySm.copyWith(
+                              color: RedesignColors.primario300,
+                            ),
                           ),
-                        ),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Login button
-                        SizedBox(
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: _isLoading ? null : _handleLogin,
-                            child: _isLoading
-                                ? const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
-                                      ),
+
+                          const SizedBox(height: 36), // form auto-layout gap
+
+                          // ── Form ─────────────────────────────────────────
+                          Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                RedesignTextField(
+                                  controller: _emailController,
+                                  hint: 'Nombre',
+                                  textInputAction: TextInputAction.next,
+                                  validator: (value) =>
+                                      (value == null || value.trim().isEmpty)
+                                          ? 'Ingresá tu nombre'
+                                          : null,
+                                ),
+                                const SizedBox(height: 16),
+                                RedesignTextField(
+                                  controller: _passwordController,
+                                  hint: 'Contraseña',
+                                  obscureText: _obscurePassword,
+                                  textInputAction: TextInputAction.done,
+                                  onFieldSubmitted: (_) => _handleLogin(),
+                                  suffixIcon: GestureDetector(
+                                    onTap: () => setState(
+                                      () => _obscurePassword = !_obscurePassword,
                                     ),
-                                  )
-                                : const Text(
-                                    'Iniciar Sesión',
-                                    style: TextStyle(fontSize: 16),
+                                    child: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                      color: RedesignColors.primario400,
+                                      size: 20,
+                                    ),
                                   ),
+                                  validator: (value) =>
+                                      (value == null || value.isEmpty)
+                                          ? 'Ingresá tu contraseña'
+                                          : null,
+                                ),
+
+                                // Inline auth error (matches Figma error state)
+                                if (_authError != null) ...[
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.info_outline_rounded,
+                                        size: 15,
+                                        color: RedesignColors.peligro300,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          _authError!,
+                                          style: RedesignType.label.copyWith(
+                                            color: RedesignColors.peligro300,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+
+                                const SizedBox(height: 36),
+
+                                // Forgot password — centered
+                                Center(
+                                  child: TextButton(
+                                    onPressed: () =>
+                                        context.push(AppRoutes.forgotPassword),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: RedesignColors.primario300,
+                                      textStyle: RedesignType.buttonSm,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: const Text('¿Olvidaste tu contraseña?'),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 36),
+
+                                SizedBox(
+                                  height: RedesignSpacing.inputHeight,
+                                  child: ElevatedButton(
+                                    onPressed: _isLoading ? null : _handleLogin,
+                                    child: _isLoading
+                                        ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                RedesignColors.onActionPrimary,
+                                              ),
+                                            ),
+                                          )
+                                        : Text(
+                                            'Iniciar sesión',
+                                            style: RedesignType.buttonLg.copyWith(
+                                              color:
+                                                  RedesignColors.onActionPrimary,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+
+                          const SizedBox(height: 32),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Spacer para empujar el footer hacia abajo
-                const Spacer(),
-                
-                // Footer text
-                Text(
-                  '© 2026 PRGS',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+                );
+              },
             ),
-                  ),
-                ),
-              );
-            },
           ),
         ),
       ),

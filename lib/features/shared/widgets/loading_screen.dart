@@ -1,85 +1,59 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
 
-/// Loading screen shown during initialization
+import '../../../core/theme/theme_redesign.dart';
+import '../../auth/presentation/widgets/prgs_brand.dart';
+
+/// Splash / loading screen shown during initialization and auth resolution.
 class LoadingScreen extends StatelessWidget {
   const LoadingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
+      backgroundColor: RedesignColors.background,
+      body: DecoratedBox(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+          gradient: RadialGradient(
+            center: Alignment(0, -0.2),
+            radius: 1.0,
             colors: [
-              AppColors.primary,
-              AppColors.primaryDark,
+              Color(0x1A01D2B2), // subtle teal glow
+              RedesignColors.background,
             ],
+            stops: [0.0, 0.6],
           ),
         ),
         child: SafeArea(
           child: Center(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // App Logo/Icon
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
+                const PrgsLogoLockup(
+                  ringHeight: 124,
+                  wordmarkHeight: 70,
+                  gap: 50,
+                ),
+                const SizedBox(height: 40),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          RedesignColors.actionPrimaryDark,
+                        ),
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.star_rounded,
-                    size: 64,
-                    color: AppColors.primary,
-                  ),
-                ),
-                
-                const SizedBox(height: 32),
-                
-                // App Name
-                const Text(
-                  'NORTH STAR',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 4,
-                  ),
-                ),
-                
-                const SizedBox(height: 8),
-                
-                Text(
-                  'Entrenamiento con propósito',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white.withValues(alpha: 0.8),
-                    letterSpacing: 1,
-                  ),
-                ),
-                
-                const SizedBox(height: 48),
-                
-                // Loading indicator
-                const SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Iniciando sesión',
+                      style: RedesignType.bodySm
+                          .copyWith(color: RedesignColors.primario300),
+                    ),
+                  ],
                 ),
               ],
             ),

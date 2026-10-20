@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../services/student_service.dart';
 import '../trainer/session_detail_screen.dart';
 
-/// Student's own completed workout history (drawer → "Historial de
-/// Entrenamientos"). Tapping a session opens it in edit mode so the athlete can
-/// correct a mis-typed weight/rep after finishing.
+/// Student's own workout history (Entrenar → history button). Tapping a session
+/// opens it in edit mode so the athlete can correct a mis-typed weight/rep.
+/// Completed sessions show a green check; abandoned ones an amber marker.
 final myWorkoutSessionsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   return ref.watch(studentServiceProvider).getMyWorkoutSessions();
@@ -19,37 +19,62 @@ class StudentWorkoutHistoryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessions = ref.watch(myWorkoutSessionsProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Historial de Entrenamientos',
-          style: TextStyle(fontSize: 16),
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: const Icon(Icons.arrow_back, color: Colors.white),
+          ),
+          centerTitle: true,
+          title: const Text(
+            'Historial de Entrenamiento',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Metropolis',
+            ),
+          ),
         ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: sessions.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (list) {
-          if (list.isEmpty) {
-            return Center(
-              child: Text(
-                'Todavía no registraste entrenamientos',
-                style: TextStyle(color: AppColors.textLight),
+        body: sessions.when(
+          loading: () => const Center(
+            child: CircularProgressIndicator(
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(RedesignColors.actionPrimary),
+            ),
+          ),
+          error: (e, _) => Center(
+            child: Text('Error: $e',
+                style: const TextStyle(color: RedesignColors.primario300)),
+          ),
+          data: (list) {
+            if (list.isEmpty) {
+              return const Center(
+                child: Text(
+                  'Todavía no registraste entrenamientos',
+                  style: TextStyle(
+                    color: RedesignColors.primario400,
+                    fontFamily: 'Metropolis',
+                  ),
+                ),
+              );
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 40),
+              itemCount: list.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemBuilder: (context, i) => _SessionCard(
+                session: list[i],
+                onTap: () => _edit(context, ref, list[i]),
               ),
             );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: list.length,
-            itemBuilder: (context, i) => _SessionCard(
-              session: list[i],
-              onTap: () => _edit(context, ref, list[i]),
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -89,113 +114,125 @@ class _SessionCard extends StatelessWidget {
     final dayNumber = session['day_number'] as int?;
     final setsCompleted = session['sets_completed'] as int? ?? 0;
     final durationSeconds = session['duration_seconds'] as int? ?? 0;
+    final isCompleted = session['is_completed'] as bool? ?? false;
     // DB stores UTC; show the phone's local date/time.
     final date = DateTime.parse(
       (session['started_at'] ?? session['created_at']) as String,
     ).toLocal();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    final dateStr = '${date.day}/${date.month}/${date.year}';
+    final timeStr =
+        '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    final mins = durationSeconds ~/ 60;
+    final secs = durationSeconds % 60;
+    final durationStr = '${mins}m ${secs}s';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: RedesignColors.primario700,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            // Status marker
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isCompleted
+                    ? RedesignColors.success
+                    : RedesignColors.advertencia400,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isCompleted ? Icons.check_rounded : Icons.timer_outlined,
+                color: isCompleted ? Colors.white : RedesignColors.primario900,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textLight,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
                   Row(
                     children: [
-                      Icon(Icons.edit_outlined,
-                          color: AppColors.primaryLight, size: 16),
-                      const SizedBox(width: 4),
                       Text(
-                        'Editar',
-                        style: TextStyle(
-                          color: AppColors.primaryLight,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                        dateStr,
+                        style: const TextStyle(
+                          fontFamily: 'Metropolis',
+                          color: RedesignColors.primario50,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        timeStr,
+                        style: const TextStyle(
+                          fontFamily: 'Metropolis',
+                          color: RedesignColors.primario50,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dayNumber != null
+                        ? '$routineName — Día $dayNumber'
+                        : routineName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Metropolis',
+                      color: RedesignColors.primario300,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.timer_outlined,
+                          size: 15, color: RedesignColors.primario400),
+                      const SizedBox(width: 5),
+                      Text(
+                        durationStr,
+                        style: const TextStyle(
+                          fontFamily: 'Metropolis',
+                          color: RedesignColors.primario300,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 18),
+                      const Icon(Icons.repeat_rounded,
+                          size: 15, color: RedesignColors.primario400),
+                      const SizedBox(width: 5),
+                      Text(
+                        '$setsCompleted series',
+                        style: const TextStyle(
+                          fontFamily: 'Metropolis',
+                          color: RedesignColors.primario300,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                dayNumber != null ? '$routineName — Día $dayNumber' : routineName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  _StatBadge(
-                      icon: Icons.repeat_rounded,
-                      text: '$setsCompleted series'),
-                  const SizedBox(width: 20),
-                  _StatBadge(
-                    icon: Icons.timer_rounded,
-                    text: '${(durationSeconds / 60).round()} min',
-                  ),
-                ],
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right_rounded,
+                color: RedesignColors.primario400),
+          ],
         ),
       ),
-    );
-  }
-}
-
-class _StatBadge extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _StatBadge({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 16, color: AppColors.primaryLight),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          text,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            fontSize: 14,
-          ),
-        ),
-      ],
     );
   }
 }

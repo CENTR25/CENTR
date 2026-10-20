@@ -781,11 +781,12 @@ class StudentService {
     final athleteId = await _getAthleteId();
     if (athleteId == null) return [];
 
+    // Includes incomplete (abandoned) sessions so the history screen can flag
+    // them — this is the only consumer of this method.
     final response = await _client
         .from('workout_sessions')
         .select('*, routines(title)')
         .eq('athlete_id', athleteId)
-        .eq('is_completed', true)
         .order('started_at', ascending: false)
         .limit(limit);
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../models/exercise_model.dart';
 import '../../services/exercise_media_service.dart';
 import '../../services/trainer_service.dart';
@@ -95,15 +95,17 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
     final coachComment =
         widget.coachComment ?? widget.exerciseData['comment'] as String?;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+      backgroundColor: RedesignColors.background,
       appBar: AppBar(
         title: Text(
           exercise.name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        backgroundColor: AppColors.background,
+        backgroundColor: RedesignColors.background,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -147,6 +149,7 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -155,15 +158,15 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
       if (ex.bodyPart != null && ex.bodyPart!.isNotEmpty)
         _ChipData(
           label: _translateBodyPart(ex.bodyPart!),
-          color: AppColors.primary,
+          color: RedesignColors.actionPrimary,
         ),
       if (ex.equipment.isNotEmpty)
         _ChipData(
           label: ex.equipment.map(_translateEquipment).join(' / '),
-          color: AppColors.accent,
+          color: RedesignColors.advertencia400,
         ),
       if (ex.target != null && ex.target!.isNotEmpty)
-        _ChipData(label: ex.target!, color: AppColors.success),
+        _ChipData(label: ex.target!, color: RedesignColors.success),
     ];
     return Wrap(
       spacing: 8,
@@ -254,12 +257,12 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
           fit: BoxFit.cover,
           placeholder: (_, __) => Container(
             height: 280,
-            color: AppColors.surface,
+            color: RedesignColors.primario700,
             child: const Center(child: CircularProgressIndicator()),
           ),
           errorWidget: (_, __, ___) => Container(
             height: 280,
-            color: AppColors.surface,
+            color: RedesignColors.primario700,
             child: const Icon(
               Icons.broken_image,
               color: Colors.white54,
@@ -274,7 +277,7 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
       height: 200,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: RedesignColors.primario700,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
@@ -328,11 +331,11 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
 
     return Row(
       children: [
-        stat('$sets', 'Series', AppColors.primaryLight),
+        stat('$sets', 'Series', RedesignColors.secundario300),
         const SizedBox(width: 12),
-        stat(repsTarget, 'Reps', AppColors.accent),
+        stat(repsTarget, 'Reps', RedesignColors.advertencia400),
         const SizedBox(width: 12),
-        stat('${restSeconds}s', 'Descanso', AppColors.warning),
+        stat('${restSeconds}s', 'Descanso', RedesignColors.advertencia400),
       ],
     );
   }
@@ -342,9 +345,9 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.08),
+        color: RedesignColors.advertencia400.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.25)),
+        border: Border.all(color: RedesignColors.advertencia400.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,14 +356,14 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
             children: [
               const Icon(
                 Icons.record_voice_over_rounded,
-                color: AppColors.warning,
+                color: RedesignColors.advertencia400,
                 size: 18,
               ),
               const SizedBox(width: 8),
               const Text(
                 'ACLARACIONES DEL COACH',
                 style: TextStyle(
-                  color: AppColors.warning,
+                  color: RedesignColors.advertencia400,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.0,
@@ -388,7 +391,7 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: RedesignColors.primario700,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
@@ -437,7 +440,7 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
                       width: 24,
                       height: 24,
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
+                        color: RedesignColors.actionPrimary,
                         shape: BoxShape.circle,
                       ),
                       child: Center(

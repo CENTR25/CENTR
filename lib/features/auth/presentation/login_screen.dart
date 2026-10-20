@@ -73,17 +73,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         body: Container(
           width: double.infinity,
           height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(0, -0.75),
-              radius: 1.1,
-              colors: [
-                Color(0x1A01D2B2), // subtle teal glow behind the logo
-                RedesignColors.background,
-              ],
-              stops: [0.0, 0.55],
-            ),
-          ),
+          color: RedesignColors.background, // flat navy fill, matches Figma
           child: SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {

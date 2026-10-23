@@ -715,7 +715,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                             borderRadius: BorderRadius.circular(30)),
                       ),
                       child: const Text(
-                        'Comenzar serie',
+                        'Comenzar descanso',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

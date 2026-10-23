@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../services/auth_service.dart';
 import '../../services/student_service.dart';
+import '../../services/active_workout_service.dart';
 import '../../services/notification_providers.dart';
 import '../../services/news_service.dart';
 import '../../models/news_model.dart';
@@ -14,6 +15,7 @@ import 'student_weight_screen.dart';
 import 'student_check_in_screen.dart';
 import 'student_routine_screen.dart';
 import 'student_recipes_screen.dart';
+import 'workout_session_screen.dart';
 import 'widgets/student_bottom_nav.dart';
 
 class StudentDashboardScreen extends ConsumerWidget {
@@ -108,6 +110,23 @@ class _HomeContent extends ConsumerWidget {
                         );
                       },
                     ),
+                  ),
+
+                  // Entrenamiento en curso card (only while a workout is
+                  // begun but not yet completed)
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final active = ref.watch(activeWorkoutProvider);
+                      if (active == null) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: _hPad),
+                          child: _EntrenamientoEnCursoCard(active: active),
+                        ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 32),
@@ -480,6 +499,123 @@ class _SeguimientoCard extends StatelessWidget {
       'Diciembre',
     ];
     return month >= 1 && month <= 12 ? names[month] : '';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Entrenamiento en curso card — shown while a workout is begun but unfinished.
+// Tapping resumes that day's session.
+// ---------------------------------------------------------------------------
+
+class _EntrenamientoEnCursoCard extends ConsumerWidget {
+  final ActiveWorkout active;
+
+  const _EntrenamientoEnCursoCard({required this.active});
+
+  Future<void> _resume(BuildContext context, WidgetRef ref) async {
+    final routine = await ref.read(activeRoutineProvider.future);
+    final matches =
+        routine != null && routine['id'].toString() == active.routineId;
+
+    final dayExercises = matches
+        ? (((routine['routine_exercises'] as List?) ?? const [])
+            .where((e) => (e['day_number'] as num?)?.toInt() == active.dayNumber)
+            .cast<Map<String, dynamic>>()
+            .toList()
+          ..sort((a, b) => ((a['order_index'] as num?)?.toInt() ?? 0)
+              .compareTo((b['order_index'] as num?)?.toInt() ?? 0)))
+        : <Map<String, dynamic>>[];
+
+    if (!context.mounted) return;
+
+    // Routine changed or day no longer exists — the marker is stale.
+    if (dayExercises.isEmpty) {
+      ref.read(activeWorkoutProvider.notifier).finish();
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WorkoutSessionScreen(
+          routine: routine!,
+          exercises: dayExercises,
+          dayNumber: active.dayNumber,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final name = active.routineName.trim();
+    final subtitle =
+        name.isNotEmpty ? '$name - Día ${active.dayNumber}' : 'Día ${active.dayNumber}';
+
+    return GestureDetector(
+      onTap: () => _resume(context, ref),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+        decoration: BoxDecoration(
+          color: const Color(0x8031363B),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x40000000),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Entrenamiento en curso',
+                    style: RedesignType.label.copyWith(
+                      color: RedesignColors.primario400,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Metropolis',
+                      color: RedesignColors.primario50,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: RedesignColors.secundario500,
+                  width: 2,
+                ),
+              ),
+              child: const Icon(
+                Icons.play_arrow_rounded,
+                color: RedesignColors.secundario500,
+                size: 26,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

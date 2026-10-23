@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../services/student_service.dart';
+import '../../services/active_workout_service.dart';
 import '../../services/notification_service.dart';
 import 'exercise_detail_screen.dart';
 import 'student_workout_history_screen.dart';
@@ -132,6 +133,16 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
 
     _startInitialCountdown();
 
+    // Mark this workout as in progress so the home screen can offer to resume
+    // it until it's completed.
+    ref.read(activeWorkoutProvider.notifier).start(
+          ActiveWorkout(
+            routineId: widget.routine['id'].toString(),
+            dayNumber: widget.dayNumber,
+            routineName: (widget.routine['name'] as String?) ?? '',
+          ),
+        );
+
     WidgetsBinding.instance.addObserver(this);
     NotificationService().init();
     _fetchLastSession();
@@ -218,7 +229,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _countdownController.reset();
       _countdownController.forward();
-      _playBeep();
 
       if (_countdownValue > 1) {
         setState(() => _countdownValue--);
@@ -429,6 +439,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       _isCompleted = true;
       _isResting = false;
     });
+
+    // Workout finished — clear the in-progress marker so the home card hides.
+    ref.read(activeWorkoutProvider.notifier).finish();
 
     _saveWorkoutData(isCompleted: true);
   }

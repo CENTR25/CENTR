@@ -808,24 +808,6 @@ class StudentService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// Student correction of their own session's recorded weights/reps.
-  /// Mirrors TrainerService.updateSessionLogs but RLS-scoped to the athlete.
-  Future<void> updateMyWorkoutSession({
-    required String sessionId,
-    required Map<String, Map<String, num>> setLogs,
-    required Map<String, Map<String, num>> repsLogs,
-    required int setsCompleted,
-  }) async {
-    await _client
-        .from('workout_sessions')
-        .update({
-          'set_logs': setLogs,
-          'reps_logs': repsLogs,
-          'sets_completed': setsCompleted,
-        })
-        .eq('id', sessionId);
-  }
-
   // ==================== MEAL COMPLETIONS ====================
 
   String get _todayDateStr {

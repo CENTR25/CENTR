@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/trainer_service.dart';
-import '../../services/student_service.dart';
 
 /// Trainer view/edit of a single workout session's per-exercise weights & reps.
 ///
@@ -22,11 +21,6 @@ class SessionDetailScreen extends ConsumerStatefulWidget {
   final int dayNumber;
   final String routineTitle;
 
-  /// When true, the athlete is editing their own session: save goes through
-  /// StudentService (RLS-scoped) instead of TrainerService. Student edit is
-  /// always on an existing session, never the new in-person flow.
-  final bool isStudentEdit;
-
   const SessionDetailScreen({
     super.key,
     this.session,
@@ -34,7 +28,6 @@ class SessionDetailScreen extends ConsumerStatefulWidget {
     required this.routineId,
     required this.dayNumber,
     required this.routineTitle,
-    this.isStudentEdit = false,
   });
 
   @override
@@ -172,13 +165,6 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
           athleteId: widget.athleteId,
           routineId: widget.routineId,
           dayNumber: widget.dayNumber,
-          setLogs: setLogs,
-          repsLogs: repsLogs,
-          setsCompleted: setsCompleted,
-        );
-      } else if (widget.isStudentEdit) {
-        await ref.read(studentServiceProvider).updateMyWorkoutSession(
-          sessionId: widget.session!['id'] as String,
           setLogs: setLogs,
           repsLogs: repsLogs,
           setsCompleted: setsCompleted,

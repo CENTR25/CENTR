@@ -183,6 +183,10 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
             _restSecondsRemaining = corrected;
           });
         }
+      } else if (mounted) {
+        // Not resting: refresh the elapsed-time display right away so it
+        // reflects time spent in the background instead of lagging a tick.
+        setState(() {});
       }
     }
   }
@@ -492,12 +496,22 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   Widget build(BuildContext context) {
     return Theme(
       data: RedesignTheme.theme,
-      child: Builder(builder: (context) {
-        if (_isCountingDown) return _buildCountdownView();
-        if (_isCompleted) return _buildSummaryView();
-        if (_isResting) return _buildRestView();
-        return _buildExerciseView();
-      }),
+      // While a workout is live, disable the iOS swipe-back / system-back so it
+      // can't silently cut the session. Exiting goes through the X button, which
+      // asks for confirmation. Once completed, the summary pops normally.
+      child: PopScope(
+        canPop: _isCompleted,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          _showExitDialog();
+        },
+        child: Builder(builder: (context) {
+          if (_isCountingDown) return _buildCountdownView();
+          if (_isCompleted) return _buildSummaryView();
+          if (_isResting) return _buildRestView();
+          return _buildExerciseView();
+        }),
+      ),
     );
   }
 

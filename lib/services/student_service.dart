@@ -793,6 +793,21 @@ class StudentService {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  /// Ordered exercises (name + target sets) for a routine's day — used to label
+  /// a session's recorded series in the read-only history view.
+  Future<List<Map<String, dynamic>>> getSessionExercises(
+    String routineId,
+    int dayNumber,
+  ) async {
+    final response = await _client
+        .from('routine_exercises')
+        .select('sets, order_index, exercises(name)')
+        .eq('routine_id', routineId)
+        .eq('day_number', dayNumber)
+        .order('order_index', ascending: true);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
   /// Student correction of their own session's recorded weights/reps.
   /// Mirrors TrainerService.updateSessionLogs but RLS-scoped to the athlete.
   Future<void> updateMyWorkoutSession({

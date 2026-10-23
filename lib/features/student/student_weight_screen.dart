@@ -164,6 +164,8 @@ class _StudentWeightScreenState extends ConsumerState<StudentWeightScreen> {
                       height: 1.0,
                     ),
                     decoration: const InputDecoration(
+                      // No themed pill behind the number — matches Figma.
+                      filled: false,
                       isCollapsed: true,
                       border: InputBorder.none,
                       hintText: '0.0',
@@ -516,10 +518,96 @@ class _HistoryCardState extends State<_HistoryCard> {
           ],
           const SizedBox(height: 20),
           SizedBox(height: 160, child: _buildChart(filtered)),
+          if (filtered.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+            const SizedBox(height: 12),
+            const Text(
+              'Registros',
+              style: TextStyle(
+                color: RedesignColors.primario300,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Metropolis',
+              ),
+            ),
+            const SizedBox(height: 6),
+            _buildRecordList(filtered),
+          ],
         ],
       ),
     );
   }
+
+  /// A newest-first list of each individual weight recording: date, value and
+  /// the delta versus the previous (older) entry.
+  Widget _buildRecordList(List<Map<String, dynamic>> data) {
+    // data is oldest-first; render newest-first.
+    final rows = <Widget>[];
+    for (var i = data.length - 1; i >= 0; i--) {
+      final w = _weight(data[i]);
+      if (w == null) continue;
+      final d = _entryDate(data[i]);
+      final prev = i > 0 ? _weight(data[i - 1]) : null;
+      final delta = prev != null ? w - prev : null;
+      rows.add(_recordRow(d, w, delta));
+    }
+    return Column(children: rows);
+  }
+
+  Widget _recordRow(DateTime? date, double weight, double? delta) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              date != null ? _longDate(date) : '-',
+              style: const TextStyle(
+                color: RedesignColors.primario300,
+                fontSize: 14,
+                fontFamily: 'Metropolis',
+              ),
+            ),
+          ),
+          if (delta != null && delta != 0) ...[
+            Text(
+              _fmtDelta(delta),
+              style: const TextStyle(
+                color: RedesignColors.primario400,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'Metropolis',
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Text(
+            weight.toStringAsFixed(1),
+            style: const TextStyle(
+              color: RedesignColors.primario50,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Metropolis',
+            ),
+          ),
+          const SizedBox(width: 3),
+          const Text(
+            'kg',
+            style: TextStyle(
+              color: RedesignColors.primario400,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              fontFamily: 'Metropolis',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _longDate(DateTime d) =>
+      '${d.day} ${_monthAbbr[d.month - 1]} ${d.year}';
 
   String _fmtDelta(double d) {
     final s = d.abs().toStringAsFixed(1).replaceAll('.', ',');

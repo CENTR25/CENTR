@@ -13,8 +13,10 @@ import '../shared/notifications_sheet.dart';
 import 'student_meal_plan_screen.dart';
 import 'student_weight_screen.dart';
 import 'student_check_in_screen.dart';
+import 'student_check_in_history_screen.dart';
 import 'student_routine_screen.dart';
 import 'student_recipes_screen.dart';
+import 'required_reading_screen.dart';
 import 'workout_session_screen.dart';
 import 'widgets/student_bottom_nav.dart';
 
@@ -345,31 +347,197 @@ class _Header extends StatelessWidget {
 
         const SizedBox(width: 10),
 
-        // Circular avatar with teal ring
-        Container(
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: RedesignColors.secundario500,
-              width: 2,
+        // Circular avatar with teal ring — tap opens side menu
+        GestureDetector(
+          onTap: () => _showMenuSheet(context),
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: RedesignColors.secundario500,
+                width: 2,
+              ),
             ),
-          ),
-          child: CircleAvatar(
-            radius: 18,
-            backgroundColor: RedesignColors.primario800,
-            child: Text(
-              initial,
-              style: const TextStyle(
-                fontFamily: 'Metropolis',
-                color: RedesignColors.primario50,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: RedesignColors.primario800,
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  fontFamily: 'Metropolis',
+                  color: RedesignColors.primario50,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  void _showMenuSheet(BuildContext context) {
+    final reading = ref.read(trainerRequiredReadingProvider).valueOrNull;
+    final hasReading =
+        reading != null && (reading.content?.trim().isNotEmpty ?? false);
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: RedesignColors.primario800,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            // Historial de Check-ins
+            _MenuItem(
+              icon: Icons.camera_alt_rounded,
+              label: 'Historial de Check-ins',
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const StudentCheckInHistoryScreen(),
+                  ),
+                );
+              },
+            ),
+            // Lectura Obligatoria — only when the trainer has set content
+            if (hasReading)
+              _MenuItem(
+                icon: Icons.visibility_outlined,
+                label: 'Lectura Obligatoria',
+                onTap: () {
+                  final content = ref
+                      .read(trainerRequiredReadingProvider)
+                      .valueOrNull
+                      ?.content;
+                  Navigator.pop(ctx);
+                  if (content != null && content.trim().isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            RequiredReadingScreen(content: content),
+                      ),
+                    );
+                  }
+                },
+              ),
+            const Divider(color: Colors.white10, height: 1),
+            // Cerrar Sesión
+            _MenuItem(
+              icon: Icons.logout_rounded,
+              label: 'Cerrar Sesión',
+              color: Colors.redAccent,
+              onTap: () async {
+                Navigator.pop(ctx);
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (dialogCtx) => AlertDialog(
+                    backgroundColor: RedesignColors.primario800,
+                    title: const Text(
+                      '¿Cerrar sesión?',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    content: const Text(
+                      '¿Estás seguro de que querés salir?',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogCtx, false),
+                        child: const Text(
+                          'Cancelar',
+                          style: TextStyle(color: Colors.white54),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogCtx, true),
+                        child: const Text(
+                          'Salir',
+                          style: TextStyle(color: Colors.redAccent),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await ref.read(authProvider.notifier).signOut();
+                }
+              },
+            ),
+            // Safe-area clearance
+            SizedBox(
+              height: MediaQuery.of(context).padding.bottom + 12,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Menu item used inside _Header's bottom sheet
+// ---------------------------------------------------------------------------
+
+class _MenuItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? color;
+
+  const _MenuItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? RedesignColors.primario50;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Row(
+          children: [
+            Icon(icon, color: c, size: 22),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Metropolis',
+                color: c,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

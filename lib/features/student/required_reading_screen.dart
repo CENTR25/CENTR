@@ -49,8 +49,8 @@ class RequiredReadingScreen extends ConsumerWidget {
               const SizedBox(height: 16),
             ],
             Text(
-              'Podés volver a leer esta información cuando quieras desde el '
-              'menú (ícono ☰ arriba a la derecha) → Lectura Obligatoria.',
+              'Podés volver a leer esta información cuando quieras tocando '
+              'tu avatar (arriba a la derecha) → Lectura Obligatoria.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.5),

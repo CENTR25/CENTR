@@ -444,6 +444,17 @@ class _Header extends StatelessWidget {
                   }
                 },
               ),
+            // Configuración
+            _MenuItem(
+              icon: Icons.settings_outlined,
+              label: 'Configuración',
+              onTap: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Configuración próximamente')),
+                );
+              },
+            ),
             const Divider(color: Colors.white10, height: 1),
             // Cerrar Sesión
             _MenuItem(

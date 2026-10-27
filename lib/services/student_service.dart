@@ -337,6 +337,85 @@ class StudentService {
     await _client.from('athletes').update({'name': name}).eq('user_id', userId);
   }
 
+  /// The athlete's own profile ("Mi perfil"): editable fields on the athletes
+  /// row plus the latest tracked weight and the trainer's name.
+  Future<Map<String, dynamic>?> getMyProfile() async {
+    final userId = currentUserId;
+    if (userId == null) return null;
+
+    final athlete = await _client
+        .from('athletes')
+        .select(
+            'id, name, height_cm, goal, age, training_level, injuries, phone, avatar_url, trainer_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+    if (athlete == null) return null;
+
+    // Latest recorded body weight (Peso) — tracked in body_progress.
+    final weightRow = await _client
+        .from('body_progress')
+        .select('body_weight')
+        .eq('athlete_id', athlete['id'])
+        .not('body_weight', 'is', null)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    // Trainer name for the "Mi entrenador" section.
+    String? trainerName;
+    final trainerId = athlete['trainer_id'] as String?;
+    if (trainerId != null) {
+      final trainer = await _client
+          .from('trainers')
+          .select('name')
+          .eq('id', trainerId)
+          .maybeSingle();
+      trainerName = trainer?['name'] as String?;
+    }
+
+    return {
+      ...athlete,
+      'weight': (weightRow?['body_weight'] as num?)?.toDouble(),
+      'trainer_name': trainerName,
+    };
+  }
+
+  /// Update the athlete's own profile. Weight is routed through [logMetrics] so
+  /// it stays the single source of truth (body_progress history + chart).
+  Future<void> updateMyProfile({
+    String? name,
+    double? heightCm,
+    int? age,
+    String? goal,
+    String? trainingLevel,
+    String? injuries,
+    String? phone,
+    String? avatarUrl,
+    double? weight,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('No user logged in');
+
+    final update = <String, dynamic>{};
+    if (name != null) update['name'] = name;
+    if (heightCm != null) update['height_cm'] = heightCm;
+    if (age != null) update['age'] = age;
+    if (goal != null) update['goal'] = goal;
+    if (trainingLevel != null) update['training_level'] = trainingLevel;
+    if (injuries != null) update['injuries'] = injuries;
+    if (phone != null) update['phone'] = phone;
+    if (avatarUrl != null) update['avatar_url'] = avatarUrl;
+
+    if (update.isNotEmpty) {
+      update['updated_at'] = DateTime.now().toUtc().toIso8601String();
+      await _client.from('athletes').update(update).eq('user_id', userId);
+    }
+
+    if (weight != null) {
+      await logMetrics(weight: weight);
+    }
+  }
+
   /// Perform a check-in
   Future<void> performCheckIn({
     required File photo,
@@ -1044,6 +1123,13 @@ final trainerRequiredReadingProvider =
     FutureProvider<({String? content, bool accepted})>((ref) async {
   final service = ref.read(studentServiceProvider);
   return service.getTrainerRequiredReading();
+});
+
+/// Provider for the athlete's own profile ("Mi perfil").
+final myAthleteProfileProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+  final service = ref.read(studentServiceProvider);
+  return service.getMyProfile();
 });
 
 /// Provider for student's active routine

@@ -572,8 +572,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
 
   Future<void> _saveIncompleteWorkout() async {
     _saveWorkoutData(isCompleted: false);
-    // Athlete explicitly abandoned — drop the draft so it doesn't offer to
-    // resume a session they chose to end.
+    // Athlete explicitly abandoned — clear both the in-progress marker and the
+    // draft so the home card hides and the session can't be resumed.
+    ref.read(activeWorkoutProvider.notifier).finish();
     unawaited(_draftService.clear(_routineId, widget.dayNumber));
   }
 

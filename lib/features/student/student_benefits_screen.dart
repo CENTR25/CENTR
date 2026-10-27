@@ -17,11 +17,12 @@ class StudentBenefitsScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
+          // Left-aligned title (matches Figma — title is NOT centred)
+          centerTitle: false,
           leading: GestureDetector(
             onTap: () => Navigator.pop(context),
             child: const Icon(Icons.arrow_back, color: Colors.white),
           ),
-          centerTitle: true,
           title: const Text(
             'Beneficios',
             style: TextStyle(
@@ -31,6 +32,12 @@ class StudentBenefitsScreen extends StatelessWidget {
               fontFamily: 'Metropolis',
             ),
           ),
+          actions: const [
+            Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Icon(Icons.grid_view_rounded, color: Colors.white, size: 22),
+            ),
+          ],
         ),
         body: const BenefitsContent(),
       ),

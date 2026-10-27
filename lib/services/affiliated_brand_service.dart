@@ -12,7 +12,8 @@ class AffiliatedBrandService {
 
   static const _columns =
       'id, name, discount_code, banner_text, website_url, instagram_url, '
-      'logo_url, is_active, display_order, benefit_description, created_at, updated_at';
+      'logo_url, is_active, display_order, benefit_description, '
+      'category, discount_label, created_at, updated_at';
 
   /// Active brands (students).
   Future<List<AffiliatedBrand>> getActiveBrands() async {
@@ -61,6 +62,8 @@ class AffiliatedBrandService {
     bool isActive = true,
     int displayOrder = 0,
     String? benefitDescription,
+    String? category,
+    String? discountLabel,
   }) async {
     try {
       final response = await _client
@@ -75,6 +78,8 @@ class AffiliatedBrandService {
             'is_active': isActive,
             'display_order': displayOrder,
             'benefit_description': benefitDescription,
+            'category': category,
+            'discount_label': discountLabel,
           })
           .select(_columns)
           .single();
@@ -97,6 +102,8 @@ class AffiliatedBrandService {
     bool? isActive,
     int? displayOrder,
     String? benefitDescription,
+    String? category,
+    String? discountLabel,
   }) async {
     try {
       final updates = <String, dynamic>{
@@ -112,6 +119,8 @@ class AffiliatedBrandService {
       updates['instagram_url'] = instagramUrl;
       updates['logo_url'] = logoUrl;
       updates['benefit_description'] = benefitDescription;
+      updates['category'] = category;
+      updates['discount_label'] = discountLabel;
       if (isActive != null) updates['is_active'] = isActive;
       if (displayOrder != null) updates['display_order'] = displayOrder;
 

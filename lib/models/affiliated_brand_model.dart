@@ -10,6 +10,10 @@ class AffiliatedBrand {
   final bool isActive;
   final int displayOrder;
   final String? benefitDescription;
+  /// Category slug: 'ropa' | 'nutricion' | 'salud' | null (uncategorised).
+  final String? category;
+  /// Free-text discount headline, e.g. "15% OFF", "2x1", "Envío gratis".
+  final String? discountLabel;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -24,6 +28,8 @@ class AffiliatedBrand {
     this.isActive = true,
     this.displayOrder = 0,
     this.benefitDescription,
+    this.category,
+    this.discountLabel,
     this.createdAt,
     this.updatedAt,
   });
@@ -61,6 +67,8 @@ class AffiliatedBrand {
       isActive: (json['is_active'] as bool?) ?? true,
       displayOrder: (json['display_order'] as num?)?.toInt() ?? 0,
       benefitDescription: asStr(json['benefit_description']),
+      category: asStr(json['category']),
+      discountLabel: asStr(json['discount_label']),
       createdAt: asDate(json['created_at']),
       updatedAt: asDate(json['updated_at']),
     );
@@ -76,6 +84,8 @@ class AffiliatedBrand {
     bool? isActive,
     int? displayOrder,
     String? benefitDescription,
+    String? category,
+    String? discountLabel,
   }) {
     return AffiliatedBrand(
       id: id,
@@ -88,6 +98,8 @@ class AffiliatedBrand {
       isActive: isActive ?? this.isActive,
       displayOrder: displayOrder ?? this.displayOrder,
       benefitDescription: benefitDescription ?? this.benefitDescription,
+      category: category ?? this.category,
+      discountLabel: discountLabel ?? this.discountLabel,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

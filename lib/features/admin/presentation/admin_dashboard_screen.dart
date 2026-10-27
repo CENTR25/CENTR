@@ -1375,6 +1375,8 @@ class _BrandsView extends ConsumerWidget {
             isActive: !brand.isActive,
             displayOrder: brand.displayOrder,
             benefitDescription: brand.benefitDescription,
+            category: brand.category,
+            discountLabel: brand.discountLabel,
           );
           ref.invalidate(allBrandsProvider);
           ref.invalidate(activeBrandsProvider);
@@ -1433,6 +1435,10 @@ class _BrandSheet extends ConsumerStatefulWidget {
   ConsumerState<_BrandSheet> createState() => _BrandSheetState();
 }
 
+// Category options for the brand form dropdown.
+const _kBrandCategories = <String?>['ropa', 'nutricion', 'salud'];
+const _kCategoryLabels = <String?>['Ropa', 'Nutrición', 'Salud'];
+
 class _BrandSheetState extends ConsumerState<_BrandSheet> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
@@ -1442,6 +1448,8 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
   late TextEditingController _instagramController;
   late TextEditingController _logoController;
   late TextEditingController _benefitDescController;
+  late TextEditingController _discountLabelController;
+  String? _selectedCategory; // null = no category
   bool _isActive = true;
   bool _isLoading = false;
   bool _isUploadingLogo = false;
@@ -1499,6 +1507,9 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
     _logoController = TextEditingController(text: b?.logoUrl ?? '');
     _benefitDescController =
         TextEditingController(text: b?.benefitDescription ?? '');
+    _discountLabelController =
+        TextEditingController(text: b?.discountLabel ?? '');
+    _selectedCategory = b?.category;
     _isActive = b?.isActive ?? true;
   }
 
@@ -1511,6 +1522,7 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
     _instagramController.dispose();
     _logoController.dispose();
     _benefitDescController.dispose();
+    _discountLabelController.dispose();
     super.dispose();
   }
 
@@ -1555,6 +1567,8 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
           isActive: _isActive,
           displayOrder: widget.brand!.displayOrder,
           benefitDescription: _clean(_benefitDescController),
+          category: _selectedCategory,
+          discountLabel: _clean(_discountLabelController),
         );
       } else {
         await service.createBrand(
@@ -1566,6 +1580,8 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
           logoUrl: _clean(_logoController),
           isActive: _isActive,
           benefitDescription: _clean(_benefitDescController),
+          category: _selectedCategory,
+          discountLabel: _clean(_discountLabelController),
         );
       }
 
@@ -1682,12 +1698,45 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
               TextFormField(
                 controller: _benefitDescController,
                 decoration: const InputDecoration(
-                  labelText: 'Beneficio (chip destacado, opcional)',
+                  labelText: 'Descripción del beneficio (opcional)',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.redeem_rounded),
-                  helperText: 'Ej: 15% OFF en toda la tienda',
+                  helperText: 'Ej: 15% OFF en toda la tienda online',
                 ),
                 maxLines: 1,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _discountLabelController,
+                decoration: const InputDecoration(
+                  labelText: 'Etiqueta de descuento (titular de la card)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.percent_rounded),
+                  helperText: 'Ej: 15% OFF  /  2x1  /  Envío gratis',
+                ),
+                maxLines: 1,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String?>(
+                // ignore: deprecated_member_use
+                value: _selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: 'Categoría (opcional)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Sin categoría'),
+                  ),
+                  for (var i = 0; i < _kBrandCategories.length; i++)
+                    DropdownMenuItem<String?>(
+                      value: _kBrandCategories[i],
+                      child: Text(_kCategoryLabels[i]!),
+                    ),
+                ],
+                onChanged: (v) => setState(() => _selectedCategory = v),
               ),
               const SizedBox(height: 16),
               TextFormField(

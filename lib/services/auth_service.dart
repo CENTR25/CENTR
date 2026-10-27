@@ -240,15 +240,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Sign out
   Future<void> signOut() async {
+    // gotrue clears the local session and emits `signedOut` BEFORE it fires
+    // the network `/logout` request. On web that request can fail with a
+    // non-AuthException (e.g. a CORS/network `ClientException`) which gotrue
+    // does not catch and rethrows — but by then the user is already signed out
+    // locally. So a failed logout call must never keep us authenticated:
+    // swallow any error and always force the unauthenticated state so the
+    // router redirects to /login.
     try {
-      await _client.auth.signOut();
-      // Drop any local workout drafts so they can't surface for the next
-      // account on a shared device.
-      await WorkoutDraftService().clearAll();
-      state = const AuthState(status: AuthStatus.unauthenticated);
+      await _client.auth.signOut(scope: SignOutScope.local);
     } catch (e) {
-      state = state.copyWith(errorMessage: 'Error al cerrar sesión');
+      debugPrint('signOut: ignoring error from auth.signOut: $e');
     }
+    // Drop any local workout drafts so they can't surface for the next
+    // account on a shared device.
+    try {
+      await WorkoutDraftService().clearAll();
+    } catch (e) {
+      debugPrint('signOut: ignoring error clearing drafts: $e');
+    }
+    state = const AuthState(status: AuthStatus.unauthenticated);
   }
 
   /// Reset password

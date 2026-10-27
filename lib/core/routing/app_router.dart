@@ -83,7 +83,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       // location is '/' (splash) so the user naturally waits there. If auth
       // resolves while the user is already inside the app we must not redirect
       // them away — doing so causes the swipe-back loading-screen flash.
-      if (isLoading || isProfileLoading) return null;
+      if (isLoading || isProfileLoading) {
+        // Exception: a COLD boot / deep link where we don't yet know who the
+        // user is. Returning null here would render whatever role route the
+        // URL points at (e.g. /trainer typed by a student) before the role
+        // gate below can run — flashing another role's dashboard for a second
+        // until auth resolves. Park on the splash loader instead until we know
+        // the role. Once we have a (possibly stale) user we keep returning
+        // null so an in-app background reload doesn't flash the loader.
+        if (authState.user == null && !isSplash && !isLoginRoute) {
+          return AppRoutes.splash;
+        }
+        return null;
+      }
 
       // Not authenticated
       if (!isAuthenticated) {
@@ -97,6 +109,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (isLoginRoute || isSplash) {
         final studentSetup = _studentSetupRoute(authState.user);
         if (studentSetup != null) return studentSetup;
+        return _getDashboardRoute(authState.user?.role);
+      }
+
+      // Role-based access control: a user may only enter routes that belong to
+      // their own role. Typing another role's URL (e.g. a student opening
+      // /trainer or /admin) bounces them back to their own dashboard. The data
+      // behind those screens is already protected by RLS, but the UI must not
+      // be reachable at all.
+      final allowedPrefix = _roleRoutePrefix(authState.user?.role);
+      if (allowedPrefix != null &&
+          !state.matchedLocation.startsWith(allowedPrefix)) {
         return _getDashboardRoute(authState.user?.role);
       }
 
@@ -215,6 +238,23 @@ String? _studentSetupRoute(UserModel? user) {
   if (!user.hasCompletedOnboarding) return AppRoutes.studentOnboarding;
   if (!user.hasCompletedIntake) return AppRoutes.studentIntake;
   return null;
+}
+
+/// The route-path prefix a given role is allowed to access. Each role's screens
+/// live under a distinct prefix (`/admin`, `/trainer`, `/student`), so this
+/// doubles as the access-control boundary for the router. Returns null for an
+/// unknown role, in which case no prefix gate is applied.
+String? _roleRoutePrefix(UserRole? role) {
+  switch (role) {
+    case UserRole.admin:
+      return '/admin';
+    case UserRole.trainer:
+      return '/trainer';
+    case UserRole.student:
+      return '/student';
+    default:
+      return null;
+  }
 }
 
 /// Get dashboard route based on user role

@@ -10,7 +10,7 @@ import '../../services/student_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/supabase_service.dart';
 import 'student_check_in_history_screen.dart';
-import 'student_routine_screen.dart';
+import 'student_training_nav.dart';
 import 'student_meal_plan_screen.dart';
 import 'widgets/student_bottom_nav.dart';
 
@@ -200,12 +200,7 @@ class _StudentCheckInScreenState extends ConsumerState<StudentCheckInScreen> {
           active: StudentNavTab.inicio,
           onInicioTap: () =>
               Navigator.popUntil(context, (r) => r.isFirst),
-          onEntrenarTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const StudentRoutineScreen(),
-            ),
-          ),
+          onEntrenarTap: () => openTraining(context, ref),
           onNutricionTap: () => Navigator.push(
             context,
             MaterialPageRoute(

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/meal_times.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../services/student_service.dart';
-import 'student_routine_screen.dart';
+import 'student_training_nav.dart';
 import 'widgets/student_bottom_nav.dart';
 
 /// Student "Mi plan alimenticio" — PRGS navy/teal redesign (Figma 291:2478 /
@@ -40,13 +40,7 @@ class _StudentMealPlanScreenState
           active: StudentNavTab.nutricion,
           onInicioTap: () =>
               Navigator.of(context).popUntil((r) => r.isFirst),
-          onEntrenarTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const StudentRoutineScreen(),
-              fullscreenDialog: true,
-            ),
-          ),
+          onEntrenarTap: () => openTraining(context, ref),
           onNutricionTap: () {},
         ),
         body: planAsync.when(

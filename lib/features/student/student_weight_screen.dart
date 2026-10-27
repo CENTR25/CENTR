@@ -6,7 +6,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../services/student_service.dart';
 import 'student_meal_plan_screen.dart';
-import 'student_routine_screen.dart';
+import 'student_training_nav.dart';
 import 'widgets/student_bottom_nav.dart';
 
 const _monthAbbr = [
@@ -99,13 +99,7 @@ class _StudentWeightScreenState extends ConsumerState<StudentWeightScreen> {
         bottomNavigationBar: StudentBottomNav(
           active: StudentNavTab.inicio,
           onInicioTap: () => Navigator.popUntil(context, (r) => r.isFirst),
-          onEntrenarTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const StudentRoutineScreen(),
-              fullscreenDialog: true,
-            ),
-          ),
+          onEntrenarTap: () => openTraining(context, ref),
           onNutricionTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const StudentMealPlanScreen()),

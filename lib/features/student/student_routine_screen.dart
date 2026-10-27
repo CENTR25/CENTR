@@ -10,6 +10,15 @@ import 'widgets/student_bottom_nav.dart';
 import 'workout_session_screen.dart';
 
 const _weekdayAbbr = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const _weekdayFull = [
+  'lunes',
+  'martes',
+  'miércoles',
+  'jueves',
+  'viernes',
+  'sábado',
+  'domingo',
+];
 
 /// Student "Entrenar" — PRGS navy/teal redesign (Figma). Weekday pills, one
 /// exercise card with numbered rows, amber cardio banner, estimated duration,
@@ -41,12 +50,102 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
   }
 
   Future<bool?> _confirmOtherDay(BuildContext context, int dayNumber) {
-    return _confirmDialog(
-      context,
-      title: 'Entrenar otro día',
-      message:
-          'Estás por entrenar el Día $dayNumber fuera de orden. ¿Querés continuar de todos modos?',
-      confirmLabel: 'Continuar',
+    final tapped = _weekdayFull[(dayNumber - 1).clamp(0, 6)];
+    final today = _weekdayFull[(DateTime.now().weekday - 1).clamp(0, 6)];
+
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => Theme(
+        data: RedesignTheme.theme,
+        child: Dialog(
+          backgroundColor: RedesignColors.primario800,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 36),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '¿Entrenar el día $tapped?',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Metropolis',
+                    color: RedesignColors.secundario300,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    style: const TextStyle(
+                      fontFamily: 'Metropolis',
+                      color: RedesignColors.primario300,
+                      fontSize: 15,
+                      height: 1.45,
+                    ),
+                    children: [
+                      const TextSpan(text: 'Te toca el día '),
+                      TextSpan(
+                        text: today,
+                        style: const TextStyle(
+                          color: RedesignColors.primario50,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      TextSpan(
+                        text:
+                            '.\nSi hacés el $tapped ahora, el día $today quedará pendiente.',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 26),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text(
+                        'Cancelar',
+                        style: TextStyle(
+                          fontFamily: 'Metropolis',
+                          color: RedesignColors.primario50,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: RedesignColors.actionPrimary,
+                        foregroundColor: RedesignColors.onActionPrimary,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 22, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30)),
+                      ),
+                      child: Text(
+                        'Entrenar $tapped',
+                        style: const TextStyle(
+                          fontFamily: 'Metropolis',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -483,12 +582,12 @@ class _CardioBanner extends StatelessWidget {
           Container(
             width: 44,
             height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.35),
+            decoration: const BoxDecoration(
+              color: RedesignColors.advertencia300, // cardio icon bg
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.directions_run_rounded,
-                color: RedesignColors.primario900, size: 24),
+                color: RedesignColors.advertencia900, size: 24),
           ),
           const SizedBox(width: 14),
           Expanded(

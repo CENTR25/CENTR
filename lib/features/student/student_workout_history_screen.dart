@@ -111,8 +111,6 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
   Widget build(BuildContext context) {
     final session = widget.session;
     final isCompleted = session['is_completed'] as bool? ?? false;
-    final routineName = session['routines']?['title'] ?? 'Rutina';
-    final dayNumber = (session['day_number'] as num?)?.toInt();
     final setsCompleted = (session['sets_completed'] as num?)?.toInt() ?? 0;
     final durationSeconds =
         (session['duration_seconds'] as num?)?.toInt() ?? 0;
@@ -129,6 +127,12 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
       decoration: BoxDecoration(
         color: RedesignColors.primario700,
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isCompleted
+              ? RedesignColors.success.withValues(alpha: 0.45)
+              : RedesignColors.primario600,
+          width: 1,
+        ),
       ),
       child: Column(
         children: [
@@ -140,21 +144,21 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
               padding: const EdgeInsets.all(18),
               child: Row(
                 children: [
-                  // Status marker
+                  // Status marker — green check (completed) / brown timer (abandoned)
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
                       color: isCompleted
                           ? RedesignColors.success
-                          : RedesignColors.advertencia400,
+                          : RedesignColors.advertencia600,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       isCompleted ? Icons.check_rounded : Icons.timer_outlined,
                       color: isCompleted
                           ? Colors.white
-                          : RedesignColors.primario900,
+                          : RedesignColors.advertencia900,
                       size: 22,
                     ),
                   ),
@@ -170,7 +174,7 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
                               style: const TextStyle(
                                 fontFamily: 'Metropolis',
                                 color: RedesignColors.primario50,
-                                fontSize: 16,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -180,29 +184,16 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
                               style: const TextStyle(
                                 fontFamily: 'Metropolis',
                                 color: RedesignColors.primario50,
-                                fontSize: 16,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          dayNumber != null
-                              ? '$routineName — Día $dayNumber'
-                              : routineName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontFamily: 'Metropolis',
-                            color: RedesignColors.primario300,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         Row(
                           children: [
-                            const Icon(Icons.timer_outlined,
+                            const Icon(Icons.access_time_rounded,
                                 size: 15, color: RedesignColors.primario400),
                             const SizedBox(width: 5),
                             Text(
@@ -214,10 +205,7 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            const SizedBox(width: 18),
-                            const Icon(Icons.repeat_rounded,
-                                size: 15, color: RedesignColors.primario400),
-                            const SizedBox(width: 5),
+                            const Spacer(),
                             Text(
                               '$setsCompleted series',
                               style: const TextStyle(
@@ -232,7 +220,7 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12),
                   AnimatedRotation(
                     turns: _expanded ? 0.5 : 0,
                     duration: const Duration(milliseconds: 200),
@@ -284,6 +272,8 @@ class _ExpandedDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final setLogs = session['set_logs'] as Map<String, dynamic>? ?? const {};
     final repsLogs = session['reps_logs'] as Map<String, dynamic>? ?? const {};
+    final routineName = session['routines']?['title'] as String? ?? 'Rutina';
+    final dayNumber = (session['day_number'] as num?)?.toInt();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
@@ -292,6 +282,18 @@ class _ExpandedDetail extends StatelessWidget {
         children: [
           const Divider(height: 1, color: RedesignColors.primario600),
           const SizedBox(height: 14),
+          Text(
+            dayNumber != null ? '$routineName — Día $dayNumber' : routineName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: 'Metropolis',
+              color: RedesignColors.secundario300,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
           if (setLogs.isEmpty)
             const Text(
               'Sin series registradas',

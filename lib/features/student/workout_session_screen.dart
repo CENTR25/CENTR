@@ -6,6 +6,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../services/student_service.dart';
 import '../../services/active_workout_service.dart';
+import '../../services/workout_draft_service.dart';
 import '../../services/notification_service.dart';
 import 'exercise_detail_screen.dart';
 import 'student_workout_history_screen.dart';
@@ -102,6 +103,10 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   final Map<int, Map<int, double>> _recordedWeights = {}; // ex -> {set -> kg}
   final Map<int, Map<int, int>> _recordedReps = {}; // ex -> {set -> reps}
 
+  // Local draft persistence — survives the OS killing the app mid-workout.
+  final WorkoutDraftService _draftService = WorkoutDraftService();
+  String get _routineId => widget.routine['id'].toString();
+
   // History
   List<Map<String, dynamic>> _recentSessions = [];
   bool _isLoadingHistory = true;
@@ -146,6 +151,72 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     WidgetsBinding.instance.addObserver(this);
     NotificationService().init();
     _fetchLastSession();
+    _restoreDraft();
+  }
+
+  /// Restore an in-progress draft left behind when the OS killed the app
+  /// mid-workout. Discards drafts that no longer match the routine (trainer
+  /// edited it) or that are stale (> 24 h old).
+  Future<void> _restoreDraft() async {
+    final draft = await _draftService.load(_routineId, widget.dayNumber);
+    if (draft == null || !mounted) return;
+
+    final stale =
+        DateTime.now().difference(draft.savedAt) > const Duration(hours: 24);
+    if (draft.exerciseCount != _orderedExercises.length || stale) {
+      await _draftService.clear(_routineId, widget.dayNumber);
+      return;
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _recordedWeights
+        ..clear()
+        ..addAll(draft.recordedWeights);
+      _recordedReps
+        ..clear()
+        ..addAll(draft.recordedReps);
+      if (draft.visitOrder.length == _orderedExercises.length) {
+        _visitOrder = List<int>.from(draft.visitOrder);
+      }
+      _visitPos = draft.visitPos.clamp(0, _visitOrder.length - 1);
+      _currentExerciseIndex = _visitOrder[_visitPos];
+      _currentSet = draft.currentSet < 1 ? 1 : draft.currentSet;
+      if (draft.startedAt != null) {
+        _startTime = DateTime.tryParse(draft.startedAt!) ?? _startTime;
+      }
+    });
+
+    // Pre-fill the inputs: target/recorded value first, then whatever was
+    // typed but not yet submitted when the app died.
+    _updateWeightController();
+    if (draft.pendingWeight.isNotEmpty) {
+      _weightController.text = draft.pendingWeight;
+    }
+    if (draft.pendingReps.isNotEmpty) {
+      _repsController.text = draft.pendingReps;
+    }
+  }
+
+  /// Persist the current in-progress state so it survives the app being killed.
+  /// Fire-and-forget — SharedPreferences writes are fast and must not block the
+  /// UI or the timer loop.
+  void _saveDraft() {
+    if (_isCompleted) return;
+    unawaited(_draftService.save(WorkoutDraft(
+      routineId: _routineId,
+      dayNumber: widget.dayNumber,
+      startedAt: _startTime?.toIso8601String(),
+      exerciseCount: _orderedExercises.length,
+      visitOrder: _visitOrder,
+      visitPos: _visitPos,
+      currentSet: _currentSet,
+      recordedWeights: _recordedWeights,
+      recordedReps: _recordedReps,
+      pendingWeight: _weightController.text,
+      pendingReps: _repsController.text,
+      savedAt: DateTime.now(),
+    )));
   }
 
   @override
@@ -156,6 +227,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
         state == AppLifecycleState.inactive) {
       _backgroundEnterTime = DateTime.now();
       _stopwatchAtBackground = _totalStopwatch.elapsed;
+      // Flush a draft now — the OS may kill us while backgrounded. Captures
+      // even a half-typed set via the current text-field values.
+      _saveDraft();
     } else if (state == AppLifecycleState.resumed &&
         _backgroundEnterTime != null) {
       final elapsed = DateTime.now().difference(_backgroundEnterTime!);
@@ -241,7 +315,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
         setState(() {
           _isCountingDown = false;
           _totalStopwatch.start();
-          _startTime = DateTime.now();
+          // Keep the original start time if a draft was restored.
+          _startTime ??= DateTime.now();
         });
         _startElapsedTimer();
       }
@@ -319,6 +394,11 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       _restSecondsRemaining = restSeconds;
     });
 
+    // The set that just finished is now in the recorded maps — persist it so a
+    // kill during rest doesn't lose it. (Only reached on non-final sets, so it
+    // never races the draft clear in _completeWorkout.)
+    _saveDraft();
+
     NotificationService().scheduleRestNotification(restSeconds,
         '¡Descanso terminado!', 'Es hora de la siguiente serie. ¡Tú puedes!');
 
@@ -368,6 +448,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     });
 
     _updateWeightController();
+    _saveDraft();
     NotificationService().cancelAll();
   }
 
@@ -426,6 +507,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       _currentSet = 1;
     });
     _updateWeightController();
+    _saveDraft();
   }
 
   void _completeWorkout() {
@@ -444,8 +526,10 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       _isResting = false;
     });
 
-    // Workout finished — clear the in-progress marker so the home card hides.
+    // Workout finished — clear the in-progress marker so the home card hides,
+    // and drop the local draft now that the data is being saved to Supabase.
     ref.read(activeWorkoutProvider.notifier).finish();
+    unawaited(_draftService.clear(_routineId, widget.dayNumber));
 
     _saveWorkoutData(isCompleted: true);
   }
@@ -488,6 +572,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
 
   Future<void> _saveIncompleteWorkout() async {
     _saveWorkoutData(isCompleted: false);
+    // Athlete explicitly abandoned — drop the draft so it doesn't offer to
+    // resume a session they chose to end.
+    unawaited(_draftService.clear(_routineId, widget.dayNumber));
   }
 
   // ───────────────────────────── BUILD ──────────────────────────────────────
@@ -1587,6 +1674,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                             _recordedReps[ex] = newR;
                           }
                         });
+                        _saveDraft();
                         Navigator.pop(ctx);
                       },
                       style: ElevatedButton.styleFrom(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
 import 'supabase_service.dart';
+import 'workout_draft_service.dart';
 
 /// Auth state
 enum AuthStatus { initial, authenticated, unauthenticated, loading }
@@ -241,6 +242,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> signOut() async {
     try {
       await _client.auth.signOut();
+      // Drop any local workout drafts so they can't surface for the next
+      // account on a shared device.
+      await WorkoutDraftService().clearAll();
       state = const AuthState(status: AuthStatus.unauthenticated);
     } catch (e) {
       state = state.copyWith(errorMessage: 'Error al cerrar sesión');

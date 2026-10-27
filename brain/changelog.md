@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-27 — QA: Student-facing screens batch (Mi perfil, Home, Entrenar, Historial) — PARTIAL PASS
+
+**What was tested:** Golden path for 5 student-facing areas: Home dashboard quick actions + drawer, Mi perfil view/edit/save, Entrenar flow with cardio banner + wrong-day dialog, Historial de Entrenamiento card layout, and Entrenar resume nav. Driven via Playwright headless Chromium against Flutter web-server (localhost:8080) on PROD Supabase, test account `arbes.studios@gmail.com`.
+
+**Issues found:**
+
+### Bug (Warning) — Wrong-day dialog not triggered in testing: Tapping "Empezar entrenamiento" on the Martes tab launched the workout session screen directly without showing the `¿Entrenar el día {day}?` dialog. Root-cause ambiguity: when the Entrenar screen opened, the "Mar" tab was already highlighted as the selected/active day (not "Lun"/today). This means the app may have considered Martes the "active" day for this routine, making the dialog correctly absent. Cannot confirm dialog exists without a fresh session where today's day is clearly different from the selected tab and both conditions are met. Needs manual on-device verification.
+
+### Bug (Warning) — Riverpod `ActiveWorkoutNotifier` state-modification-during-build error: Two Riverpod exceptions fired in `workout_session_screen.dart` `initState` when the session screen was entered (triggered during the test by the unintended session launch). Stack trace: `active_workout_service.dart:56` calls `state = ...` synchronously inside `initState` → Riverpod throws `"Tried to modify a provider while the widget tree was building"`. This is a pre-existing bug. Fix: wrap the `state` assignment in `active_workout_service.dart:55-56` with `Future(() { state = ...; })`.
+
+### Nit — Historial: all cards show amber clock badge (abandoned/timed-out sessions only): All real sessions in the test account history show the amber clock icon. No green check + green border was observable. This may simply be because all test sessions were abandoned (0 series or very short duration), not a display bug.
+
+**Status:** Passed for Checks 1, 2, 4. Check 3 (wrong-day dialog) partially unverified. Check 5 not testable (no active session). Riverpod `initState` state error flagged. Returning to Sofia for the Riverpod bug fix; Check 3 dialog needs on-device manual verify.
+
 ## 2026-09-21 — QA: Admin create-trainer end-to-end — PASSED
 
 **What was tested:** Full create-trainer → complete_first_login → sign-in flow for the rewired admin UI (CreateTrainerSheet now reachable from TrainersListScreen FAB + empty-state + dashboard quick-action). Static analysis of all three edited files plus service layer and edge function. Live happy-path exercised against prod DB.

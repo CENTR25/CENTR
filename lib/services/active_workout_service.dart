@@ -52,9 +52,15 @@ class ActiveWorkoutNotifier extends StateNotifier<ActiveWorkout?> {
   }
 
   /// Mark a workout as begun (called when the session screen opens).
+  ///
+  /// This is invoked synchronously from `WorkoutSessionScreen.initState`, so the
+  /// `state` assignment must NOT happen during that build pass (Riverpod throws
+  /// "modified a provider while the widget tree was building"). Awaiting the
+  /// prefs instance first yields control, so `state` is set in a later microtask
+  /// after the build completes.
   Future<void> start(ActiveWorkout workout) async {
-    state = workout;
     final prefs = await SharedPreferences.getInstance();
+    state = workout;
     await prefs.setString(_key, jsonEncode(workout.toJson()));
   }
 

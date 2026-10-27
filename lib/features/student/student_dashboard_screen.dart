@@ -13,11 +13,11 @@ import '../shared/notifications_sheet.dart';
 import 'student_meal_plan_screen.dart';
 import 'student_weight_screen.dart';
 import 'student_check_in_screen.dart';
-import 'student_check_in_history_screen.dart';
-import 'student_routine_screen.dart';
 import 'student_recipes_screen.dart';
+import 'student_benefits_screen.dart';
+import 'student_profile_screen.dart';
 import 'required_reading_screen.dart';
-import 'workout_session_screen.dart';
+import 'student_training_nav.dart';
 import 'widgets/student_bottom_nav.dart';
 
 class StudentDashboardScreen extends ConsumerWidget {
@@ -32,17 +32,12 @@ class StudentDashboardScreen extends ConsumerWidget {
         child: Scaffold(
           backgroundColor: RedesignColors.background,
           extendBody: true,
+          drawer: const _StudentDrawer(),
           body: const _HomeContent(),
           bottomNavigationBar: StudentBottomNav(
             active: StudentNavTab.inicio,
             onInicioTap: () {},
-            onEntrenarTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const StudentRoutineScreen(),
-                fullscreenDialog: true,
-              ),
-            ),
+            onEntrenarTap: () => openTraining(context, ref),
             onNutricionTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const StudentMealPlanScreen()),
@@ -133,50 +128,67 @@ class _HomeContent extends ConsumerWidget {
 
                   const SizedBox(height: 32),
 
-                  // Three action pill rows
+                  // Quick actions (Check-in · Peso · Suplementos · Beneficios)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: _hPad),
-                    child: Column(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _ActionRow(
-                          icon: Icons.camera_alt_rounded,
-                          label: 'CHECK-IN',
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const StudentCheckInScreen(),
+                        Expanded(
+                          child: _QuickAction(
+                            icon: Icons.camera_alt_rounded,
+                            label: 'Check-in',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const StudentCheckInScreen(),
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        _ActionRow(
-                          icon: Icons.monitor_weight_rounded,
-                          label: 'REGISTRAR PESO',
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const StudentWeightScreen(),
+                        Expanded(
+                          child: _QuickAction(
+                            icon: Icons.monitor_weight_rounded,
+                            label: 'Peso',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const StudentWeightScreen(),
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        Consumer(
-                          builder: (context, ref, _) {
-                            return _ActionRow(
-                              icon: Icons.medication_outlined,
-                              label: 'SUPLEMENTOS',
-                              onTap: () async {
-                                final s =
-                                    await ref.read(mySupplementsProvider.future);
-                                if (!context.mounted) return;
-                                _showSupplementInfo(
-                                  context,
-                                  s['daily'] ?? '',
-                                  s['chemical'] ?? '',
-                                );
-                              },
-                            );
-                          },
+                        Expanded(
+                          child: Consumer(
+                            builder: (context, ref, _) {
+                              return _QuickAction(
+                                icon: Icons.medication_outlined,
+                                label: 'Suplementos',
+                                onTap: () async {
+                                  final s = await ref
+                                      .read(mySupplementsProvider.future);
+                                  if (!context.mounted) return;
+                                  _showSupplementInfo(
+                                    context,
+                                    s['daily'] ?? '',
+                                    s['chemical'] ?? '',
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        Expanded(
+                          child: _QuickAction(
+                            icon: Icons.card_giftcard_rounded,
+                            label: 'Beneficios',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const StudentBenefitsScreen(),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -347,203 +359,300 @@ class _Header extends StatelessWidget {
 
         const SizedBox(width: 10),
 
-        // Circular avatar with teal ring — tap opens side menu
-        GestureDetector(
-          onTap: () => _showMenuSheet(context),
-          child: Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: RedesignColors.secundario500,
-                width: 2,
-              ),
-            ),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: RedesignColors.primario800,
-              child: Text(
-                initial,
-                style: const TextStyle(
-                  fontFamily: 'Metropolis',
-                  color: RedesignColors.primario50,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+        // Circular avatar with teal ring — tap opens the side drawer
+        Builder(builder: (context) {
+          final avatarUrl =
+              ref.watch(myAthleteProfileProvider).valueOrNull?['avatar_url']
+                  as String?;
+          return GestureDetector(
+            onTap: () => Scaffold.of(context).openDrawer(),
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: RedesignColors.secundario500,
+                  width: 2,
                 ),
               ),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: RedesignColors.primario800,
+                backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                    ? NetworkImage(avatarUrl)
+                    : null,
+                child: (avatarUrl == null || avatarUrl.isEmpty)
+                    ? Text(
+                        initial,
+                        style: const TextStyle(
+                          fontFamily: 'Metropolis',
+                          color: RedesignColors.primario50,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    : null,
+              ),
             ),
-          ),
-        ),
+          );
+        }),
       ],
     );
   }
 
-  void _showMenuSheet(BuildContext context) {
-    final reading = ref.read(trainerRequiredReadingProvider).valueOrNull;
+}
+
+// ---------------------------------------------------------------------------
+// Side drawer (opened from the header avatar)
+// ---------------------------------------------------------------------------
+
+class _StudentDrawer extends ConsumerWidget {
+  const _StudentDrawer();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    final profile = ref.watch(myAthleteProfileProvider).valueOrNull;
+    final name = user?.displayName ?? 'Atleta';
+    final email = user?.email ?? '';
+    final avatarUrl = (profile?['avatar_url'] as String?) ?? user?.avatarUrl;
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'A';
+
+    final reading = ref.watch(trainerRequiredReadingProvider).valueOrNull;
     final hasReading =
         reading != null && (reading.content?.trim().isNotEmpty ?? false);
 
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: false,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: RedesignColors.primario800,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Drag handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 8),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            // Historial de Check-ins
-            _MenuItem(
-              icon: Icons.camera_alt_rounded,
-              label: 'Historial de Check-ins',
-              onTap: () {
-                Navigator.pop(ctx);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const StudentCheckInHistoryScreen(),
+    return Drawer(
+      backgroundColor: RedesignColors.primario900,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Profile header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: RedesignColors.secundario500,
+                        width: 2,
+                      ),
+                    ),
+                    child: CircleAvatar(
+                      radius: 26,
+                      backgroundColor: RedesignColors.primario800,
+                      backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                          ? NetworkImage(avatarUrl)
+                          : null,
+                      child: (avatarUrl == null || avatarUrl.isEmpty)
+                          ? Text(
+                              initial,
+                              style: const TextStyle(
+                                fontFamily: 'Metropolis',
+                                color: RedesignColors.primario50,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            )
+                          : null,
+                    ),
                   ),
-                );
-              },
-            ),
-            // Lectura Obligatoria — only when the trainer has set content
-            if (hasReading)
-              _MenuItem(
-                icon: Icons.visibility_outlined,
-                label: 'Lectura Obligatoria',
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Metropolis',
+                            color: RedesignColors.primario50,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (email.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            email,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Metropolis',
+                              color: RedesignColors.primario400,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(color: Colors.white12, height: 1),
+              const SizedBox(height: 12),
+
+              // Mi perfil
+              _DrawerItem(
+                icon: Icons.person_outline_rounded,
+                label: 'Mi perfil',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const StudentProfileScreen(),
+                    ),
+                  );
+                },
+              ),
+
+              // Lectura obligatoria
+              _DrawerItem(
+                icon: Icons.menu_book_rounded,
+                label: 'Lectura obligatoria',
                 onTap: () {
                   final content = ref
                       .read(trainerRequiredReadingProvider)
                       .valueOrNull
                       ?.content;
-                  Navigator.pop(ctx);
-                  if (content != null && content.trim().isNotEmpty) {
+                  Navigator.pop(context);
+                  if (hasReading && content != null) {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            RequiredReadingScreen(content: content),
+                        builder: (_) => RequiredReadingScreen(content: content),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content:
+                            Text('Tu entrenador no asignó lectura obligatoria.'),
                       ),
                     );
                   }
                 },
               ),
-            // Configuración
-            _MenuItem(
-              icon: Icons.settings_outlined,
-              label: 'Configuración',
-              onTap: () {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Configuración próximamente')),
-                );
-              },
-            ),
-            const Divider(color: Colors.white10, height: 1),
-            // Cerrar Sesión
-            _MenuItem(
-              icon: Icons.logout_rounded,
-              label: 'Cerrar Sesión',
-              color: Colors.redAccent,
-              onTap: () async {
-                Navigator.pop(ctx);
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (dialogCtx) => AlertDialog(
-                    backgroundColor: RedesignColors.primario800,
-                    title: const Text(
-                      '¿Cerrar sesión?',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    content: const Text(
-                      '¿Estás seguro de que querés salir?',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogCtx, false),
-                        child: const Text(
-                          'Cancelar',
-                          style: TextStyle(color: Colors.white54),
-                        ),
+
+              // Configuración
+              _DrawerItem(
+                icon: Icons.settings_outlined,
+                label: 'Configuración',
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Configuración próximamente')),
+                  );
+                },
+              ),
+
+              const Spacer(),
+
+              // Cerrar sesión
+              GestureDetector(
+                onTap: () async {
+                  Navigator.pop(context);
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogCtx) => AlertDialog(
+                      backgroundColor: RedesignColors.primario800,
+                      title: const Text(
+                        '¿Cerrar sesión?',
+                        style: TextStyle(color: Colors.white),
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogCtx, true),
-                        child: const Text(
-                          'Salir',
-                          style: TextStyle(color: Colors.redAccent),
+                      content: const Text(
+                        '¿Estás seguro de que querés salir?',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogCtx, false),
+                          child: const Text('Cancelar',
+                              style: TextStyle(color: Colors.white54)),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogCtx, true),
+                          child: const Text('Salir',
+                              style: TextStyle(color: RedesignColors.peligro300)),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await ref.read(authProvider.notifier).signOut();
+                  }
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  decoration: BoxDecoration(
+                    color: RedesignColors.peligro600.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.logout_rounded,
+                          color: Colors.white, size: 20),
+                      SizedBox(width: 10),
+                      Text(
+                        'Cerrar sesión',
+                        style: TextStyle(
+                          fontFamily: 'Metropolis',
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
-                );
-                if (confirm == true) {
-                  await ref.read(authProvider.notifier).signOut();
-                }
-              },
-            ),
-            // Safe-area clearance
-            SizedBox(
-              height: MediaQuery.of(context).padding.bottom + 12,
-            ),
-          ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Menu item used inside _Header's bottom sheet
-// ---------------------------------------------------------------------------
-
-class _MenuItem extends StatelessWidget {
+class _DrawerItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final Color? color;
 
-  const _MenuItem({
+  const _DrawerItem({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? RedesignColors.primario50;
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
         child: Row(
           children: [
-            Icon(icon, color: c, size: 22),
+            Icon(icon, color: RedesignColors.secundario300, size: 22),
             const SizedBox(width: 16),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: 'Metropolis',
-                color: c,
+                color: RedesignColors.primario50,
                 fontSize: 16,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -691,40 +800,6 @@ class _EntrenamientoEnCursoCard extends ConsumerWidget {
 
   const _EntrenamientoEnCursoCard({required this.active});
 
-  Future<void> _resume(BuildContext context, WidgetRef ref) async {
-    final routine = await ref.read(activeRoutineProvider.future);
-    final matches =
-        routine != null && routine['id'].toString() == active.routineId;
-
-    final dayExercises = matches
-        ? (((routine['routine_exercises'] as List?) ?? const [])
-            .where((e) => (e['day_number'] as num?)?.toInt() == active.dayNumber)
-            .cast<Map<String, dynamic>>()
-            .toList()
-          ..sort((a, b) => ((a['order_index'] as num?)?.toInt() ?? 0)
-              .compareTo((b['order_index'] as num?)?.toInt() ?? 0)))
-        : <Map<String, dynamic>>[];
-
-    if (!context.mounted) return;
-
-    // Routine changed or day no longer exists — the marker is stale.
-    if (dayExercises.isEmpty) {
-      ref.read(activeWorkoutProvider.notifier).finish();
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => WorkoutSessionScreen(
-          routine: routine!,
-          exercises: dayExercises,
-          dayNumber: active.dayNumber,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final name = active.routineName.trim();
@@ -732,7 +807,7 @@ class _EntrenamientoEnCursoCard extends ConsumerWidget {
         name.isNotEmpty ? '$name - Día ${active.dayNumber}' : 'Día ${active.dayNumber}';
 
     return GestureDetector(
-      onTap: () => _resume(context, ref),
+      onTap: () => openTraining(context, ref),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
         decoration: BoxDecoration(
@@ -799,15 +874,15 @@ class _EntrenamientoEnCursoCard extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Action pill rows
+// Quick action — circular icon badge + label (Check-in · Peso · etc.)
 // ---------------------------------------------------------------------------
 
-class _ActionRow extends StatelessWidget {
+class _QuickAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
-  const _ActionRow({
+  const _QuickAction({
     required this.icon,
     required this.label,
     required this.onTap,
@@ -816,58 +891,38 @@ class _ActionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Container(
-        // Figma "Tarjetas": padding 20×15 (hug → ~74.8 tall), radius 40,
-        // fill #31363B @ 50%, drop shadow.
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 19),
-        decoration: BoxDecoration(
-          color: const Color(0x8031363B),
-          borderRadius: BorderRadius.circular(40),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x40000000),
-              blurRadius: 12,
-              offset: Offset(0, 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: const BoxDecoration(
+              color: RedesignColors.primario700,
+              shape: BoxShape.circle,
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Circular icon badge
-            Container(
-              width: 50,
-              height: 50,
-              decoration: const BoxDecoration(
-                color: RedesignColors.secundario600,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                color: RedesignColors.primario50,
-                size: 25,
-              ),
+            child: Icon(
+              icon,
+              color: RedesignColors.secundario300,
+              size: 26,
             ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontFamily: 'Metropolis',
-                  color: RedesignColors.primario50,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                ),
-              ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: 'Metropolis',
+              color: RedesignColors.primario50,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: RedesignColors.primario400,
-              size: 24,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

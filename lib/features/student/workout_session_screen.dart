@@ -60,7 +60,13 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   Timer? _restTimer;
   Timer? _countdownTimer;
   Timer? _elapsedTimer;
-  int _restSecondsRemaining = 0;
+
+  // Rest timer — wall-clock deadline is the source of truth so background /
+  // lock-screen suspension never drifts. _restSecondsRemaining is a derived
+  // display value recomputed each tick from the deadline, not a counter.
+  DateTime? _restDeadline; // absolute moment the rest ends
+  DateTime? _restPausedAt; // non-null while the timer is paused
+  int _restSecondsRemaining = 0; // recomputed; kept for display / progress bar
 
   // Background tracking (fix timer drift)
   DateTime? _backgroundEnterTime;
@@ -232,12 +238,13 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       _saveDraft();
     } else if (state == AppLifecycleState.resumed &&
         _backgroundEnterTime != null) {
-      final elapsed = DateTime.now().difference(_backgroundEnterTime!);
-      final elapsedSeconds = elapsed.inSeconds;
+      final bgDuration = DateTime.now().difference(_backgroundEnterTime!);
       _backgroundEnterTime = null;
 
+      // Accumulate background time in the total-elapsed counter (Stopwatch
+      // freezes while the OS suspends Dart execution).
       final ticked = _totalStopwatch.elapsed - _stopwatchAtBackground;
-      final frozen = elapsed - ticked;
+      final frozen = bgDuration - ticked;
       if (_totalStopwatch.isRunning && frozen > Duration.zero) {
         _backgroundTime += frozen;
         if (_isResting && !_isPaused) {
@@ -247,19 +254,22 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
         }
       }
 
-      if (_isResting && !_isPaused && mounted) {
-        final corrected = _restSecondsRemaining - elapsedSeconds;
-        if (corrected <= 0) {
+      // Rest-timer correction: the deadline is an absolute DateTime, so no
+      // arithmetic on _restSecondsRemaining is needed here. We simply
+      // recompute the remaining seconds from the deadline and act on it —
+      // the periodic timer will do the same when it next fires, but we do it
+      // immediately on resume so the display is accurate right away.
+      if (_isResting && !_isPaused && mounted && _restDeadline != null) {
+        final remaining = _restDeadline!.difference(DateTime.now()).inSeconds;
+        if (remaining <= 0) {
           _restTimer?.cancel();
+          setState(() => _restSecondsRemaining = 0);
           _endRest();
         } else {
-          setState(() {
-            _restSecondsRemaining = corrected;
-          });
+          setState(() => _restSecondsRemaining = remaining);
         }
       } else if (mounted) {
-        // Not resting: refresh the elapsed-time display right away so it
-        // reflects time spent in the background instead of lagging a tick.
+        // Not resting: refresh the elapsed-time display right away.
         setState(() {});
       }
     }
@@ -389,6 +399,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     final currentExercise = _orderedExercises[_currentExerciseIndex];
     final restSeconds = (currentExercise['rest_seconds'] as int?) ?? 60;
 
+    _restDeadline = DateTime.now().add(Duration(seconds: restSeconds));
+    _restPausedAt = null;
+
     setState(() {
       _isResting = true;
       _restSecondsRemaining = restSeconds;
@@ -407,19 +420,26 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_isPaused) return;
 
-      setState(() {
-        _restSecondsRemaining--;
-      });
+      // Recompute from the wall-clock deadline on every tick — this is immune
+      // to the periodic timer being throttled or delayed by the OS when the
+      // screen is locked, because we never decrement a counter; we measure.
+      final remaining = _restDeadline!.difference(DateTime.now()).inSeconds;
 
-      if (_restSecondsRemaining == 10) {
-        _playAlertSound();
-      }
-      if (_restSecondsRemaining <= 3 && _restSecondsRemaining > 0) {
-        _playBeep();
-      }
-      if (_restSecondsRemaining <= 0) {
+      if (!mounted) {
         timer.cancel();
+        return;
+      }
+
+      // Fire audio cues based on the just-computed remaining time.
+      if (remaining == 10) _playAlertSound();
+      if (remaining <= 3 && remaining > 0) _playBeep();
+
+      if (remaining <= 0) {
+        timer.cancel();
+        setState(() => _restSecondsRemaining = 0);
         _endRest();
+      } else {
+        setState(() => _restSecondsRemaining = remaining);
       }
     });
   }
@@ -428,6 +448,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     _restStopwatch.stop();
     _totalRestTime += _restStopwatch.elapsed;
     _restStopwatch.reset();
+    _restDeadline = null;
+    _restPausedAt = null;
 
     final currentExercise = _orderedExercises[_currentExerciseIndex];
     final totalSets = (currentExercise['sets'] as int?) ?? 3;
@@ -563,9 +585,22 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       if (_isPaused) {
         _totalStopwatch.stop();
         _restStopwatch.stop();
+        // Snapshot the moment we paused so the deadline can be shifted on resume.
+        if (_isResting && _restDeadline != null) {
+          _restPausedAt = DateTime.now();
+        }
       } else {
         _totalStopwatch.start();
-        if (_isResting) _restStopwatch.start();
+        if (_isResting) {
+          _restStopwatch.start();
+          // Shift the deadline forward by however long we were paused so the
+          // remaining time stays exactly where the athlete left it.
+          if (_restDeadline != null && _restPausedAt != null) {
+            final pausedDuration = DateTime.now().difference(_restPausedAt!);
+            _restDeadline = _restDeadline!.add(pausedDuration);
+            _restPausedAt = null;
+          }
+        }
       }
     });
   }
@@ -1379,10 +1414,14 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                   ),
                 const SizedBox(height: 22),
                 ElevatedButton(
-                  onPressed: () {
-                    _saveIncompleteWorkout();
-                    Navigator.pop(ctx);
-                    Navigator.pop(context);
+                  onPressed: () async {
+                    // Capture navigators before the async gap so that
+                    // post-await use of BuildContext is lint-safe.
+                    final dialogNav = Navigator.of(ctx);
+                    final screenNav = Navigator.of(context);
+                    await _saveIncompleteWorkout();
+                    dialogNav.pop();
+                    screenNav.pop();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: RedesignColors.peligro600,

@@ -559,6 +559,12 @@ class _StudentDrawer extends ConsumerWidget {
               // Cerrar sesión
               GestureDetector(
                 onTap: () async {
+                  // Capture the notifier BEFORE popping the drawer: closing the
+                  // drawer disposes this ConsumerWidget, after which `ref` can
+                  // no longer be used (throws "Cannot use ref after the widget
+                  // was disposed"). The notifier itself is long-lived, so a
+                  // captured reference is safe to call once the dialog returns.
+                  final authNotifier = ref.read(authProvider.notifier);
                   Navigator.pop(context);
                   final confirm = await showDialog<bool>(
                     context: context,
@@ -587,7 +593,7 @@ class _StudentDrawer extends ConsumerWidget {
                     ),
                   );
                   if (confirm == true) {
-                    await ref.read(authProvider.notifier).signOut();
+                    await authNotifier.signOut();
                   }
                 },
                 child: Container(

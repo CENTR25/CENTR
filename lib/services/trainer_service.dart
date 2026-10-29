@@ -95,6 +95,47 @@ class TrainerService {
         .eq('id', trainerId);
   }
 
+  // ==================== NOTIFICATION PREFERENCES ====================
+
+  /// Default notification toggles when the trainer has no stored row yet.
+  static const Map<String, bool> defaultNotificationPrefs = {
+    'workout_completed': true,
+    'inactive_7d': false,
+    'student_message': true,
+    'prgs_news': false,
+  };
+
+  /// Read the current trainer's notification toggles, falling back to defaults.
+  Future<Map<String, bool>> getNotificationPrefs() async {
+    final userId = currentUserId;
+    if (userId == null) return Map.of(defaultNotificationPrefs);
+
+    final row = await _client
+        .from('trainer_notification_prefs')
+        .select()
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (row == null) return Map.of(defaultNotificationPrefs);
+
+    return {
+      for (final key in defaultNotificationPrefs.keys)
+        key: (row[key] as bool?) ?? defaultNotificationPrefs[key]!,
+    };
+  }
+
+  /// Upsert a single notification toggle for the current trainer.
+  Future<void> updateNotificationPref(String key, bool value) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+
+    await _client.from('trainer_notification_prefs').upsert({
+      'user_id': userId,
+      key: value,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+  }
+
   // ==================== STUDENTS ====================
 
   /// Get all students for current trainer
@@ -1258,6 +1299,159 @@ class TrainerService {
       'active_students': activeStudents,
       'total_routines': routines.length,
       'total_meal_plans': mealPlans.length,
+    };
+  }
+
+  /// Aggregated adherence for the Estadísticas screen over the last [days].
+  ///
+  /// Adherence = completed sessions ÷ expected sessions, where expected is
+  /// derived from each athlete's active routine `days_per_week` × weeks in the
+  /// window. Athletes with no active routine are excluded from the denominator.
+  /// Returns overall adherence, the delta vs the previous equal window, total
+  /// completed count, a per-student breakdown, and an "attention" sublist.
+  Future<Map<String, dynamic>> getAdherenceStats(int days) async {
+    Map<String, dynamic> empty() => {
+          'adherence': 0.0,
+          'adherence_delta': 0.0,
+          'completed': 0,
+          'per_student': <Map<String, dynamic>>[],
+          'attention': <Map<String, dynamic>>[],
+        };
+
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return empty();
+
+    final students = await getMyStudents();
+    if (students.isEmpty) return empty();
+
+    final athleteIds = students.map((s) => s['id'] as String).toList();
+
+    final now = DateTime.now();
+    final currentStart = now.subtract(Duration(days: days));
+    final prevStart = now.subtract(Duration(days: days * 2));
+
+    // Active routine (days_per_week) per athlete.
+    final routineRows = await _client
+        .from('athlete_routines')
+        .select('athlete_id, routines(days_per_week)')
+        .inFilter('athlete_id', athleteIds)
+        .eq('is_active', true);
+    final daysPerWeek = <String, int>{};
+    for (final r in List<Map<String, dynamic>>.from(routineRows)) {
+      final aid = r['athlete_id'] as String?;
+      final routine = r['routines'] as Map<String, dynamic>?;
+      final dpw = (routine?['days_per_week'] as num?)?.toInt();
+      if (aid != null && dpw != null && dpw > 0) {
+        daysPerWeek[aid] = dpw; // last active routine wins
+      }
+    }
+
+    // Completed sessions across both windows (current + previous).
+    final sessionRows = await _client
+        .from('workout_sessions')
+        .select('athlete_id, started_at')
+        .inFilter('athlete_id', athleteIds)
+        .eq('is_completed', true)
+        .gte('started_at', prevStart.toIso8601String());
+
+    final currentCompleted = <String, int>{};
+    final prevCompleted = <String, int>{};
+    final lastSession = <String, DateTime>{};
+    for (final s in List<Map<String, dynamic>>.from(sessionRows)) {
+      final aid = s['athlete_id'] as String?;
+      final started =
+          DateTime.tryParse(s['started_at']?.toString() ?? '')?.toLocal();
+      if (aid == null || started == null) continue;
+      if (started.isAfter(currentStart)) {
+        currentCompleted[aid] = (currentCompleted[aid] ?? 0) + 1;
+      } else {
+        prevCompleted[aid] = (prevCompleted[aid] ?? 0) + 1;
+      }
+      final prevLast = lastSession[aid];
+      if (prevLast == null || started.isAfter(prevLast)) {
+        lastSession[aid] = started;
+      }
+    }
+
+    final weeks = days / 7.0;
+
+    double overallAdherence(Map<String, int> completedMap) {
+      double totalCompleted = 0, totalExpected = 0;
+      for (final aid in athleteIds) {
+        final dpw = daysPerWeek[aid];
+        if (dpw == null) continue; // no active routine → excluded
+        totalExpected += dpw * weeks;
+        totalCompleted += (completedMap[aid] ?? 0).toDouble();
+      }
+      if (totalExpected <= 0) return 0;
+      return (totalCompleted / totalExpected).clamp(0.0, 1.0);
+    }
+
+    final currentAdh = overallAdherence(currentCompleted);
+    final prevAdh = overallAdherence(prevCompleted);
+
+    final perStudent = <Map<String, dynamic>>[];
+    for (final s in students) {
+      final aid = s['id'] as String;
+      final dpw = daysPerWeek[aid];
+      final completed = currentCompleted[aid] ?? 0;
+      final profile = s['profiles'] as Map<String, dynamic>?;
+      double? adh;
+      if (dpw != null && dpw > 0) {
+        final expected = dpw * weeks;
+        adh = expected > 0 ? (completed / expected).clamp(0.0, 1.0) : null;
+      }
+      perStudent.add({
+        'id': aid,
+        'name': (s['name'] ?? 'Alumno').toString(),
+        'avatar_url':
+            (s['avatar_url'] as String?) ?? (profile?['avatar_url'] as String?),
+        'adherence': adh,
+        'completed': completed,
+        'last_session': lastSession[aid]?.toIso8601String(),
+      });
+    }
+
+    // Sort by adherence desc, nulls (no routine) last.
+    perStudent.sort((a, b) {
+      final aa = a['adherence'] as double?;
+      final bb = b['adherence'] as double?;
+      if (aa == null && bb == null) return 0;
+      if (aa == null) return 1;
+      if (bb == null) return -1;
+      return bb.compareTo(aa);
+    });
+
+    // Attention: never trained, inactive 7+ days, or adherence < 50%.
+    final attention = <Map<String, dynamic>>[];
+    for (final s in perStudent) {
+      final last = s['last_session'] != null
+          ? DateTime.tryParse(s['last_session'] as String)
+          : null;
+      final adh = s['adherence'] as double?;
+      String? reason;
+      if (last == null) {
+        reason = 'Sin entrenar aún';
+      } else {
+        final daysSince = now.difference(last).inDays;
+        if (daysSince >= 7) {
+          reason = 'Sin entrenar hace $daysSince días';
+        } else if (adh != null && adh < 0.5) {
+          reason = 'Adherencia ${(adh * 100).round()}%';
+        }
+      }
+      if (reason != null) attention.add({...s, 'reason': reason});
+    }
+
+    final totalCompletedCount =
+        currentCompleted.values.fold<int>(0, (p, c) => p + c);
+
+    return {
+      'adherence': currentAdh,
+      'adherence_delta': currentAdh - prevAdh,
+      'completed': totalCompletedCount,
+      'per_student': perStudent,
+      'attention': attention,
     };
   }
 

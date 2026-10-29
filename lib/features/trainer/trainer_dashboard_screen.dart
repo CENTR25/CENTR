@@ -23,6 +23,11 @@ import 'trainer_agenda_screen.dart';
 import 'required_reading_editor_screen.dart';
 import 'mi_suscripcion_screen.dart';
 import 'elegir_plan_screen.dart';
+import 'trainer_stats_screen.dart';
+import 'trainer_settings_screen.dart';
+import 'help_screen.dart';
+import 'trainer_messages_screen.dart';
+import '../../../services/messaging_service.dart';
 import '../shared/redesign_toast.dart';
 import 'widgets/trainer_bottom_nav.dart';
 
@@ -152,6 +157,10 @@ class _HomeViewState extends ConsumerState<_HomeView> {
               .watch(unreadCountProvider(user!.id))
               .maybeWhen(data: (n) => n > 0, orElse: () => false);
 
+    final unreadMessages = ref
+        .watch(trainerUnreadProvider)
+        .maybeWhen(data: (n) => n, orElse: () => 0);
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,6 +204,20 @@ class _HomeViewState extends ConsumerState<_HomeView> {
                       ],
                     ),
                   ),
+                  _HeaderMessagesButton(
+                    unread: unreadMessages,
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TrainerMessagesScreen(),
+                        ),
+                      );
+                      ref.invalidate(trainerUnreadProvider);
+                      ref.invalidate(trainerConversationsProvider);
+                    },
+                  ),
+                  const SizedBox(width: 12),
                   _HeaderBellButton(
                     hasUnread: hasUnread,
                     onTap: () => _openNotifications(context),
@@ -323,6 +346,68 @@ class _HeaderBellButton extends StatelessWidget {
                     border: Border.all(
                       color: RedesignColors.primario700,
                       width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderMessagesButton extends StatelessWidget {
+  final int unread;
+  final VoidCallback onTap;
+
+  const _HeaderMessagesButton({required this.unread, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: RedesignColors.primario700,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: RedesignColors.secundario300.withValues(alpha: 0.25),
+          ),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Icon(
+              Icons.chat_bubble_outline_rounded,
+              color: RedesignColors.primario50,
+              size: 22,
+            ),
+            if (unread > 0)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  constraints: const BoxConstraints(minWidth: 16),
+                  decoration: BoxDecoration(
+                    color: RedesignColors.actionPrimary,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: RedesignColors.primario700,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    unread > 9 ? '9+' : '$unread',
+                    textAlign: TextAlign.center,
+                    style: RedesignType.label.copyWith(
+                      color: RedesignColors.onActionPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 9,
                     ),
                   ),
                 ),
@@ -3003,19 +3088,32 @@ class _ProfileView extends ConsumerWidget {
                   icon: Icons.bar_chart_rounded,
                   title: 'Estadísticas',
                   subtitle: 'Rendimiento de tus alumnos',
-                  onTap: () => _stub(context),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TrainerStatsScreen(),
+                    ),
+                  ),
                 ),
                 _ProfileMenuRow(
                   icon: Icons.settings_rounded,
                   title: 'Configuración',
                   subtitle: 'Notificaciones y preferencias',
-                  onTap: () => _stub(context),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TrainerSettingsScreen(),
+                    ),
+                  ),
                 ),
                 _ProfileMenuRow(
                   icon: Icons.help_outline_rounded,
                   title: 'Ayuda',
                   subtitle: 'Centro de soporte',
-                  onTap: () => _stub(context),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HelpScreen()),
+                  ),
                   hasDivider: false,
                 ),
               ],
@@ -3043,15 +3141,6 @@ class _ProfileView extends ConsumerWidget {
           ],
         ),
       ),
-    );
-  }
-
-  void _stub(BuildContext context) {
-    showRedesignToast(
-      context,
-      title: 'Próximamente',
-      subtitle: 'Esta función estará disponible pronto.',
-      icon: Icons.access_time_rounded,
     );
   }
 }

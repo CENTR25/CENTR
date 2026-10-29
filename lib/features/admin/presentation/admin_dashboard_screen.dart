@@ -9,6 +9,8 @@ import '../../../services/news_service.dart';
 import '../../../models/news_model.dart';
 import '../../../services/affiliated_brand_service.dart';
 import '../../../models/affiliated_brand_model.dart';
+import '../../../services/help_service.dart';
+import '../../../models/help_article_model.dart';
 import '../widgets/trainer_sheets.dart';
 import 'trainers_list_screen.dart';
 import 'admin_exercises_screen.dart';
@@ -30,6 +32,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     _NavItem(icon: Icons.newspaper_rounded, label: 'Noticias'),
     _NavItem(icon: Icons.local_offer_rounded, label: 'Marcas'),
     _NavItem(icon: Icons.fitness_center_rounded, label: 'Ejercicios'),
+    _NavItem(icon: Icons.help_outline_rounded, label: 'Ayuda'),
     _NavItem(icon: Icons.settings_rounded, label: 'Config'),
   ];
 
@@ -78,6 +81,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       case 5:
         return const AdminExercisesView();
       case 6:
+        return _HelpArticlesView();
+      case 7:
         return _SettingsView();
       default:
         return _DashboardView();
@@ -1220,6 +1225,366 @@ class _CreateNewsSheetState extends ConsumerState<_CreateNewsSheet> {
 }
 
 // ==================== BRANDS VIEW ====================
+// ── Help / FAQ admin CRUD ────────────────────────────────────────────────
+
+const _kHelpCategories = <String?>[null, 'alumnos', 'planes', 'pagos'];
+
+String _helpCategoryLabel(String? slug) {
+  switch (slug) {
+    case 'alumnos':
+      return 'Alumnos';
+    case 'planes':
+      return 'Planes';
+    case 'pagos':
+      return 'Pagos';
+    default:
+      return 'Sin categoría';
+  }
+}
+
+class _HelpArticlesView extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final articlesAsync = ref.watch(allHelpArticlesProvider);
+
+    return Scaffold(
+      body: articlesAsync.when(
+        data: (articles) {
+          if (articles.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.help_outline_rounded,
+                      size: 64, color: AppColors.textSecondary),
+                  const SizedBox(height: 16),
+                  const Text('No hay preguntas cargadas',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Text('Agregá la primera pregunta frecuente',
+                      style: TextStyle(color: AppColors.textSecondary)),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: articles.length,
+            itemBuilder: (context, index) {
+              final a = articles[index];
+              return Card(
+                key: ValueKey(a.id),
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  title: Text(a.question,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Text(a.answer,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textLight)),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          _tag(_helpCategoryLabel(a.category), AppColors.primary),
+                          const SizedBox(width: 6),
+                          _tag(a.isPublished ? 'Visible' : 'Oculta',
+                              a.isPublished ? AppColors.success : Colors.grey),
+                        ],
+                      ),
+                    ],
+                  ),
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) =>
+                        _handleAction(context, ref, value, a),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: 'edit', child: Text('Editar')),
+                      PopupMenuItem(
+                        value: 'toggle',
+                        child: Text(a.isPublished ? 'Ocultar' : 'Publicar'),
+                      ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Eliminar',
+                            style: TextStyle(color: AppColors.error)),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showSheet(context),
+        icon: const Icon(Icons.add),
+        label: const Text('Nueva pregunta'),
+        backgroundColor: AppColors.primary,
+      ),
+    );
+  }
+
+  static Widget _tag(String label, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 10, color: color, fontWeight: FontWeight.bold)),
+      );
+
+  void _showSheet(BuildContext context, {HelpArticle? article}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _HelpSheet(article: article),
+    );
+  }
+
+  Future<void> _handleAction(
+    BuildContext context,
+    WidgetRef ref,
+    String action,
+    HelpArticle article,
+  ) async {
+    final service = ref.read(helpServiceProvider);
+    try {
+      switch (action) {
+        case 'edit':
+          _showSheet(context, article: article);
+          break;
+        case 'toggle':
+          await service.updateArticle(article.id,
+              isPublished: !article.isPublished);
+          ref.invalidate(allHelpArticlesProvider);
+          ref.invalidate(publishedHelpArticlesProvider);
+          break;
+        case 'delete':
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Eliminar pregunta'),
+              content: const Text(
+                  '¿Estás seguro? Esta acción no se puede deshacer.'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancelar')),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                  child: const Text('Eliminar'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed == true) {
+            await service.deleteArticle(article.id);
+            ref.invalidate(allHelpArticlesProvider);
+            ref.invalidate(publishedHelpArticlesProvider);
+          }
+          break;
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+}
+
+class _HelpSheet extends ConsumerStatefulWidget {
+  final HelpArticle? article;
+
+  const _HelpSheet({this.article});
+
+  @override
+  ConsumerState<_HelpSheet> createState() => _HelpSheetState();
+}
+
+class _HelpSheetState extends ConsumerState<_HelpSheet> {
+  late final TextEditingController _questionCtrl;
+  late final TextEditingController _answerCtrl;
+  late final TextEditingController _orderCtrl;
+  String? _category;
+  bool _published = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final a = widget.article;
+    _questionCtrl = TextEditingController(text: a?.question ?? '');
+    _answerCtrl = TextEditingController(text: a?.answer ?? '');
+    _orderCtrl = TextEditingController(text: (a?.orderIndex ?? 0).toString());
+    _category = a?.category;
+    _published = a?.isPublished ?? true;
+  }
+
+  @override
+  void dispose() {
+    _questionCtrl.dispose();
+    _answerCtrl.dispose();
+    _orderCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final question = _questionCtrl.text.trim();
+    final answer = _answerCtrl.text.trim();
+    if (question.isEmpty || answer.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Completá la pregunta y la respuesta')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    final service = ref.read(helpServiceProvider);
+    final order = int.tryParse(_orderCtrl.text.trim()) ?? 0;
+    try {
+      if (widget.article != null) {
+        await service.updateArticle(
+          widget.article!.id,
+          question: question,
+          answer: answer,
+          category: _category,
+          orderIndex: order,
+          isPublished: _published,
+        );
+      } else {
+        await service.createArticle(
+          question: question,
+          answer: answer,
+          category: _category,
+          orderIndex: order,
+          isPublished: _published,
+        );
+      }
+      ref.invalidate(allHelpArticlesProvider);
+      ref.invalidate(publishedHelpArticlesProvider);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.article != null ? 'Editar pregunta' : 'Nueva pregunta',
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _questionCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Pregunta',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _answerCtrl,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Respuesta',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String?>(
+                initialValue: _category,
+                decoration: const InputDecoration(
+                  labelText: 'Categoría',
+                  border: OutlineInputBorder(),
+                ),
+                items: _kHelpCategories
+                    .map((slug) => DropdownMenuItem<String?>(
+                          value: slug,
+                          child: Text(_helpCategoryLabel(slug)),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _category = v),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _orderCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Orden',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Visible para entrenadores'),
+                value: _published,
+                activeThumbColor: AppColors.primary,
+                onChanged: (v) => setState(() => _published = v),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saving ? null : _save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: _saving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Guardar'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BrandsView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {

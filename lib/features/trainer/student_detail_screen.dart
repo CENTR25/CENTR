@@ -14,6 +14,7 @@ import 'intake_view_screen.dart';
 import 'check_in_comparison_screen.dart';
 import 'cardio_editor_screen.dart';
 import 'supplements_editor_screen.dart';
+import '../shared/chat_screen.dart';
 
 const _monthAbbr = [
   'ene', 'feb', 'mar', 'abr', 'may', 'jun',
@@ -71,6 +72,26 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
             ),
           ),
           actions: [
+            // Chat con el alumno
+            IconButton(
+              icon: const Icon(Icons.chat_bubble_outline_rounded,
+                  color: RedesignColors.primario300),
+              tooltip: 'Mensajes',
+              onPressed: () {
+                final name = studentAsync.valueOrNull?['name'] as String? ??
+                    'Alumno';
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatScreen(
+                      athleteId: widget.studentId,
+                      title: name,
+                      viewerRole: 'trainer',
+                    ),
+                  ),
+                );
+              },
+            ),
             // Ficha del atleta
             IconButton(
               icon: const Icon(Icons.assignment_ind_outlined,

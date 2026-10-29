@@ -10,6 +10,7 @@ enum NotificationType {
   streakAchievement,
   workoutCompleted,
   broadcast,
+  message,
   general;
   
   String get displayName {
@@ -28,6 +29,8 @@ enum NotificationType {
         return 'Entrenamiento Completado';
       case NotificationType.broadcast:
         return 'Mensaje del Entrenador';
+      case NotificationType.message:
+        return 'Mensaje';
       case NotificationType.general:
         return 'General';
     }
@@ -49,6 +52,8 @@ enum NotificationType {
         return Icons.fitness_center_rounded;
       case NotificationType.broadcast:
         return Icons.campaign_rounded;
+      case NotificationType.message:
+        return Icons.chat_bubble_rounded;
       case NotificationType.general:
         return Icons.notifications_rounded;
     }
@@ -70,6 +75,8 @@ enum NotificationType {
         return AppColors.primary;
       case NotificationType.broadcast:
         return AppColors.primaryLight;
+      case NotificationType.message:
+        return AppColors.info;
       case NotificationType.general:
         return AppColors.textLight;
     }

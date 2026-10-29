@@ -22,6 +22,11 @@ class AppConstants {
   // WhatsApp CTA for brands/marketing inquiries.
   // TODO: set real PRGS WhatsApp number.
   static const String prgsBrandsWhatsappUrl = 'https://wa.me/000000000';
+
+  // Support contacts shown in the trainer "Ayuda" screen.
+  // TODO: set the real PRGS support WhatsApp number and email.
+  static const String prgsSupportWhatsappUrl = 'https://wa.me/000000000';
+  static const String prgsSupportEmail = 'soporte@prgs.app';
 }
 
 /// Supabase configuration

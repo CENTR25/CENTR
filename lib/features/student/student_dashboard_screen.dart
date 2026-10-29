@@ -10,6 +10,8 @@ import '../../services/notification_providers.dart';
 import '../../services/news_service.dart';
 import '../../models/news_model.dart';
 import '../shared/notifications_sheet.dart';
+import '../shared/chat_screen.dart';
+import '../../services/messaging_service.dart';
 import 'student_meal_plan_screen.dart';
 import 'student_weight_screen.dart';
 import 'student_check_in_screen.dart';
@@ -304,6 +306,90 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
+
+        // Chat with trainer button
+        Consumer(
+          builder: (context, ref, _) {
+            final athleteId =
+                ref.watch(myAthleteProfileProvider).valueOrNull?['id']
+                    as String?;
+            final trainerName = ref
+                .watch(myAthleteProfileProvider)
+                .valueOrNull?['trainer_name'] as String?;
+            final count = athleteId != null
+                ? (ref.watch(studentUnreadProvider(athleteId)).valueOrNull ?? 0)
+                : 0;
+
+            return GestureDetector(
+              onTap: () async {
+                if (athleteId == null) return;
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatScreen(
+                      athleteId: athleteId,
+                      title: (trainerName != null && trainerName.isNotEmpty)
+                          ? trainerName
+                          : 'Mi entrenador',
+                      viewerRole: 'student',
+                    ),
+                  ),
+                );
+                ref.invalidate(studentUnreadProvider(athleteId));
+              },
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: RedesignColors.primario800,
+                  shape: BoxShape.circle,
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      color: RedesignColors.primario50,
+                      size: 20,
+                    ),
+                    if (count > 0)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: RedesignColors.actionPrimary,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            count > 99 ? '99+' : '$count',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: RedesignColors.onActionPrimary,
+                              height: 1.2,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+
+        const SizedBox(width: 10),
 
         // Bell icon button
         Consumer(

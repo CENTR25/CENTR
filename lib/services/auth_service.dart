@@ -262,6 +262,42 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 
+  /// Change password for the signed-in user.
+  ///
+  /// Verifies [currentPassword] by re-authenticating first (Supabase
+  /// `updateUser` does not require the old password, so this is our own guard),
+  /// then updates to [newPassword]. Returns `null` on success, or a
+  /// user-facing Spanish error message on failure. The session stays active.
+  Future<String?> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    final email = _client.auth.currentUser?.email;
+    if (email == null) return 'No hay una sesión activa.';
+
+    // 1. Verify the current password by re-authenticating.
+    try {
+      await _client.auth.signInWithPassword(
+        email: email,
+        password: currentPassword,
+      );
+    } on AuthException {
+      return 'La contraseña actual no es correcta.';
+    } catch (_) {
+      return 'No se pudo verificar la contraseña actual.';
+    }
+
+    // 2. Update to the new password.
+    try {
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
+      return null;
+    } on AuthException catch (e) {
+      return _getAuthErrorMessage(e);
+    } catch (_) {
+      return 'No se pudo actualizar la contraseña. Intenta de nuevo.';
+    }
+  }
+
   /// Reset password
   Future<bool> resetPassword(String email) async {
     try {

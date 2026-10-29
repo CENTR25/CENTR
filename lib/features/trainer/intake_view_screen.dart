@@ -1,16 +1,19 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../core/constants/intake_form.dart';
 import '../../services/trainer_service.dart';
 
 /// Provider for a single athlete's intake questionnaire (trainer/admin read).
 final athleteIntakeProvider =
-    FutureProvider.family<Map<String, dynamic>?, String>((ref, athleteId) async {
-  final service = ref.watch(trainerServiceProvider);
-  return service.getAthleteIntake(athleteId);
-});
+    FutureProvider.family<Map<String, dynamic>?, String>((
+      ref,
+      athleteId,
+    ) async {
+      final service = ref.watch(trainerServiceProvider);
+      return service.getAthleteIntake(athleteId);
+    });
 
 /// Read-only view of an athlete's "Formulario para conocer al Atleta",
 /// rendered from [kIntakeSections] so it always matches the student form.
@@ -28,48 +31,54 @@ class IntakeViewScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final intakeAsync = ref.watch(athleteIntakeProvider(athleteId));
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Ficha del Atleta'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: intakeAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text(
-            'Error al cargar: $e',
-            style: const TextStyle(color: AppColors.error),
-          ),
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        appBar: AppBar(
+          title: const Text('Ficha del Atleta'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
         ),
-        data: (intake) {
-          final responses =
-              (intake?['responses'] as Map?)?.cast<String, dynamic>() ?? {};
-          if (intake == null || responses.isEmpty) {
-            return _empty();
-          }
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-            children: [
-              Text(
-                athleteName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+        body: intakeAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(
+            child: Text(
+              'Error al cargar: $e',
+              style: const TextStyle(color: RedesignColors.peligro200),
+            ),
+          ),
+          data: (intake) {
+            final responses =
+                (intake?['responses'] as Map?)?.cast<String, dynamic>() ?? {};
+            if (intake == null || responses.isEmpty) {
+              return _empty();
+            }
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+              children: [
+                Text(
+                  athleteName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Respuestas del formulario inicial',
-                style: TextStyle(color: AppColors.textLight, fontSize: 13),
-              ),
-              const SizedBox(height: 20),
-              ...kIntakeSections.map((s) => _section(s, responses)),
-            ],
-          );
-        },
+                const SizedBox(height: 4),
+                const Text(
+                  'Respuestas del formulario inicial',
+                  style: TextStyle(
+                    color: RedesignColors.primario300,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ...kIntakeSections.map((s) => _section(s, responses)),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -87,7 +96,7 @@ class IntakeViewScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           const Text(
             'El atleta aún no completó su ficha',
-            style: TextStyle(color: AppColors.textLight, fontSize: 16),
+            style: TextStyle(color: RedesignColors.primario300, fontSize: 16),
           ),
         ],
       ),
@@ -97,9 +106,11 @@ class IntakeViewScreen extends ConsumerWidget {
   Widget _section(IntakeSection section, Map<String, dynamic> responses) {
     // Only show fields that were answered (text/choice or a voice note).
     final answered = section.fields
-        .where((f) =>
-            _hasValue(responses[f.key]) ||
-            (f.allowAudio && _hasValue(responses['${f.key}_audio'])))
+        .where(
+          (f) =>
+              _hasValue(responses[f.key]) ||
+              (f.allowAudio && _hasValue(responses['${f.key}_audio'])),
+        )
         .toList();
     if (answered.isEmpty) return const SizedBox.shrink();
 
@@ -107,7 +118,7 @@ class IntakeViewScreen extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: RedesignColors.primario700,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
@@ -116,7 +127,7 @@ class IntakeViewScreen extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(section.icon, color: AppColors.primaryLight, size: 20),
+              Icon(section.icon, color: RedesignColors.actionPrimary, size: 20),
               const SizedBox(width: 10),
               Text(
                 section.title,
@@ -152,7 +163,7 @@ class IntakeViewScreen extends ConsumerWidget {
           Text(
             field.label,
             style: const TextStyle(
-              color: AppColors.textLight,
+              color: RedesignColors.primario300,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -237,7 +248,11 @@ class _IntakeAudioPlaybackState extends State<_IntakeAudioPlayback> {
             const SizedBox(width: 8),
             const Text(
               'Nota de voz',
-              style: TextStyle(color: Color(0xFF4DD8BB), fontSize: 13, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: Color(0xFF4DD8BB),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),

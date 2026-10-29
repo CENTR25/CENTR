@@ -16,12 +16,18 @@ class StudentBottomNav extends StatelessWidget {
   final VoidCallback? onEntrenarTap;
   final VoidCallback? onNutricionTap;
 
+  /// When already on the Entrenar screen, the centre FAB shows a play icon and
+  /// its tap starts the workout directly (instead of the dumbbell "go to
+  /// Entrenar" affordance used elsewhere).
+  final bool isOnEntrenarScreen;
+
   const StudentBottomNav({
     super.key,
     required this.active,
     this.onInicioTap,
     this.onEntrenarTap,
     this.onNutricionTap,
+    this.isOnEntrenarScreen = false,
   });
 
   static const double _barHeight = 88; // visible bar (FAB raises above it)
@@ -45,8 +51,9 @@ class StudentBottomNav extends StatelessWidget {
             bottom: 0,
             child: Container(
               decoration: const BoxDecoration(
-                borderRadius:
-                    BorderRadius.vertical(top: Radius.circular(_topRadius)),
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(_topRadius),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Color(0x55000000),
@@ -56,8 +63,9 @@ class StudentBottomNav extends StatelessWidget {
                 ],
               ),
               child: ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(_topRadius)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(_topRadius),
+                ),
                 child: BackdropFilter(
                   filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                   child: Container(
@@ -67,8 +75,9 @@ class StudentBottomNav extends StatelessWidget {
                       color: RedesignColors.navbarBackground, // #01B69A @25%
                       border: Border(
                         top: BorderSide(
-                          color: RedesignColors.secundario300
-                              .withValues(alpha: 0.30),
+                          color: RedesignColors.secundario300.withValues(
+                            alpha: 0.30,
+                          ),
                           width: 1,
                         ),
                       ),
@@ -123,17 +132,20 @@ class StudentBottomNav extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color:
-                            RedesignColors.actionPrimary.withValues(alpha: 0.55),
+                        color: RedesignColors.actionPrimary.withValues(
+                          alpha: 0.55,
+                        ),
                         blurRadius: 22,
                         spreadRadius: 1,
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.fitness_center_rounded,
+                  child: Icon(
+                    isOnEntrenarScreen
+                        ? Icons.play_arrow_rounded
+                        : Icons.fitness_center_rounded,
                     color: RedesignColors.onActionPrimary,
-                    size: 26,
+                    size: isOnEntrenarScreen ? 32 : 26,
                   ),
                 ),
               ),
@@ -160,8 +172,9 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        isActive ? RedesignColors.primario50 : RedesignColors.primario300;
+    final color = isActive
+        ? RedesignColors.primario50
+        : RedesignColors.primario300;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

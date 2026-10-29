@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../services/trainer_service.dart';
 
 /// Trainer view/edit of a single workout session's per-exercise weights & reps.
@@ -200,59 +200,104 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(
-          '${widget.routineTitle} — Día ${widget.dayNumber}',
-          style: const TextStyle(fontSize: 16),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? Center(child: Text('Error: $_error'))
-          : _exercises.isEmpty
-          ? Center(
-              child: Text(
-                'Este día no tiene ejercicios',
-                style: TextStyle(color: AppColors.textLight),
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              itemCount: _exercises.length,
-              itemBuilder: (context, i) => _exerciseCard(i),
-            ),
-      bottomNavigationBar: _loading || _exercises.isEmpty
-          ? null
-          : SafeArea(
-              minimum: const EdgeInsets.all(16),
-              child: SizedBox(
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: _saving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(_isNew ? 'Registrar sesión' : 'Guardar'),
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: const BackButton(color: RedesignColors.primario50),
+          centerTitle: true,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _isNew ? 'Registrar sesión' : '${widget.routineTitle} — Día ${widget.dayNumber}',
+                style: RedesignType.bodySm.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: RedesignColors.primario50,
                 ),
               ),
-            ),
+              if (!_isNew)
+                Text(
+                  widget.routineTitle,
+                  style: RedesignType.label.copyWith(
+                    color: RedesignColors.primario300,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        body: _loading
+            ? const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    RedesignColors.actionPrimary,
+                  ),
+                ),
+              )
+            : _error != null
+            ? Center(
+                child: Text(
+                  'Error: $_error',
+                  style: RedesignType.bodySm.copyWith(
+                    color: RedesignColors.primario300,
+                  ),
+                ),
+              )
+            : _exercises.isEmpty
+            ? Center(
+                child: Text(
+                  'Este día no tiene ejercicios',
+                  style: RedesignType.bodySm.copyWith(
+                    color: RedesignColors.primario400,
+                  ),
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                itemCount: _exercises.length,
+                itemBuilder: (context, i) => _exerciseCard(i),
+              ),
+        bottomNavigationBar: _loading || _exercises.isEmpty
+            ? null
+            : SafeArea(
+                minimum: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: SizedBox(
+                  height: RedesignSpacing.inputHeight,
+                  child: ElevatedButton(
+                    onPressed: _saving ? null : _save,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: RedesignColors.actionPrimary,
+                      foregroundColor: RedesignColors.onActionPrimary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: RedesignRadius.buttonLgBr,
+                      ),
+                    ),
+                    child: _saving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                RedesignColors.onActionPrimary,
+                              ),
+                            ),
+                          )
+                        : Text(
+                            _isNew ? 'Registrar sesión' : 'Guardar',
+                            style: RedesignType.buttonLg.copyWith(
+                              color: RedesignColors.onActionPrimary,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+      ),
     );
   }
 
@@ -262,24 +307,25 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(RedesignSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        color: RedesignColors.surface,
+        borderRadius: BorderRadius.circular(RedesignRadius.card),
+        border: Border.all(
+          color: RedesignColors.secundario300.withValues(alpha: 0.18),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+            style: RedesignType.bodySm.copyWith(
+              color: RedesignColors.primario50,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           for (final s in setNumbers) _setRow(i, s),
         ],
       ),
@@ -298,16 +344,25 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
               SizedBox(
                 width: 64,
                 child: Text(
-                  'Serie $setNumber',
-                  style: TextStyle(color: AppColors.textLight, fontSize: 13),
+                  'S$setNumber',
+                  style: RedesignType.label.copyWith(
+                    color: RedesignColors.primario400,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Expanded(
                 child: _numField(_weightCtrls[exIndex]![setNumber]!, 'kg'),
               ),
-              const SizedBox(width: 10),
-              const Text('×', style: TextStyle(color: Colors.white)),
-              const SizedBox(width: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(
+                  '×',
+                  style: RedesignType.bodySm.copyWith(
+                    color: RedesignColors.primario50,
+                  ),
+                ),
+              ),
               Expanded(
                 child: _numField(
                   _repsCtrls[exIndex]![setNumber]!,
@@ -322,9 +377,8 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
               padding: const EdgeInsets.only(left: 64, top: 4),
               child: Text(
                 prev,
-                style: TextStyle(
-                  color: AppColors.textLight.withValues(alpha: 0.7),
-                  fontSize: 11,
+                style: RedesignType.label.copyWith(
+                  color: RedesignColors.primario400,
                 ),
               ),
             ),
@@ -344,24 +398,30 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
       inputFormatters: intOnly
           ? [FilteringTextInputFormatter.digitsOnly]
           : [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-      style: const TextStyle(color: Colors.white),
+      style: RedesignType.bodySm.copyWith(color: RedesignColors.primario50),
       decoration: InputDecoration(
         isDense: true,
         suffixText: suffix,
-        suffixStyle: TextStyle(color: AppColors.textLight, fontSize: 12),
+        suffixStyle: RedesignType.label.copyWith(
+          color: RedesignColors.primario400,
+        ),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 10,
+          horizontal: 14,
+          vertical: 11,
         ),
         filled: true,
-        fillColor: AppColors.background.withValues(alpha: 0.4),
+        fillColor: RedesignColors.inputFill,
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          borderRadius: BorderRadius.circular(RedesignRadius.buttonSm),
+          borderSide: BorderSide(
+            color: RedesignColors.secundario300.withValues(alpha: 0.18),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.primaryLight),
+          borderRadius: BorderRadius.circular(RedesignRadius.buttonSm),
+          borderSide: const BorderSide(
+            color: RedesignColors.inputBorderFocused,
+          ),
         ),
       ),
     );

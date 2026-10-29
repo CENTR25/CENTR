@@ -279,6 +279,72 @@ class StorageService {
 
     return _client.storage.from(_bucketName).getPublicUrl(path);
   }
+
+  /// Upload a routine cover image from raw bytes (web-safe). Returns the
+  /// public URL to store in routines.image_url.
+  Future<String> uploadRoutineImageBytes(
+    Uint8List bytes,
+    String extension,
+    String userId,
+  ) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final path = 'routine_images/${userId}_$timestamp.$extension';
+
+    await _client.storage.from(_bucketName).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+            upsert: true,
+          ),
+        );
+
+    return _client.storage.from(_bucketName).getPublicUrl(path);
+  }
+
+  /// Upload a meal plan cover from raw bytes (web-safe). Returns the public URL
+  /// to store in meal_plans.image_url.
+  Future<String> uploadMealPlanCoverBytes(
+    Uint8List bytes,
+    String extension,
+    String userId,
+  ) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final path = 'meal_plans/${userId}_$timestamp.$extension';
+
+    await _client.storage.from(_bucketName).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+            upsert: true,
+          ),
+        );
+
+    return _client.storage.from(_bucketName).getPublicUrl(path);
+  }
+
+  /// Upload a meal photo from raw bytes (web-safe). Returns the public URL
+  /// to store in meal_plan_items.image_url.
+  Future<String> uploadMealImageBytes(
+    Uint8List bytes,
+    String extension,
+    String mealPlanId,
+  ) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final path = 'meal_images/${mealPlanId}_$timestamp.$extension';
+
+    await _client.storage.from(_bucketName).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+            upsert: true,
+          ),
+        );
+
+    return _client.storage.from(_bucketName).getPublicUrl(path);
+  }
 }
 
 /// Provider for StorageService

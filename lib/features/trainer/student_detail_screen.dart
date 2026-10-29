@@ -1,16 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../widgets/check_in_photo.dart';
 import '../../services/trainer_service.dart';
 import '../student/student_check_in_history_screen.dart';
 import 'routine_detail_screen.dart';
 import 'meal_plan_detail_screen.dart';
 import 'assignment_sheets.dart';
+import 'alimentacion_sheet.dart';
 import 'student_history_screen.dart';
 import 'intake_view_screen.dart';
 import 'check_in_comparison_screen.dart';
+import 'cardio_editor_screen.dart';
+import 'supplements_editor_screen.dart';
+
+const _monthAbbr = [
+  'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+  'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+];
+
+// ---------------------------------------------------------------------------
+// Weight range enum (mirrors student_weight_screen.dart)
+// ---------------------------------------------------------------------------
+
+enum _WeightRange { oneMonth, threeMonths, all }
+
+// ---------------------------------------------------------------------------
+// Main screen
+// ---------------------------------------------------------------------------
 
 class StudentDetailScreen extends ConsumerStatefulWidget {
   final String studentId;
@@ -18,461 +36,207 @@ class StudentDetailScreen extends ConsumerStatefulWidget {
   const StudentDetailScreen({super.key, required this.studentId});
 
   @override
-  ConsumerState<StudentDetailScreen> createState() => _StudentDetailScreenState();
+  ConsumerState<StudentDetailScreen> createState() =>
+      _StudentDetailScreenState();
 }
 
 class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
-  // We will need providers for fetching detailed info. 
-  // For now, we reuse the service call directly or create a specific provider.
-  
+  int _tabIndex = 0; // 0=Semana 1=Plan 2=Progreso
+  _WeightRange _weightRange = _WeightRange.threeMonths;
+
   @override
   Widget build(BuildContext context) {
-    // We'll create a future provider for this screen specifically or use a future builder for simplicity first
     final studentAsync = ref.watch(studentDetailProvider(widget.studentId));
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Detalle del Alumno'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: AppColors.error),
-            tooltip: 'Eliminar alumno',
-            onPressed: () => _confirmDelete(
-              studentAsync.valueOrNull?['name'] as String?,
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back,
+                color: RedesignColors.primario50),
+            onPressed: () => Navigator.pop(context),
+          ),
+          centerTitle: true,
+          title: const Text(
+            'Detalle del alumno',
+            style: TextStyle(
+              color: RedesignColors.primario50,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Metropolis',
             ),
           ),
-        ],
-      ),
-      body: studentAsync.when(
-        data: (student) {
-          if (student == null) {
-            return const Center(child: Text('Alumno no encontrado'));
-          }
-          
-          final profile = student['profiles'] as Map<String, dynamic>?;
-          final name = student['name'] ?? 'Sin nombre';
-          final email = profile?['email'] ?? 'Sin correo';
-          
-          // Extract active routine
-          final routines = (student['athlete_routines'] as List?) ?? [];
-          final activeRoutine = routines.firstWhere(
-            (r) => r['is_active'] == true,
-            orElse: () => null,
-          );
-          
-          // Extract active meal plan
-          final mealPlans = (student['athlete_meal_plans'] as List?) ?? [];
-          final activeMealPlan = mealPlans.firstWhere(
-            (m) => m['is_active'] == true, 
-            orElse: () => null,
-          );
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Profile Header
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.primary, AppColors.primaryDark],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+          actions: [
+            // Ficha del atleta
+            IconButton(
+              icon: const Icon(Icons.assignment_ind_outlined,
+                  color: RedesignColors.primario300),
+              tooltip: 'Ficha del atleta',
+              onPressed: () {
+                final name = studentAsync.valueOrNull?['name'] as String? ??
+                    'Alumno';
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => IntakeViewScreen(
+                      athleteId: widget.studentId,
+                      athleteName: name,
                     ),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
                   ),
-                  child: Column(
+                );
+              },
+            ),
+            // Overflow: eliminar alumno
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert,
+                  color: RedesignColors.primario300),
+              color: RedesignColors.primario700,
+              onSelected: (val) {
+                if (val == 'delete') {
+                  _confirmDelete(
+                      studentAsync.valueOrNull?['name'] as String?);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.white24,
-                          shape: BoxShape.circle,
-                        ),
-                        child: CircleAvatar(
-                          radius: 45,
-                          backgroundColor: Colors.white,
-                          child: Text(
-                            (name.isNotEmpty ? name[0] : 'A').toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+                      Icon(Icons.delete_outline,
+                          color: RedesignColors.danger, size: 20),
+                      SizedBox(width: 10),
                       Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        email,
+                        'Eliminar alumno',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 16,
+                          color: RedesignColors.danger,
+                          fontFamily: 'Metropolis',
                         ),
                       ),
                     ],
                   ),
                 ),
-                
-                const SizedBox(height: 32),
-
-                // Athlete intake questionnaire ("Formulario para conocer al Atleta")
-                _buildIntakeCard(context, name),
-
-                const SizedBox(height: 32),
-
-                // Stats Section
-                _SectionHeader(
-                  title: 'Estadísticas',
-                  action: 'Ver historial',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => StudentHistoryScreen(
-                          studentId: widget.studentId,
-                          studentName: name,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                _buildStatsRow(student),
-                
-                const SizedBox(height: 32),
-                
-                // Activity History
-                _buildActivityHistory(student),
-
-                const SizedBox(height: 32),
-                
-                // Routine Section
-                _SectionHeader(title: 'Rutina Actual', action: 'Asignar', onTap: () => _showAssignRoutineSheet(context)),
-                const SizedBox(height: 8),
-                if (activeRoutine != null) ...[
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(12),
-                      leading: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(Icons.fitness_center_rounded, color: AppColors.success, size: 28),
-                      ),
-                      title: Text(
-                        activeRoutine['routines']?['title'] ?? 'Rutina',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      subtitle: Text(
-                        'Asignada el ${_formatDate(activeRoutine['start_date'])}',
-                        style: TextStyle(color: AppColors.textLight),
-                      ),
-                      trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withValues(alpha: 0.2), size: 16),
-                      onTap: () {
-                         Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => RoutineDetailScreen(
-                              routineId: activeRoutine['routine_id'],
-                              routineTitle: activeRoutine['routines']?['title'] ?? 'Rutina',
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () => _personalizeRoutine(
-                        context,
-                        activeRoutine['routine_id'] as String,
-                        activeRoutine['routines']?['title'] as String? ??
-                            'Rutina',
-                        name,
-                      ),
-                      icon: const Icon(Icons.copy_rounded, size: 16),
-                      label: const Text('Personalizar para este alumno'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.primaryLight,
-                        textStyle: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  _EmptyStateCard(
-                    icon: Icons.fitness_center_rounded,
-                    text: 'Sin rutina asignada',
-                    onTap: () => _showAssignRoutineSheet(context),
-                  ),
-                ],
-
-                const SizedBox(height: 32),
-
-                // Cardio Section
-                _SectionHeader(
-                  title: 'Cardio',
-                  action: 'Editar',
-                  onTap: () => _showEditCardioDialog(context, student),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.warning.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(Icons.directions_run, color: AppColors.warning, size: 28),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  student['cardio_description'] as String? ?? 'No asignado',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _formatCardioDays(student['cardio_days'] as List?),
-                                  style: TextStyle(color: AppColors.textLight.withValues(alpha: 0.7), fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 32),
-
-                // Supplements Section
-                _SectionHeader(
-                  title: 'Suplementación',
-                  action: 'Editar',
-                  onTap: () => _showEditSupplementsDialog(context, student),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildSupplementRow(
-                        icon: Icons.medication_rounded,
-                        label: 'Suplementos Diarios',
-                        value: (student['daily_supplements'] as String?)
-                                    ?.trim()
-                                    .isNotEmpty ==
-                                true
-                            ? student['daily_supplements'] as String
-                            : 'No asignado',
-                        color: Colors.blue,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildSupplementRow(
-                        icon: Icons.science_rounded,
-                        label: 'Suplementación Química',
-                        value: (student['chemical_supplements'] as String?)
-                                    ?.trim()
-                                    .isNotEmpty ==
-                                true
-                            ? student['chemical_supplements'] as String
-                            : 'No asignado',
-                        color: Colors.purple,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 32),
-
-                // Renewal Date Section
-                _SectionHeader(
-                  title: 'Próximo Vencimiento',
-                  action: 'Editar',
-                  onTap: () => _showEditRenewalDateDialog(context, student),
-                ),
-                const SizedBox(height: 12),
-                _buildRenewalDateCard(context, student),
-
-                const SizedBox(height: 32),
-
-                // Meal Plan Section
-                _SectionHeader(title: 'Plan Alimenticio', action: 'Asignar', onTap: () => _showAssignMealPlanSheet(context)),
-                const SizedBox(height: 8),
-                if (activeMealPlan != null) ...[
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(12),
-                      leading: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(Icons.restaurant_rounded, color: AppColors.warning, size: 28),
-                      ),
-                      title: Text(
-                        activeMealPlan['meal_plans']?['title'] ?? 'Plan Alimenticio',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                       subtitle: Text(
-                         'Asignado el ${_formatDate(activeMealPlan['start_date'])}',
-                         style: TextStyle(color: AppColors.textLight),
-                       ),
-                       trailing: Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withValues(alpha: 0.2), size: 16),
-                       onTap: () {
-                         Navigator.push(
-                           context,
-                           MaterialPageRoute(
-                             builder: (context) => MealPlanDetailScreen(
-                               planId: activeMealPlan['meal_plan_id'],
-                               planName: activeMealPlan['meal_plans']?['title'] ??
-                                   'Plan Alimenticio',
-                             ),
-                           ),
-                         );
-                       },
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () => _personalizeMealPlan(
-                        context,
-                        activeMealPlan['meal_plan_id'] as String,
-                        activeMealPlan['meal_plans']?['title'] as String? ??
-                            'Plan Alimenticio',
-                        name,
-                      ),
-                      icon: const Icon(Icons.copy_rounded, size: 16),
-                      label: const Text('Personalizar para este alumno'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.primaryLight,
-                        textStyle: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  _EmptyStateCard(
-                    icon: Icons.restaurant_rounded,
-                    text: 'Sin plan asignado',
-                    onTap: () => _showAssignMealPlanSheet(context),
-                  ),
-                ],
-
-                const SizedBox(height: 32),
-
-                // Weight Progress Section
-                _SectionHeader(
-                  title: 'Progreso de Peso',
-                  action: 'Agregar',
-                  onTap: () => _showAddWeightDialog(context),
-                ),
-                const SizedBox(height: 8),
-                _buildWeightChart(student),
-
-                const SizedBox(height: 32),
-
-                // Check-ins Section
-                Builder(
-                  builder: (context) {
-                    final checkIns = (student['check_ins'] as List?) ?? [];
-                    if (checkIns.isNotEmpty) {
-                      return _SectionHeader(
-                        title: 'Fotos Check-in',
-                        action: 'Expandir',
-                        onTap: () => showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => CheckInGridSheet(
-                            checkIns: List<Map<String, dynamic>>.from(
-                              checkIns,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                    return const _SectionHeaderNoAction(title: 'Fotos Check-in');
-                  },
-                ),
-                const SizedBox(height: 8),
-                _buildCheckInsGallery(student),
               ],
             ),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, s) => Center(child: Text('Error: $e')),
+          ],
+        ),
+        body: studentAsync.when(
+          data: (student) {
+            if (student == null) {
+              return const Center(
+                child: Text(
+                  'Alumno no encontrado',
+                  style: TextStyle(
+                    color: RedesignColors.primario300,
+                    fontFamily: 'Metropolis',
+                  ),
+                ),
+              );
+            }
+            final name = student['name'] as String? ?? 'Sin nombre';
+
+            return Column(
+              children: [
+                // ── Pill segmented control ─────────────────────────────
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  child: _TabPill(
+                    index: _tabIndex,
+                    onChanged: (i) => setState(() => _tabIndex = i),
+                  ),
+                ),
+                // ── Tab content ───────────────────────────────────────
+                Expanded(
+                  child: IndexedStack(
+                    index: _tabIndex,
+                    children: [
+                      _SemanaTab(
+                        student: student,
+                        studentId: widget.studentId,
+                        studentName: name,
+                      ),
+                      _PlanTab(
+                        student: student,
+                        studentId: widget.studentId,
+                        studentName: name,
+                        onAssignRoutine: () =>
+                            _showAssignRoutineSheet(context),
+                        onAssignMealPlan: () =>
+                            _showAssignMealPlanSheet(context),
+                        onEditCardio: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CardioEditorScreen(
+                              athleteId: widget.studentId,
+                              studentName: name,
+                              initialActivity: student['cardio_activity']
+                                  as String?,
+                              initialDuration: student['cardio_duration']
+                                  as String?,
+                              initialLevel:
+                                  student['cardio_level'] as String?,
+                              initialNote:
+                                  student['cardio_note'] as String?,
+                              initialDays: (student['cardio_days'] as List?)
+                                      ?.cast<int>() ??
+                                  [],
+                            ),
+                          ),
+                        ),
+                        onEditSupplements: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SupplementsListScreen(
+                              athleteId: widget.studentId,
+                              studentName: name,
+                            ),
+                          ),
+                        ),
+                        onEditRenewal: () =>
+                            _showEditRenewalDateDialog(context, student),
+                        onPersonalizeRoutine: (id, title) =>
+                            _personalizeRoutine(context, id, title, name),
+                        onPersonalizeMealPlan: (id, title) =>
+                            _personalizeMealPlan(context, id, title, name),
+                      ),
+                      _ProgresoTab(
+                        student: student,
+                        weightRange: _weightRange,
+                        onRangeChanged: (r) =>
+                            setState(() => _weightRange = r),
+                        onAddWeight: () => _showAddWeightDialog(context),
+                        onSetAssignedDate: (id, raw) =>
+                            _setAssignedDate(context, id, raw),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+          loading: () => const Center(
+            child: CircularProgressIndicator(
+                color: RedesignColors.actionPrimary),
+          ),
+          error: (e, _) => Center(
+            child: Text(
+              'Error: $e',
+              style: const TextStyle(
+                color: RedesignColors.danger,
+                fontFamily: 'Metropolis',
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  String _formatDate(String? dateStr) {
-    if (dateStr == null) return '-';
-    final date = DateTime.parse(dateStr);
-    return '${date.day}/${date.month}/${date.year}';
-  }
+  // ── Action methods ────────────────────────────────────────────────────────
 
   Future<void> _personalizeRoutine(
     BuildContext context,
@@ -508,21 +272,36 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: RedesignColors.danger,
+          ),
         );
       }
     }
   }
 
   Future<void> _confirmDelete(String? name) async {
-    final label = (name == null || name.trim().isEmpty) ? 'este alumno' : name;
+    final label =
+        (name == null || name.trim().isEmpty) ? 'este alumno' : name;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar alumno'),
+        backgroundColor: RedesignColors.primario700,
+        title: const Text(
+          'Eliminar alumno',
+          style: TextStyle(
+            color: RedesignColors.primario50,
+            fontFamily: 'Metropolis',
+          ),
+        ),
         content: Text(
           '¿Seguro que querés eliminar a $label? Se borrará su cuenta y todos '
           'sus datos de forma permanente. Esta acción no se puede deshacer.',
+          style: const TextStyle(
+            color: RedesignColors.primario300,
+            fontFamily: 'Metropolis',
+          ),
         ),
         actions: [
           TextButton(
@@ -531,7 +310,8 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            style: TextButton.styleFrom(
+                foregroundColor: RedesignColors.danger),
             child: const Text('Eliminar'),
           ),
         ],
@@ -540,20 +320,25 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     if (confirmed != true || !mounted) return;
 
     try {
-      await ref.read(trainerServiceProvider).deleteStudent(widget.studentId);
+      await ref
+          .read(trainerServiceProvider)
+          .deleteStudent(widget.studentId);
       ref.invalidate(myStudentsProvider);
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Alumno eliminado'),
-          backgroundColor: AppColors.success,
+          backgroundColor: RedesignColors.success,
         ),
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: RedesignColors.danger,
+          ),
         );
       }
     }
@@ -593,21 +378,34 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: RedesignColors.danger,
+          ),
         );
       }
     }
   }
 
-  Future<bool?> _confirmPersonalize(BuildContext context, String message) {
+  Future<bool?> _confirmPersonalize(
+      BuildContext context, String message) {
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Personalizar', style: TextStyle(color: Colors.white)),
+        backgroundColor: RedesignColors.primario700,
+        title: const Text(
+          'Personalizar',
+          style: TextStyle(
+            color: RedesignColors.primario50,
+            fontFamily: 'Metropolis',
+          ),
+        ),
         content: Text(
           message,
-          style: TextStyle(color: AppColors.textLight),
+          style: const TextStyle(
+            color: RedesignColors.primario300,
+            fontFamily: 'Metropolis',
+          ),
         ),
         actions: [
           TextButton(
@@ -628,16 +426,29 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => AssignRoutineSheet(studentId: widget.studentId),
+      builder: (_) => AssignRoutineSheet(studentId: widget.studentId),
     );
   }
 
   void _showAssignMealPlanSheet(BuildContext context) {
+    // Read current student data from the provider's cached value.
+    final student = ref.read(studentDetailProvider(widget.studentId)).valueOrNull;
+    final name = (student?['name'] as String?) ?? 'Alumno';
+    final mealPlans = (student?['athlete_meal_plans'] as List?) ?? [];
+    final activeMealPlan = mealPlans.firstWhere(
+      (m) => m['is_active'] == true,
+      orElse: () => null,
+    );
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => AssignMealPlanSheet(studentId: widget.studentId),
+      builder: (_) => AlimentacionSheet(
+        athleteId: widget.studentId,
+        studentName: name,
+        activeMealPlan: activeMealPlan,
+      ),
     );
   }
 
@@ -646,21 +457,29 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
+        backgroundColor: RedesignColors.primario700,
         title: const Text(
           'Registrar Peso',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(
+            color: RedesignColors.primario50,
+            fontFamily: 'Metropolis',
+          ),
         ),
         content: TextField(
           controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
           autofocus: true,
-          style: const TextStyle(color: Colors.white, fontSize: 24),
+          style: const TextStyle(
+            color: RedesignColors.primario50,
+            fontSize: 24,
+            fontFamily: 'Metropolis',
+          ),
           decoration: const InputDecoration(
             hintText: '0.0',
-            hintStyle: TextStyle(color: Colors.white30),
+            hintStyle: TextStyle(color: RedesignColors.primario500),
             suffixText: 'kg',
-            suffixStyle: TextStyle(color: Colors.white54),
+            suffixStyle: TextStyle(color: RedesignColors.primario400),
           ),
         ),
         actions: [
@@ -684,7 +503,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Peso registrado: ${weight}kg'),
-                      backgroundColor: AppColors.success,
+                      backgroundColor: RedesignColors.success,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -697,7 +516,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Error: $e'),
-                      backgroundColor: AppColors.error,
+                      backgroundColor: RedesignColors.danger,
                     ),
                   );
                 }
@@ -710,398 +529,12 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     );
   }
 
-  Widget _buildWeightChart(Map<String, dynamic> student) {
-    final bodyProgress = (student['body_progress'] as List?) ?? [];
-    
-    if (bodyProgress.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.show_chart_rounded, size: 48, color: Colors.white.withValues(alpha: 0.1)),
-            const SizedBox(height: 12),
-            Text(
-              'Sin datos de peso aún',
-              style: TextStyle(color: AppColors.textLight),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Sort by date and get last 7 entries
-    final sortedProgress = List<Map<String, dynamic>>.from(bodyProgress);
-    sortedProgress.sort((a, b) =>
-      DateTime.parse(a['created_at']).compareTo(DateTime.parse(b['created_at']))
-    );
-    final recentProgress = sortedProgress.length > 7
-        ? sortedProgress.sublist(sortedProgress.length - 7)
-        : sortedProgress;
-
-    // Keep only entries that actually have a weight, so spot x-index and the
-    // date labels below stay aligned (a null-weight entry would otherwise
-    // shift every label).
-    final plotted = recentProgress
-        .where((e) => (e['body_weight'] as num?) != null)
-        .toList();
-    if (plotted.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final spots = [
-      for (int i = 0; i < plotted.length; i++)
-        FlSpot(i.toDouble(), (plotted[i]['body_weight'] as num).toDouble()),
-    ];
-
-    // Calculate min/max for Y axis
-    final weights = spots.map((s) => s.y).toList();
-    final minY = (weights.reduce((a, b) => a < b ? a : b) - 5).clamp(0.0, double.infinity);
-    final maxY = weights.reduce((a, b) => a > b ? a : b) + 5;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 180,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  getDrawingHorizontalLine: (value) => FlLine(
-                    color: Colors.white.withValues(alpha: 0.05),
-                    strokeWidth: 1,
-                  ),
-                ),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 45,
-                      getTitlesWidget: (value, meta) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Text(
-                          '${value.toInt()}kg',
-                          style: TextStyle(fontSize: 10, color: AppColors.textLight),
-                        ),
-                      ),
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 22,
-                      interval: 1,
-                      getTitlesWidget: (value, meta) {
-                        final i = value.round();
-                        if (i < 0 || i >= plotted.length) {
-                          return const SizedBox.shrink();
-                        }
-                        final raw = (plotted[i]['date'] ??
-                            plotted[i]['created_at']) as String?;
-                        final d = raw != null ? DateTime.tryParse(raw) : null;
-                        if (d == null) return const SizedBox.shrink();
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            '${d.day}/${d.month}',
-                            style: TextStyle(fontSize: 9, color: AppColors.textLight),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                lineTouchData: LineTouchData(
-                  touchTooltipData: LineTouchTooltipData(
-                    getTooltipColor: (_) => AppColors.surface,
-                    tooltipBorder: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                minX: 0,
-                maxX: (plotted.length - 1).toDouble(),
-                minY: minY,
-                maxY: maxY,
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: spots,
-                    isCurved: true,
-                    color: AppColors.primary,
-                    barWidth: 4,
-                    dotData: FlDotData(
-                      show: true,
-                      getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                        radius: 4,
-                        color: AppColors.primary,
-                        strokeWidth: 2,
-                        strokeColor: Colors.white,
-                      ),
-                    ),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.primary.withValues(alpha: 0.2),
-                          AppColors.primary.withValues(alpha: 0),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIntakeCard(BuildContext context, String name) {
-    return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => IntakeViewScreen(
-            athleteId: widget.studentId,
-            athleteName: name,
-          ),
-        ),
-      ),
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.primary.withValues(alpha: 0.18),
-              AppColors.primary.withValues(alpha: 0.06),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(Icons.assignment_ind_outlined,
-                  color: AppColors.primaryLight, size: 24),
-            ),
-            const SizedBox(width: 14),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Ficha del Atleta',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Respuestas del formulario inicial',
-                    style: TextStyle(color: AppColors.textLight, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: AppColors.textLight),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCheckInsGallery(Map<String, dynamic> student) {
-    // Check-ins might be in a different field, adapting to possible schema
-    final checkIns = (student['check_ins'] as List?) ?? [];
-    
-    if (checkIns.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.photo_camera_rounded, size: 48, color: Colors.white.withValues(alpha: 0.1)),
-            const SizedBox(height: 12),
-            Text(
-              'Sin fotos de check-in',
-              style: TextStyle(color: AppColors.textLight),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 140,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: checkIns.length,
-        itemBuilder: (context, index) {
-          final checkIn = checkIns[index] as Map<String, dynamic>;
-
-          // Build the full URL list from check_in_photos-normalised field.
-          final allUrls = (checkIn['photo_urls'] as List?)
-                  ?.whereType<String>()
-                  .where((s) => s.isNotEmpty)
-                  .toList() ??
-              (checkIn['photo_url'] != null
-                  ? [checkIn['photo_url'] as String]
-                  : <String>[]);
-
-          // Date: prefer assigned_date, fall back to created_at.
-          final assignedRaw = checkIn['assigned_date'] as String?;
-          final createdRaw = checkIn['created_at'] as String?;
-          final dateStr = () {
-            if (assignedRaw != null) {
-              final d = DateTime.tryParse(assignedRaw);
-              if (d != null) {
-                return '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}';
-              }
-            }
-            if (createdRaw != null) {
-              final d = DateTime.tryParse(createdRaw)?.toLocal();
-              if (d != null) {
-                return '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}';
-              }
-            }
-            return '';
-          }();
-
-          return GestureDetector(
-            onTap: allUrls.isNotEmpty
-                ? () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CheckInPhotoViewerScreen(
-                          urls: allUrls,
-                          initialIndex: 0,
-                        ),
-                      ),
-                    )
-                : null,
-            onLongPress: () => _setAssignedDate(
-              context,
-              checkIn['id'] as String,
-              assignedRaw,
-            ),
-            child: Container(
-              width: 100,
-              margin: EdgeInsets.only(right: index < checkIns.length - 1 ? 12 : 0),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: AppColors.surface,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  allUrls.isNotEmpty
-                      ? CheckInPhoto(
-                          key: ValueKey(allUrls.first),
-                          url: allUrls.first,
-                          cacheWidth: 300,
-                        )
-                      : const Icon(Icons.photo_rounded, color: Colors.grey),
-                  // Tappable date bar at the bottom doubles as the edit-date
-                  // affordance — no more overlay covering the photo.
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: () => _setAssignedDate(
-                        context,
-                        checkIn['id'] as String,
-                        assignedRaw,
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 5, horizontal: 6),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            colors: [
-                              Colors.black.withValues(alpha: 0.8),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              dateStr.isNotEmpty ? dateStr : 'Fecha',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.edit_calendar_rounded,
-                              color: assignedRaw != null
-                                  ? AppColors.accent
-                                  : Colors.white,
-                              size: 13,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  /// Trainer assigns (or clears) the `assigned_date` for a check-in.
   Future<void> _setAssignedDate(
     BuildContext context,
     String checkInId,
     String? currentAssigned,
   ) async {
-    // Capture messenger before any async gap.
     final messenger = ScaffoldMessenger.of(context);
-
     final now = DateTime.now();
     final initial = currentAssigned != null
         ? (DateTime.tryParse(currentAssigned) ?? now)
@@ -1118,7 +551,6 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     );
     if (picked == null) return;
 
-    // Format as DATE string yyyy-MM-dd.
     final dateStr =
         '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
     try {
@@ -1130,7 +562,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         messenger.showSnackBar(
           const SnackBar(
             content: Text('Fecha de check-in actualizada'),
-            backgroundColor: AppColors.success,
+            backgroundColor: RedesignColors.success,
           ),
         );
       }
@@ -1139,290 +571,11 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         messenger.showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: AppColors.error,
+            backgroundColor: RedesignColors.danger,
           ),
         );
       }
     }
-  }
-
-  Widget _buildActivityHistory(Map<String, dynamic> student) {
-    // The app records workouts in workout_sessions (workout_logs is legacy
-    // and never written)
-    final workoutSessions = (student['workout_sessions'] as List?) ?? [];
-
-    // Get last 7 days activity
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Actividad de la Semana',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(7, (index) {
-              final date = today.subtract(Duration(days: 6 - index));
-
-              final hasWorkout = workoutSessions.any((session) {
-                if (session['is_completed'] != true) return false;
-                final startedStr =
-                    (session['started_at'] ?? session['created_at']) as String?;
-                if (startedStr == null) return false;
-                final started = DateTime.parse(startedStr).toLocal();
-                return started.year == date.year &&
-                    started.month == date.month &&
-                    started.day == date.day;
-              });
-
-              final dayName = ['L', 'M', 'M', 'J', 'V', 'S', 'D'][date.weekday - 1];
-              final isToday = index == 6;
-
-              return Column(
-                children: [
-                  Text(
-                    dayName,
-                    style: TextStyle(
-                      color: isToday ? AppColors.primaryLight : AppColors.textLight,
-                      fontSize: 12,
-                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: hasWorkout 
-                        ? AppColors.primary.withValues(alpha: 0.2) 
-                        : Colors.white.withValues(alpha: 0.03),
-                      shape: BoxShape.circle,
-                      border: hasWorkout 
-                        ? Border.all(color: AppColors.primary.withValues(alpha: 0.5), width: 1.5)
-                        : null,
-                    ),
-                    child: Icon(
-                      hasWorkout ? Icons.local_fire_department_rounded : Icons.remove_rounded,
-                      size: 18,
-                      color: hasWorkout ? Colors.orange : Colors.white.withValues(alpha: 0.1),
-                    ),
-                  ),
-                ],
-              );
-            }),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatsRow(Map<String, dynamic> student) {
-    final streaks = (student['streaks'] as List?) ?? [];
-    final completedWorkouts = ((student['workout_sessions'] as List?) ?? [])
-        .where((s) => s['is_completed'] == true)
-        .length;
-
-    // Get current streak
-    int currentStreak = 0;
-    if (streaks.isNotEmpty) {
-      final streakData = streaks.first as Map<String, dynamic>;
-      currentStreak = (streakData['current_count'] as int?) ?? 0;
-
-      // Live calculation for trainer view accuracy
-      final lastWorkoutStr = streakData['last_activity_date'] as String?;
-      if (lastWorkoutStr != null) {
-        final lastWorkoutDate = DateTime.parse(lastWorkoutStr);
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final yesterday = today.subtract(const Duration(days: 1));
-        final workoutDate = DateTime(lastWorkoutDate.year, lastWorkoutDate.month, lastWorkoutDate.day);
-
-        // If last workout was not today and not yesterday, streak counts as 0
-        if (workoutDate.isBefore(yesterday) && workoutDate != today) {
-          currentStreak = 0;
-        }
-      }
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            icon: Icons.local_fire_department,
-            value: '$currentStreak',
-            label: 'Racha actual',
-            color: Colors.orange,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.fitness_center,
-            value: '$completedWorkouts',
-            label: 'Entrenamientos',
-            color: AppColors.success,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSupplementRow({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    final hasValue = value.isNotEmpty && value != 'No asignado';
-    
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.2),
-                  blurRadius: 8,
-                ),
-              ],
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label.toUpperCase(),
-                  style: TextStyle(
-                    color: AppColors.textLight.withValues(alpha: 0.7),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  value,
-                  style: TextStyle(
-                    color: hasValue ? Colors.white : Colors.white.withValues(alpha: 0.3),
-                    fontSize: 16,
-                    fontWeight: hasValue ? FontWeight.w600 : FontWeight.normal,
-                    fontStyle: hasValue ? FontStyle.normal : FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // -------- Renewal date helpers --------
-
-  Widget _buildRenewalDateCard(
-    BuildContext context,
-    Map<String, dynamic> student,
-  ) {
-    final raw = student['next_renewal_date'] as String?;
-    final renewalDate = raw != null ? DateTime.tryParse(raw) : null;
-
-    String label;
-    Color statusColor;
-    IconData statusIcon;
-
-    if (renewalDate == null) {
-      label = 'Sin fecha asignada';
-      statusColor = Colors.white.withValues(alpha: 0.3);
-      statusIcon = Icons.event_busy_rounded;
-    } else {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final renewalDay = DateTime(renewalDate.year, renewalDate.month, renewalDate.day);
-      final daysLeft = renewalDay.difference(today).inDays;
-      final dateLabel =
-          '${renewalDate.day.toString().padLeft(2, '0')}/${renewalDate.month.toString().padLeft(2, '0')}/${renewalDate.year}';
-
-      if (daysLeft <= 0) {
-        label = 'Venció el $dateLabel';
-        statusColor = AppColors.error;
-        statusIcon = Icons.warning_rounded;
-      } else if (daysLeft <= 5) {
-        label = 'Vence en $daysLeft día${daysLeft == 1 ? '' : 's'} ($dateLabel)';
-        statusColor = AppColors.error;
-        statusIcon = Icons.warning_amber_rounded;
-      } else if (daysLeft <= 14) {
-        label = 'Vence el $dateLabel ($daysLeft días)';
-        statusColor = AppColors.warning;
-        statusIcon = Icons.schedule_rounded;
-      } else {
-        label = 'Vence el $dateLabel ($daysLeft días)';
-        statusColor = AppColors.success;
-        statusIcon = Icons.check_circle_rounded;
-      }
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(statusIcon, color: statusColor, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: renewalDate != null ? Colors.white : Colors.white.withValues(alpha: 0.3),
-                fontWeight: renewalDate != null ? FontWeight.w600 : FontWeight.normal,
-                fontStyle: renewalDate != null ? FontStyle.normal : FontStyle.italic,
-                fontSize: 15,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showEditRenewalDateDialog(
@@ -1441,11 +594,11 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
       helpText: 'Seleccionar fecha de vencimiento',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.dark(
-            primary: AppColors.primary,
-            onPrimary: Colors.white,
-            surface: AppColors.surface,
-            onSurface: Colors.white,
+          colorScheme: const ColorScheme.dark(
+            primary: RedesignColors.actionPrimary,
+            onPrimary: RedesignColors.onActionPrimary,
+            surface: RedesignColors.primario700,
+            onSurface: RedesignColors.primario50,
           ),
         ),
         child: child!,
@@ -1455,18 +608,17 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     if (picked == null || !context.mounted) return;
 
     try {
-      await ref.read(trainerServiceProvider).updateStudentRenewalDate(
-        widget.studentId,
-        picked,
-      );
-      // Refresh the student detail
+      await ref
+          .read(trainerServiceProvider)
+          .updateStudentRenewalDate(widget.studentId, picked);
       ref.invalidate(studentDetailProvider(widget.studentId));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Fecha de vencimiento actualizada'),
-            backgroundColor: AppColors.success,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            backgroundColor: RedesignColors.success,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
           ),
         );
       }
@@ -1475,105 +627,414 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: AppColors.error,
+            backgroundColor: RedesignColors.danger,
           ),
         );
       }
     }
   }
 
-  void _showEditSupplementsDialog(
-    BuildContext context,
-    Map<String, dynamic> student,
-  ) {
-    final dailyController = TextEditingController(
-      text: (student['daily_supplements'] as String?) ?? '',
-    );
-    final chemicalController = TextEditingController(
-      text: (student['chemical_supplements'] as String?) ?? '',
-    );
+}
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Editar Suplementación', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: dailyController,
-              minLines: 3,
-              maxLines: 6,
-              keyboardType: TextInputType.multiline,
-              textInputAction: TextInputAction.newline,
-              decoration: const InputDecoration(
-                labelText: 'Suplementos Diarios',
-                hintText: 'Ej: Proteína, Creatina...',
-                alignLabelWithHint: true,
-              ),
-              style: const TextStyle(color: Colors.white),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: chemicalController,
-              minLines: 3,
-              maxLines: 6,
-              keyboardType: TextInputType.multiline,
-              textInputAction: TextInputAction.newline,
-              decoration: const InputDecoration(
-                labelText: 'Suplementación Química',
-                hintText: 'Ej: Texto para atletas...',
-                alignLabelWithHint: true,
-              ),
-              style: const TextStyle(color: Colors.white),
-            ),
-          ],
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
+final studentDetailProvider =
+    FutureProvider.family<Map<String, dynamic>?, String>(
+        (ref, studentId) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getStudentDetails(studentId);
+});
+
+// ---------------------------------------------------------------------------
+// Tab pill segmented control
+// ---------------------------------------------------------------------------
+
+class _TabPill extends StatelessWidget {
+  final int index;
+  final ValueChanged<int> onChanged;
+
+  const _TabPill({required this.index, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    const labels = ['Semana', 'Plan', 'Progreso'];
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: RedesignColors.primario700,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: RedesignColors.secundario300.withValues(alpha: 0.18),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+      ),
+      child: Row(
+        children: List.generate(labels.length, (i) {
+          final active = i == index;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onChanged(i),
+              behavior: HitTestBehavior.opaque,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: active
+                      ? RedesignColors.secundario300
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Text(
+                  labels[i],
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: active
+                        ? RedesignColors.secundario900
+                        : RedesignColors.primario300,
+                    fontSize: 14,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                    fontFamily: 'Metropolis',
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Semana tab
+// ---------------------------------------------------------------------------
+
+class _SemanaTab extends StatelessWidget {
+  final Map<String, dynamic> student;
+  final String studentId;
+  final String studentName;
+
+  const _SemanaTab({
+    required this.student,
+    required this.studentId,
+    required this.studentName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final workoutSessions =
+        (student['workout_sessions'] as List?) ?? [];
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Current week Monday→Sunday
+    final weekday = today.weekday; // 1=Mon
+    final monday = today.subtract(Duration(days: weekday - 1));
+
+    // Dates for the 7-day row (Mon–Sun of current week)
+    final weekDays =
+        List.generate(7, (i) => monday.add(Duration(days: i)));
+
+    // Completed sessions per day (for the current week)
+    bool didTrain(DateTime date) {
+      return workoutSessions.any((s) {
+        if (s['is_completed'] != true) return false;
+        final raw =
+            (s['started_at'] ?? s['created_at']) as String?;
+        if (raw == null) return false;
+        final d = DateTime.parse(raw).toLocal();
+        return d.year == date.year &&
+            d.month == date.month &&
+            d.day == date.day;
+      });
+    }
+
+    // Stats
+    final completedCount = workoutSessions
+        .where((s) => s['is_completed'] == true)
+        .length;
+
+    String? lastSessionDate;
+    final completedSessions = workoutSessions
+        .where((s) => s['is_completed'] == true)
+        .toList();
+    if (completedSessions.isNotEmpty) {
+      completedSessions.sort((a, b) {
+        final aRaw =
+            (a['started_at'] ?? a['created_at']) as String? ?? '';
+        final bRaw =
+            (b['started_at'] ?? b['created_at']) as String? ?? '';
+        return bRaw.compareTo(aRaw);
+      });
+      final rawLast =
+          (completedSessions.first['started_at'] ??
+              completedSessions.first['created_at']) as String?;
+      if (rawLast != null) {
+        final d = DateTime.tryParse(rawLast)?.toLocal();
+        if (d != null) {
+          lastSessionDate =
+              '${d.day}/${d.month}/${d.year}';
+        }
+      }
+    }
+
+    // Active routine
+    final routines = (student['athlete_routines'] as List?) ?? [];
+    final activeRoutine = routines.firstWhere(
+      (r) => r['is_active'] == true,
+      orElse: () => null,
+    );
+    final cardioDesc =
+        student['cardio_description'] as String? ?? '';
+
+    // Month abbreviation for week label
+    final endOfWeek = monday.add(const Duration(days: 6));
+    final startMonth = _monthAbbr[monday.month - 1];
+    final endMonth = _monthAbbr[endOfWeek.month - 1];
+    final weekLabel = monday.month == endOfWeek.month
+        ? '${monday.day}-${endOfWeek.day} ${startMonth[0].toUpperCase()}${startMonth.substring(1)}'
+        : '${monday.day} ${startMonth[0].toUpperCase()}${startMonth.substring(1)} - ${endOfWeek.day} ${endMonth[0].toUpperCase()}${endMonth.substring(1)}';
+
+    final dayLetters = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+    return SingleChildScrollView(
+      padding:
+          const EdgeInsets.fromLTRB(20, 8, 20, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Week range label
+          Text(
+            weekLabel,
+            style: const TextStyle(
+              color: RedesignColors.primario50,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Metropolis',
+            ),
           ),
-          ElevatedButton(
-              onPressed: () async {
-                final daily = dailyController.text.trim();
-                final chemical = chemicalController.text.trim();
-                
-                try {
-                  await ref.read(trainerServiceProvider).updateAthleteSupplements(
-                    widget.studentId,
-                    daily,
-                    chemical,
-                  );
-                  
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Suplementación actualizada'),
-                        backgroundColor: AppColors.accent,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          const SizedBox(height: 12),
+
+          // Week calendar card
+          _NavyCard(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(7, (i) {
+                final date = weekDays[i];
+                final trained = didTrain(date);
+                final isToday = date.year == today.year &&
+                    date.month == today.month &&
+                    date.day == today.day;
+
+                return Column(
+                  children: [
+                    Text(
+                      dayLetters[i],
+                      style: TextStyle(
+                        color: isToday
+                            ? RedesignColors.actionPrimary
+                            : RedesignColors.primario400,
+                        fontSize: 12,
+                        fontWeight: isToday
+                            ? FontWeight.w700
+                            : FontWeight.normal,
+                        fontFamily: 'Metropolis',
                       ),
-                    );
-                    // Refresh the screen data
-                    // In a real app with Riverpod, we might invalidate a provider here
-                    // For now, setState might trigger a rebuild if we were fetching in build, 
-                    // but since this is a detail screen passed with data, we might need a refresh callback 
-                    // or rely on the parent provider updating. 
-                    // Assuming the parent widget watches a provider for this student ID.
-                     ref.invalidate(studentDetailProvider(widget.studentId)); 
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Error al guardar')),
-                    );
-                  }
-                }
-              },
-            child: const Text('Guardar'),
+                    ),
+                    const SizedBox(height: 10),
+                    Builder(
+                      builder: (_) {
+                        final dayLabel = Text(
+                          '${date.day}',
+                          style: TextStyle(
+                            color: trained
+                                ? RedesignColors.actionPrimary
+                                : isToday
+                                    ? RedesignColors.primario50
+                                    : RedesignColors.primario400,
+                            fontSize: 13,
+                            fontWeight: trained || isToday
+                                ? FontWeight.w700
+                                : FontWeight.normal,
+                            fontFamily: 'Metropolis',
+                          ),
+                        );
+                        // Trained → filled teal; today → solid teal ring;
+                        // otherwise → dashed "planificado sin hacer" circle.
+                        if (trained) {
+                          return Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: RedesignColors.actionPrimary
+                                  .withValues(alpha: 0.18),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: RedesignColors.actionPrimary
+                                    .withValues(alpha: 0.6),
+                              ),
+                            ),
+                            child: dayLabel,
+                          );
+                        }
+                        if (isToday) {
+                          return Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: RedesignColors.actionPrimary,
+                                width: 2,
+                              ),
+                            ),
+                            child: dayLabel,
+                          );
+                        }
+                        return _DashedCircle(
+                          size: 36,
+                          color: RedesignColors.primario400
+                              .withValues(alpha: 0.6),
+                          child: dayLabel,
+                        );
+                      },
+                    ),
+                  ],
+                );
+              }),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Legend
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: RedesignColors.actionPrimary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                'Entrenó',
+                style: TextStyle(
+                  color: RedesignColors.primario400,
+                  fontSize: 11,
+                  fontFamily: 'Metropolis',
+                ),
+              ),
+              const SizedBox(width: 14),
+              _DashedCircle(
+                size: 14,
+                color: RedesignColors.primario400,
+                child: const SizedBox.shrink(),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                'Planificado sin hacer',
+                style: TextStyle(
+                  color: RedesignColors.primario400,
+                  fontSize: 11,
+                  fontFamily: 'Metropolis',
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Le toca hoy
+          const Text(
+            'Le toca hoy',
+            style: TextStyle(
+              color: RedesignColors.primario50,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Metropolis',
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          if (activeRoutine != null) ...[
+            _TappableRow(
+              icon: Icons.fitness_center_rounded,
+              iconColor: RedesignColors.actionPrimary,
+              title: activeRoutine['routines']?['title'] as String? ??
+                  'Rutina',
+              subtitle: 'Rutina',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RoutineDetailScreen(
+                    routineId: activeRoutine['routine_id'],
+                    routineTitle: activeRoutine['routines']?['title'] ??
+                        'Rutina',
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          if (cardioDesc.isNotEmpty) ...[
+            _TappableRow(
+              icon: Icons.directions_run_rounded,
+              iconColor: RedesignColors.warning,
+              title: cardioDesc,
+              subtitle: 'Cardio',
+              onTap: () {},
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          if (activeRoutine == null && cardioDesc.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: _cardDecoration(),
+              child: const Text(
+                'Sin actividad asignada para hoy',
+                style: TextStyle(
+                  color: RedesignColors.primario400,
+                  fontFamily: 'Metropolis',
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 24),
+
+          // Última actividad
+          const Text(
+            'Última actividad',
+            style: TextStyle(
+              color: RedesignColors.primario50,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Metropolis',
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TappableRow(
+            icon: Icons.history_rounded,
+            iconColor: RedesignColors.secundario500,
+            title: 'Ir a historial',
+            subtitle: '$completedCount sesiones'
+                '${lastSessionDate != null ? ' · última $lastSessionDate' : ''}',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => StudentHistoryScreen(
+                  studentId: studentId,
+                  studentName: studentName,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -1581,124 +1042,1062 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final String action;
-  final VoidCallback onTap;
+// ---------------------------------------------------------------------------
+// Plan tab
+// ---------------------------------------------------------------------------
 
-  const _SectionHeader({required this.title, required this.action, required this.onTap});
+class _PlanTab extends ConsumerWidget {
+  final Map<String, dynamic> student;
+  final String studentId;
+  final String studentName;
+  final VoidCallback onAssignRoutine;
+  final VoidCallback onAssignMealPlan;
+  final VoidCallback onEditCardio;
+  final VoidCallback onEditSupplements;
+  final VoidCallback onEditRenewal;
+  final void Function(String id, String title) onPersonalizeRoutine;
+  final void Function(String id, String title) onPersonalizeMealPlan;
+
+  const _PlanTab({
+    required this.student,
+    required this.studentId,
+    required this.studentName,
+    required this.onAssignRoutine,
+    required this.onAssignMealPlan,
+    required this.onEditCardio,
+    required this.onEditSupplements,
+    required this.onEditRenewal,
+    required this.onPersonalizeRoutine,
+    required this.onPersonalizeMealPlan,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-        TextButton(
-          onPressed: onTap, 
-          style: TextButton.styleFrom(foregroundColor: AppColors.primaryLight),
-          child: Text(action.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-        ),
-      ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    final routines = (student['athlete_routines'] as List?) ?? [];
+    final activeRoutine = routines.firstWhere(
+      (r) => r['is_active'] == true,
+      orElse: () => null,
     );
+    final mealPlans = (student['athlete_meal_plans'] as List?) ?? [];
+    final activeMealPlan = mealPlans.firstWhere(
+      (m) => m['is_active'] == true,
+      orElse: () => null,
+    );
+
+    final cardioDesc =
+        student['cardio_description'] as String? ?? '';
+    final cardioDays = student['cardio_days'] as List?;
+
+    // Structured supplements via provider.
+    final supplementsAsync =
+        ref.watch(athleteSupplementsProvider(studentId));
+
+    return SingleChildScrollView(
+      padding:
+          const EdgeInsets.fromLTRB(20, 8, 20, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Entrenamiento ──────────────────────────────────────────
+          _PlanCard(
+            title: 'Entrenamiento',
+            onEdit: onAssignRoutine,
+            child: activeRoutine != null
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _PlanCardRow(
+                        icon: Icons.fitness_center_rounded,
+                        iconColor: RedesignColors.actionPrimary,
+                        title: activeRoutine['routines']?['title']
+                                as String? ??
+                            'Rutina',
+                        subtitle: 'Rutina',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RoutineDetailScreen(
+                              routineId:
+                                  activeRoutine['routine_id'],
+                              routineTitle:
+                                  activeRoutine['routines']
+                                          ?['title'] ??
+                                      'Rutina',
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (cardioDesc.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        _PlanCardRow(
+                          icon: Icons.directions_run_rounded,
+                          iconColor: RedesignColors.warning,
+                          title: cardioDesc,
+                          subtitle: cardioDays != null &&
+                                  cardioDays.isNotEmpty
+                              ? _formatCardioDays(cardioDays)
+                              : 'Cardio',
+                          onTap: onEditCardio,
+                        ),
+                      ] else ...[
+                        const SizedBox(height: 10),
+                        GestureDetector(
+                          onTap: onEditCardio,
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.add_rounded,
+                                color: RedesignColors.actionPrimaryDark,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Agregar cardio',
+                                style: TextStyle(
+                                  color:
+                                      RedesignColors.actionPrimaryDark,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'Metropolis',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () => onPersonalizeRoutine(
+                            activeRoutine['routine_id'] as String,
+                            activeRoutine['routines']?['title']
+                                    as String? ??
+                                'Rutina',
+                          ),
+                          icon: const Icon(Icons.copy_rounded,
+                              size: 14),
+                          label: const Text(
+                              'Personalizar para este alumno'),
+                          style: TextButton.styleFrom(
+                            foregroundColor:
+                                RedesignColors.actionPrimaryDark,
+                            textStyle: const TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'Metropolis',
+                            ),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : _PlanEmptyState(
+                    icon: Icons.fitness_center_rounded,
+                    text: 'Sin rutina asignada',
+                    onTap: onAssignRoutine,
+                  ),
+          ),
+          const SizedBox(height: 14),
+
+          // ── Alimentación ──────────────────────────────────────────
+          _PlanCard(
+            title: 'Alimentación',
+            onEdit: onAssignMealPlan,
+            child: activeMealPlan != null
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _PlanCardRow(
+                        icon: Icons.restaurant_rounded,
+                        iconColor: RedesignColors.warning,
+                        title: activeMealPlan['meal_plans']?[
+                                'title'] as String? ??
+                            'Plan',
+                        subtitle: 'Plan',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MealPlanDetailScreen(
+                              planId:
+                                  activeMealPlan['meal_plan_id'],
+                              planName:
+                                  activeMealPlan['meal_plans']
+                                          ?['title'] ??
+                                      'Plan Alimenticio',
+                            ),
+                          ),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () => onPersonalizeMealPlan(
+                            activeMealPlan['meal_plan_id']
+                                as String,
+                            activeMealPlan['meal_plans']?['title']
+                                    as String? ??
+                                'Plan Alimenticio',
+                          ),
+                          icon: const Icon(Icons.copy_rounded,
+                              size: 14),
+                          label: const Text(
+                              'Personalizar para este alumno'),
+                          style: TextButton.styleFrom(
+                            foregroundColor:
+                                RedesignColors.actionPrimaryDark,
+                            textStyle: const TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'Metropolis',
+                            ),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : _PlanEmptyState(
+                    icon: Icons.restaurant_rounded,
+                    text: 'Sin plan asignado',
+                    onTap: onAssignMealPlan,
+                  ),
+          ),
+          const SizedBox(height: 14),
+
+          // ── Suplementación ────────────────────────────────────────
+          _PlanCard(
+            title: 'Suplementación',
+            onEdit: onEditSupplements,
+            child: supplementsAsync.when(
+              loading: () => const SizedBox(
+                height: 20,
+                child: LinearProgressIndicator(
+                  color: RedesignColors.actionPrimary,
+                  backgroundColor: RedesignColors.primario700,
+                ),
+              ),
+              error: (_, __) => const _PlanEmptyState(
+                icon: Icons.medication_rounded,
+                text: 'No asignado',
+                onTap: null,
+              ),
+              data: (supplements) {
+                if (supplements.isEmpty) {
+                  return const _PlanEmptyState(
+                    icon: Icons.medication_rounded,
+                    text: 'Sin asignar',
+                    onTap: null,
+                  );
+                }
+                return Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: supplements.map((s) {
+                    final name =
+                        (s['name'] as String?) ?? 'Suplemento';
+                    final dose = (s['dose'] as String?) ?? '';
+                    final unit = (s['unit'] as String?) ?? '';
+                    final label = dose.isNotEmpty || unit.isNotEmpty
+                        ? '$name $dose$unit'
+                        : name;
+                    return _SupplementChip(label: label);
+                  }).toList(),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // ── Próximo Vencimiento ───────────────────────────────────
+          _RenewalCard(
+            student: student,
+            onEdit: onEditRenewal,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCardioDays(List days) {
+    const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    return days.map((d) => dayNames[(d as int) - 1]).join(', ');
   }
 }
 
-class _EmptyStateCard extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final VoidCallback onTap;
+// ---------------------------------------------------------------------------
+// Progreso tab
+// ---------------------------------------------------------------------------
 
-  const _EmptyStateCard({required this.icon, required this.text, required this.onTap});
+class _ProgresoTab extends StatelessWidget {
+  final Map<String, dynamic> student;
+  final _WeightRange weightRange;
+  final ValueChanged<_WeightRange> onRangeChanged;
+  final VoidCallback onAddWeight;
+  final Future<void> Function(String id, String? raw) onSetAssignedDate;
+
+  const _ProgresoTab({
+    required this.student,
+    required this.weightRange,
+    required this.onRangeChanged,
+    required this.onAddWeight,
+    required this.onSetAssignedDate,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.03),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: Colors.white.withValues(alpha: 0.2), size: 32),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              text, 
-              style: TextStyle(color: AppColors.textLight, fontWeight: FontWeight.w500),
-            ),
-          ],
-        ),
+    return SingleChildScrollView(
+      padding:
+          const EdgeInsets.fromLTRB(20, 8, 20, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Peso card ────────────────────────────────────────────
+          _WeightCard(
+            student: student,
+            range: weightRange,
+            onRangeChanged: onRangeChanged,
+            onAddWeight: onAddWeight,
+          ),
+          const SizedBox(height: 20),
+
+          // ── Check-in section ─────────────────────────────────────
+          _CheckInSection(
+            student: student,
+            onSetAssignedDate: onSetAssignedDate,
+          ),
+        ],
       ),
     );
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String label;
-  final Color color;
+// ---------------------------------------------------------------------------
+// Weight card (Progreso tab)
+// ---------------------------------------------------------------------------
 
-  const _StatCard({
-    required this.icon,
+class _WeightCard extends StatelessWidget {
+  final Map<String, dynamic> student;
+  final _WeightRange range;
+  final ValueChanged<_WeightRange> onRangeChanged;
+  final VoidCallback onAddWeight;
+
+  const _WeightCard({
+    required this.student,
+    required this.range,
+    required this.onRangeChanged,
+    required this.onAddWeight,
+  });
+
+  DateTime? _entryDate(Map<String, dynamic> e) {
+    final raw = e['date'] ?? e['created_at'];
+    return raw is String ? DateTime.tryParse(raw) : null;
+  }
+
+  double? _weight(Map<String, dynamic> e) =>
+      (e['body_weight'] as num?)?.toDouble();
+
+  List<Map<String, dynamic>> _filtered(
+      List<Map<String, dynamic>> all) {
+    if (range == _WeightRange.all) return all;
+    final days = range == _WeightRange.oneMonth ? 30 : 90;
+    final cutoff = DateTime.now().subtract(Duration(days: days));
+    final f = all.where((e) {
+      final d = _entryDate(e);
+      return d == null || !d.isBefore(cutoff);
+    }).toList();
+    return f.isEmpty ? all : f;
+  }
+
+  String _shortDate(DateTime d) =>
+      '${d.day} ${_monthAbbr[d.month - 1]}';
+
+  String _fmtDelta(double d) {
+    final s =
+        d.abs().toStringAsFixed(1).replaceAll('.', ',');
+    final sign = d > 0 ? '+' : (d < 0 ? '-' : '');
+    return '$sign$s kg';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bodyProgress =
+        (student['body_progress'] as List?) ?? [];
+    final allProgress =
+        List<Map<String, dynamic>>.from(bodyProgress);
+    allProgress.sort((a, b) {
+      final aD = _entryDate(a);
+      final bD = _entryDate(b);
+      if (aD == null || bD == null) return 0;
+      return aD.compareTo(bD);
+    });
+
+    // Header row: title + Agregar
+    Widget header = Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text(
+          'Peso',
+          style: TextStyle(
+            color: RedesignColors.primario50,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Metropolis',
+          ),
+        ),
+        GestureDetector(
+          onTap: onAddWeight,
+          child: const Text(
+            'Agregar',
+            style: TextStyle(
+              color: RedesignColors.actionPrimaryDark,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Metropolis',
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (allProgress.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: _cardDecoration(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            header,
+            const SizedBox(height: 20),
+            const Center(
+              child: Text(
+                'Sin peso cargado',
+                style: TextStyle(
+                  color: RedesignColors.primario300,
+                  fontSize: 15,
+                  fontFamily: 'Metropolis',
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Center(
+              child: Text(
+                'Pedísele para empezar a ver su evolución',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: RedesignColors.primario400,
+                  fontSize: 13,
+                  fontFamily: 'Metropolis',
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Center(
+              child: OutlinedButton(
+                onPressed: onAddWeight,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(160, 40),
+                ),
+                child: const Text('Pedir registro'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final filtered = _filtered(allProgress);
+    final latest = _weight(allProgress.last);
+    final firstW = _weight(filtered.first);
+    final firstDate = _entryDate(filtered.first);
+    final delta =
+        (latest != null && firstW != null) ? latest - firstW : null;
+
+    // Build chart spots from filtered (only entries with weight)
+    final plotted = filtered
+        .where((e) => _weight(e) != null)
+        .toList();
+    final spots = [
+      for (int i = 0; i < plotted.length; i++)
+        FlSpot(i.toDouble(), _weight(plotted[i])!),
+    ];
+
+    double minY = 0;
+    double maxY = 100;
+    if (spots.isNotEmpty) {
+      final ys = spots.map((s) => s.y);
+      minY = ys.reduce((a, b) => a < b ? a : b) - 1.5;
+      maxY = ys.reduce((a, b) => a > b ? a : b) + 1.5;
+    }
+
+    final lastIdx = spots.length - 1;
+    final labelIdx = <int>{0, lastIdx, lastIdx ~/ 2};
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          header,
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          latest != null
+                              ? latest.toStringAsFixed(1)
+                              : '-',
+                          style: const TextStyle(
+                            color: RedesignColors.primario50,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Metropolis',
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'kg',
+                          style: TextStyle(
+                            color: RedesignColors.primario400,
+                            fontSize: 15,
+                            fontFamily: 'Metropolis',
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (delta != null && firstDate != null)
+                      Text(
+                        '${_fmtDelta(delta)} desde el ${_shortDate(firstDate)}',
+                        style: TextStyle(
+                          color: delta <= 0
+                              ? RedesignColors.success
+                              : RedesignColors.danger,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          fontFamily: 'Metropolis',
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              _WeightRangeToggle(
+                value: range,
+                onChanged: onRangeChanged,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (spots.isNotEmpty)
+            SizedBox(
+              height: 160,
+              child: LineChart(
+                LineChartData(
+                  minY: minY,
+                  maxY: maxY,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (_) => FlLine(
+                      color: Colors.white.withValues(alpha: 0.06),
+                      strokeWidth: 1,
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 36,
+                        interval:
+                            ((maxY - minY) / 2).clamp(1, double.infinity),
+                        getTitlesWidget: (value, meta) => Text(
+                          value.toStringAsFixed(0),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: RedesignColors.primario400,
+                            fontFamily: 'Metropolis',
+                          ),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 24,
+                        interval: 1,
+                        getTitlesWidget: (value, meta) {
+                          final i = value.round();
+                          if (!labelIdx.contains(i) ||
+                              i < 0 ||
+                              i >= plotted.length) {
+                            return const SizedBox.shrink();
+                          }
+                          final d = _entryDate(plotted[i]);
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              d != null ? _shortDate(d) : '',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: RedesignColors.primario400,
+                                fontFamily: 'Metropolis',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(
+                        sideTitles:
+                            SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles:
+                            SideTitles(showTitles: false)),
+                  ),
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (_) =>
+                          RedesignColors.primario700,
+                      tooltipBorder: BorderSide(
+                        color: RedesignColors.actionPrimary
+                            .withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      color: RedesignColors.actionPrimary,
+                      barWidth: 3,
+                      dotData: FlDotData(
+                        show: true,
+                        getDotPainter: (spot, _, __, ___) =>
+                            FlDotCirclePainter(
+                          radius: 4,
+                          color: RedesignColors.background,
+                          strokeWidth: 2.5,
+                          strokeColor:
+                              RedesignColors.actionPrimary,
+                        ),
+                      ),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        gradient: LinearGradient(
+                          colors: [
+                            RedesignColors.actionPrimary
+                                .withValues(alpha: 0.22),
+                            RedesignColors.actionPrimary
+                                .withValues(alpha: 0),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Weight range toggle
+// ---------------------------------------------------------------------------
+
+class _WeightRangeToggle extends StatelessWidget {
+  final _WeightRange value;
+  final ValueChanged<_WeightRange> onChanged;
+
+  const _WeightRangeToggle({
     required this.value,
-    required this.label,
-    required this.color,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        color: RedesignColors.primario800,
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: Column(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
+          _segment('1M', _WeightRange.oneMonth),
+          _segment('3M', _WeightRange.threeMonths),
+          _segment('Todo', _WeightRange.all),
+        ],
+      ),
+    );
+  }
+
+  Widget _segment(String label, _WeightRange range) {
+    final isActive = value == range;
+    return GestureDetector(
+      onTap: () => onChanged(range),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: isActive
+              ? RedesignColors.primario600
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isActive
+                ? RedesignColors.primario50
+                : RedesignColors.primario400,
+            fontSize: 12,
+            fontWeight:
+                isActive ? FontWeight.w700 : FontWeight.w500,
+            fontFamily: 'Metropolis',
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.textLight,
-              fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Check-in section (Progreso tab)
+// ---------------------------------------------------------------------------
+
+class _CheckInSection extends StatelessWidget {
+  final Map<String, dynamic> student;
+  final Future<void> Function(String id, String? raw) onSetAssignedDate;
+
+  const _CheckInSection({
+    required this.student,
+    required this.onSetAssignedDate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final checkIns = (student['check_ins'] as List?) ?? [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Check-in',
+              style: TextStyle(
+                color: RedesignColors.primario50,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Metropolis',
+              ),
+            ),
+            if (checkIns.isNotEmpty)
+              GestureDetector(
+                onTap: () => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => CheckInGridSheet(
+                    checkIns: List<Map<String, dynamic>>.from(
+                      checkIns,
+                    ),
+                  ),
+                ),
+                child: const Text(
+                  'Ir a todos',
+                  style: TextStyle(
+                    color: RedesignColors.actionPrimaryDark,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Metropolis',
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        if (checkIns.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(32),
+            decoration: _cardDecoration(),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.photo_camera_rounded,
+                  size: 40,
+                  color: RedesignColors.primario500
+                      .withValues(alpha: 0.4),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Sin fotos de check-in',
+                  style: TextStyle(
+                    color: RedesignColors.primario400,
+                    fontFamily: 'Metropolis',
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          SizedBox(
+            height: 150,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: checkIns.length,
+              itemBuilder: (context, index) {
+                final checkIn =
+                    checkIns[index] as Map<String, dynamic>;
+                final allUrls =
+                    (checkIn['photo_urls'] as List?)
+                            ?.whereType<String>()
+                            .where((s) => s.isNotEmpty)
+                            .toList() ??
+                        (checkIn['photo_url'] != null
+                            ? [checkIn['photo_url'] as String]
+                            : <String>[]);
+                final assignedRaw =
+                    checkIn['assigned_date'] as String?;
+                final createdRaw =
+                    checkIn['created_at'] as String?;
+                final dateStr = () {
+                  if (assignedRaw != null) {
+                    final d = DateTime.tryParse(assignedRaw);
+                    if (d != null) {
+                      return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+                    }
+                  }
+                  if (createdRaw != null) {
+                    final d = DateTime.tryParse(createdRaw)
+                        ?.toLocal();
+                    if (d != null) {
+                      return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+                    }
+                  }
+                  return '';
+                }();
+
+                return GestureDetector(
+                  onTap: allUrls.isNotEmpty
+                      ? () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  CheckInPhotoViewerScreen(
+                                urls: allUrls,
+                                initialIndex: 0,
+                              ),
+                            ),
+                          )
+                      : null,
+                  onLongPress: () => onSetAssignedDate(
+                    checkIn['id'] as String,
+                    assignedRaw,
+                  ),
+                  child: Container(
+                    width: 108,
+                    margin: EdgeInsets.only(
+                        right:
+                            index < checkIns.length - 1 ? 10 : 0),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      color: RedesignColors.primario700,
+                      border: Border.all(
+                        color: RedesignColors.secundario300
+                            .withValues(alpha: 0.18),
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        allUrls.isNotEmpty
+                            ? CheckInPhoto(
+                                key: ValueKey(allUrls.first),
+                                url: allUrls.first,
+                                cacheWidth: 300,
+                              )
+                            : const Center(
+                                child: Icon(
+                                  Icons.add_photo_alternate_outlined,
+                                  color: RedesignColors.primario400,
+                                  size: 28,
+                                ),
+                              ),
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: () => onSetAssignedDate(
+                              checkIn['id'] as String,
+                              assignedRaw,
+                            ),
+                            child: Container(
+                              padding:
+                                  const EdgeInsets.symmetric(
+                                vertical: 5,
+                                horizontal: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin:
+                                      Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [
+                                    Colors.black
+                                        .withValues(alpha: 0.8),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    dateStr.isNotEmpty
+                                        ? dateStr
+                                        : 'Fecha',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Metropolis',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.edit_calendar_rounded,
+                                    color: assignedRaw != null
+                                        ? RedesignColors
+                                            .actionPrimary
+                                        : Colors.white,
+                                    size: 13,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Renewal card (Plan tab)
+// ---------------------------------------------------------------------------
+
+class _RenewalCard extends StatelessWidget {
+  final Map<String, dynamic> student;
+  final VoidCallback onEdit;
+
+  const _RenewalCard({required this.student, required this.onEdit});
+
+  @override
+  Widget build(BuildContext context) {
+    final raw = student['next_renewal_date'] as String?;
+    final renewalDate =
+        raw != null ? DateTime.tryParse(raw) : null;
+
+    String label;
+    Color statusColor;
+    IconData statusIcon;
+
+    if (renewalDate == null) {
+      label = 'Sin fecha asignada';
+      statusColor =
+          RedesignColors.primario400;
+      statusIcon = Icons.event_busy_rounded;
+    } else {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final renewalDay = DateTime(
+          renewalDate.year, renewalDate.month, renewalDate.day);
+      final daysLeft =
+          renewalDay.difference(today).inDays;
+      final dateLabel =
+          '${renewalDate.day.toString().padLeft(2, '0')}/${renewalDate.month.toString().padLeft(2, '0')}/${renewalDate.year}';
+
+      if (daysLeft <= 0) {
+        label = 'Venció el $dateLabel';
+        statusColor = RedesignColors.danger;
+        statusIcon = Icons.warning_rounded;
+      } else if (daysLeft <= 5) {
+        label = 'Vence en $daysLeft día${daysLeft == 1 ? '' : 's'} ($dateLabel)';
+        statusColor = RedesignColors.danger;
+        statusIcon = Icons.warning_amber_rounded;
+      } else if (daysLeft <= 14) {
+        label = 'Vence el $dateLabel ($daysLeft días)';
+        statusColor = RedesignColors.warning;
+        statusIcon = Icons.schedule_rounded;
+      } else {
+        label = 'Vence el $dateLabel ($daysLeft días)';
+        statusColor = RedesignColors.success;
+        statusIcon = Icons.check_circle_rounded;
+      }
+    }
+
+    return _PlanCard(
+      title: 'Próximo Vencimiento',
+      onEdit: onEdit,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.15),
+              borderRadius:
+                  BorderRadius.circular(RedesignRadius.iconBadge),
+            ),
+            child: Icon(statusIcon,
+                color: statusColor, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: renewalDate != null
+                    ? RedesignColors.primario50
+                    : RedesignColors.primario400,
+                fontWeight: renewalDate != null
+                    ? FontWeight.w600
+                    : FontWeight.normal,
+                fontStyle: renewalDate != null
+                    ? FontStyle.normal
+                    : FontStyle.italic,
+                fontSize: 15,
+                fontFamily: 'Metropolis',
+              ),
             ),
           ),
         ],
@@ -1707,150 +2106,377 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// Provider for fetching specific student details
-final studentDetailProvider = FutureProvider.family<Map<String, dynamic>?, String>((ref, studentId) async {
-  final service = ref.watch(trainerServiceProvider);
-  return service.getStudentDetails(studentId);
-});
+// ---------------------------------------------------------------------------
+// Shared card decoration helper
+// ---------------------------------------------------------------------------
 
-class _SectionHeaderNoAction extends StatelessWidget {
-  final String title;
-  const _SectionHeaderNoAction({required this.title});
+BoxDecoration _cardDecoration() => BoxDecoration(
+      color: RedesignColors.surface,
+      borderRadius:
+          BorderRadius.circular(RedesignRadius.card),
+      border: Border.all(
+        color: RedesignColors.secundario300
+            .withValues(alpha: 0.18),
+      ),
+    );
+
+// ---------------------------------------------------------------------------
+// Navy card wrapper (used in Semana tab)
+// ---------------------------------------------------------------------------
+
+class _NavyCard extends StatelessWidget {
+  final Widget child;
+  const _NavyCard({required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: _cardDecoration(),
+      child: child,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Plan section card (used in Plan tab)
+// ---------------------------------------------------------------------------
+
+class _PlanCard extends StatelessWidget {
+  final String title;
+  final VoidCallback onEdit;
+  final Widget child;
+
+  const _PlanCard({
+    required this.title,
+    required this.onEdit,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: RedesignColors.primario50,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Metropolis',
+                ),
+              ),
+              GestureDetector(
+                onTap: onEdit,
+                child: const Text(
+                  'Editar',
+                  style: TextStyle(
+                    color: RedesignColors.actionPrimaryDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Metropolis',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
       ),
     );
   }
 }
 
-extension _CardioHelpers on _StudentDetailScreenState {
-  String _formatCardioDays(List? days) {
-    if (days == null || days.isEmpty) return 'Sin días asignados';
-    final dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-    final assigned = days.map((d) => dayNames[(d as int) - 1]).join(', ');
-    return assigned;
-  }
+// ---------------------------------------------------------------------------
+// Plan card row (icon tile + title + subtitle + chevron)
+// ---------------------------------------------------------------------------
 
-  void _showEditCardioDialog(BuildContext context, Map<String, dynamic> student) {
-    final descriptionController = TextEditingController(
-      text: student['cardio_description'] as String? ?? '',
-    );
-    
-    // Convert to Set for easy toggle
-    final initialDays = (student['cardio_days'] as List?)?.cast<int>() ?? [];
-    Set<int> selectedDays = Set.from(initialDays);
+class _PlanCardRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
 
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            backgroundColor: AppColors.surface,
-            title: const Text('Configurar Cardio', style: TextStyle(color: Colors.white)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
+  const _PlanCardRow({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(
+                  RedesignRadius.iconBadge),
+            ),
+            child: Icon(icon, color: iconColor, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(
-                  controller: descriptionController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Instrucciones',
-                    hintText: 'Ej: 30 min caminadora inclinación 12 a paso 3.5',
-                    alignLabelWithHint: true,
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: RedesignColors.primario50,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Metropolis',
                   ),
-                  style: const TextStyle(color: Colors.white),
                 ),
-                const SizedBox(height: 24),
-                const Text('Días de la semana:', style: TextStyle(color: Colors.white70)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: List.generate(7, (index) {
-                    final dayNum = index + 1;
-                    final dayName = ['L', 'M', 'M', 'J', 'V', 'S', 'D'][index];
-                    final isSelected = selectedDays.contains(dayNum);
-                    
-                    return FilterChip(
-                      label: Text(dayName),
-                      selected: isSelected,
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            selectedDays.add(dayNum);
-                          } else {
-                            selectedDays.remove(dayNum);
-                          }
-                        });
-                      },
-                      checkmarkColor: Colors.white,
-                      selectedColor: AppColors.warning,
-                      backgroundColor: AppColors.surfaceVariant, // Changed from Colors.white10
-                      labelStyle: TextStyle(
-                        color: isSelected ? Colors.white : Colors.white70,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(
-                          color: isSelected ? Colors.transparent : Colors.white12,
-                        ),
-                      ),
-                    );
-                  }),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: RedesignColors.primario400,
+                    fontSize: 12,
+                    fontFamily: 'Metropolis',
+                  ),
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final description = descriptionController.text.trim();
-                  final daysList = selectedDays.toList()..sort();
-                  
-                  try {
-                    await ref.read(trainerServiceProvider).updateAthleteCardio(
-                      widget.studentId,
-                      description,
-                      daysList,
-                    );
-                    
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Cardio actualizado'),
-                          backgroundColor: AppColors.accent,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      );
-                      ref.invalidate(studentDetailProvider(widget.studentId)); 
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Error al guardar')),
-                      );
-                    }
-                  }
-                },
-                child: const Text('Guardar'),
-              ),
-            ],
-          );
-        },
+          ),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: RedesignColors.primario500,
+            size: 20,
+          ),
+        ],
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Tappable row (Semana tab)
+// ---------------------------------------------------------------------------
+
+class _TappableRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _TappableRow({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: 14, vertical: 12),
+        decoration: _cardDecoration(),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: RedesignColors.primario50,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Metropolis',
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: RedesignColors.primario400,
+                      fontSize: 12,
+                      fontFamily: 'Metropolis',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: RedesignColors.primario500,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Plan empty state
+// ---------------------------------------------------------------------------
+
+class _PlanEmptyState extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final VoidCallback? onTap;
+
+  const _PlanEmptyState({
+    required this.icon,
+    required this.text,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            color: RedesignColors.primario500,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Text(
+            text,
+            style: const TextStyle(
+              color: RedesignColors.primario400,
+              fontStyle: FontStyle.italic,
+              fontFamily: 'Metropolis',
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Supplement chip
+// ---------------------------------------------------------------------------
+
+class _SupplementChip extends StatelessWidget {
+  final String label;
+  const _SupplementChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: RedesignColors.primario600,
+        borderRadius: BorderRadius.circular(
+            RedesignRadius.buttonSm),
+        border: Border.all(
+          color: RedesignColors.secundario300
+              .withValues(alpha: 0.25),
+        ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: RedesignColors.primario200,
+          fontSize: 13,
+          fontFamily: 'Metropolis',
+        ),
+      ),
+    );
+  }
+}
+
+/// Dashed circular border — "Planificado sin hacer" day marker (Figma).
+class _DashedCircle extends StatelessWidget {
+  final double size;
+  final Color color;
+  final Widget child;
+
+  const _DashedCircle({
+    required this.size,
+    required this.color,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _DashedCirclePainter(color: color),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Center(child: child),
+      ),
+    );
+  }
+}
+
+class _DashedCirclePainter extends CustomPainter {
+  final Color color;
+
+  const _DashedCirclePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final rect = Rect.fromCircle(
+      center: Offset(size.width / 2, size.height / 2),
+      radius: size.width / 2 - 0.6,
+    );
+    final path = Path()..addOval(rect);
+    const dash = 3.0;
+    const gap = 3.0;
+    for (final metric in path.computeMetrics()) {
+      var dist = 0.0;
+      while (dist < metric.length) {
+        final next = (dist + dash).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(dist, next), paint);
+        dist = next + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedCirclePainter oldDelegate) =>
+      oldDelegate.color != color;
 }

@@ -1,7 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../services/trainer_service.dart';
 import 'session_detail_screen.dart';
 
@@ -37,35 +37,80 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('Historial de ${widget.studentName}'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        bottom: TabBar(
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: const BackButton(color: RedesignColors.primario50),
+          centerTitle: true,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Historial',
+                style: RedesignType.bodySm.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: RedesignColors.primario50,
+                ),
+              ),
+              Text(
+                widget.studentName,
+                style: RedesignType.label.copyWith(
+                  color: RedesignColors.primario300,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: OutlinedButton(
+                onPressed: _logInPerson,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: RedesignColors.secundario500,
+                  side: const BorderSide(
+                    color: RedesignColors.secundario500,
+                    width: 1.5,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(RedesignRadius.buttonSm),
+                  ),
+                  textStyle: RedesignType.buttonSm,
+                ),
+                child: const Text('+ Registrar'),
+              ),
+            ),
+          ],
+          bottom: TabBar(
+            controller: _tabController,
+            indicatorColor: RedesignColors.secundario500,
+            indicatorWeight: 2,
+            labelColor: RedesignColors.secundario500,
+            unselectedLabelColor: RedesignColors.primario300,
+            labelStyle: RedesignType.buttonSm.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            unselectedLabelStyle: RedesignType.buttonSm,
+            tabs: const [
+              Tab(text: 'Resumen'),
+              Tab(text: 'Sesiones'),
+            ],
+          ),
+        ),
+        body: TabBarView(
           controller: _tabController,
-          indicatorColor: AppColors.primaryLight,
-          labelColor: Colors.white,
-          unselectedLabelColor: AppColors.textLight,
-          tabs: const [
-            Tab(text: 'Resumen'),
-            Tab(text: 'Historial'),
+          children: [
+            _ProgressDashboard(studentId: widget.studentId),
+            _historyTab(),
           ],
         ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _ProgressDashboard(studentId: widget.studentId),
-          _historyTab(),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _logInPerson,
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add),
-        label: const Text('Registro manual'),
       ),
     );
   }
@@ -82,37 +127,76 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
                 Container(
                   padding: const EdgeInsets.all(32),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: RedesignColors.surface,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    border: Border.all(
+                      color: RedesignColors.secundario300.withValues(alpha: 0.18),
+                    ),
                   ),
-                  child: Icon(Icons.history_rounded, size: 64, color: Colors.white.withValues(alpha: 0.1)),
+                  child: Icon(
+                    Icons.history_rounded,
+                    size: 64,
+                    color: RedesignColors.primario400,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 Text(
                   'Sin historial de entrenamientos',
-                  style: TextStyle(color: AppColors.textLight, fontSize: 16),
+                  style: RedesignType.bodySm.copyWith(
+                    color: RedesignColors.primario400,
+                  ),
                 ),
               ],
             ),
           );
         }
 
+        // Group logs by ISO week (Monday-based)
+        final grouped = <String, List<Map<String, dynamic>>>{};
+        for (final log in logs) {
+          final date = DateTime.parse(
+            (log['started_at'] ?? log['created_at']) as String,
+          ).toLocal();
+          final weekKey = _weekKey(date);
+          grouped.putIfAbsent(weekKey, () => []).add(log);
+        }
+        final weeks = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+
         return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: logs.length,
-          itemBuilder: (context, index) {
-            final log = logs[index];
-            return _WorkoutLogCard(
-              log: log,
-              onTap: log['routine_id'] == null ? null : () => _openSession(log),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          itemCount: weeks.length,
+          itemBuilder: (context, wi) {
+            final weekLogs = grouped[weeks[wi]]!;
+            return _WeekGroup(
+              weekKey: weeks[wi],
+              logs: weekLogs,
+              onTap: (log) {
+                if (log['routine_id'] != null) _openSession(log);
+              },
             );
           },
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, s) => Center(child: Text('Error: $e')),
+      loading: () => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(RedesignColors.actionPrimary),
+        ),
+      ),
+      error: (e, s) => Center(
+        child: Text(
+          'Error: $e',
+          style: RedesignType.bodySm.copyWith(color: RedesignColors.primario300),
+        ),
+      ),
     );
+  }
+
+  /// Returns an ISO-week string "YYYY-Www" for grouping, e.g. "2024-W42".
+  String _weekKey(DateTime d) {
+    // Monday of that week
+    final monday = d.subtract(Duration(days: d.weekday - 1));
+    final weekNum = ((monday.difference(DateTime(monday.year)).inDays) / 7).ceil();
+    return '${monday.year}-W${weekNum.toString().padLeft(2, '0')}';
   }
 
   Future<void> _openSession(Map<String, dynamic> log) async {
@@ -143,7 +227,7 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error al cargar la rutina: $e'),
-          backgroundColor: AppColors.error,
+          backgroundColor: RedesignColors.danger,
         ),
       );
       return;
@@ -153,7 +237,7 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('El alumno no tiene una rutina activa'),
-          backgroundColor: AppColors.warning,
+          backgroundColor: RedesignColors.warning,
         ),
       );
       return;
@@ -163,7 +247,7 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('La rutina activa no tiene días configurados'),
-          backgroundColor: AppColors.warning,
+          backgroundColor: RedesignColors.warning,
         ),
       );
       return;
@@ -171,18 +255,32 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
 
     final day = await showModalBottomSheet<int>(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: RedesignColors.primario800,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(RedesignRadius.card),
+        ),
+      ),
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: RedesignColors.primario500,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
                 'Elegí el día',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.bold,
+                style: RedesignType.bodySm.copyWith(
+                  color: RedesignColors.primario50,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
@@ -190,10 +288,17 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
               ListTile(
                 title: Text(
                   'Día $d',
-                  style: const TextStyle(color: Colors.white),
+                  style: RedesignType.bodySm.copyWith(
+                    color: RedesignColors.primario50,
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  color: RedesignColors.primario300,
                 ),
                 onTap: () => Navigator.of(context).pop(d),
               ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -218,101 +323,194 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
   }
 }
 
-class _WorkoutLogCard extends StatelessWidget {
-  final Map<String, dynamic> log;
-  final VoidCallback? onTap;
+// ---------------------------------------------------------------------------
+// Week group header + session rows inside a rounded navy card
+// ---------------------------------------------------------------------------
 
-  const _WorkoutLogCard({required this.log, this.onTap});
+class _WeekGroup extends StatelessWidget {
+  final String weekKey;
+  final List<Map<String, dynamic>> logs;
+  final void Function(Map<String, dynamic>) onTap;
+
+  const _WeekGroup({
+    required this.weekKey,
+    required this.logs,
+    required this.onTap,
+  });
+
+  String _weekLabel(String key) {
+    // Parse the first log's date to derive start/end label
+    try {
+      final parts = key.split('-W');
+      final year = int.parse(parts[0]);
+      final week = int.parse(parts[1]);
+      final jan4 = DateTime(year, 1, 4);
+      final monday = jan4.subtract(Duration(days: jan4.weekday - 1))
+          .add(Duration(days: (week - 1) * 7));
+      final sunday = monday.add(const Duration(days: 6));
+      final now = DateTime.now();
+      final thisMonday = now.subtract(Duration(days: now.weekday - 1));
+      if (monday.isAtSameMomentAs(thisMonday) ||
+          (monday.isBefore(now) && sunday.isAfter(now))) {
+        return 'Esta semana';
+      }
+      final months = [
+        'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+        'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+      ];
+      return '${monday.day} - ${sunday.day} ${months[sunday.month - 1]}';
+    } catch (_) {
+      return weekKey;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Each row is a completed workout_sessions record
-    final routineName = log['routines']?['title'] ?? 'Rutina';
-    final dayNumber = log['day_number'] as int?;
-    final setsCompleted = log['sets_completed'] as int? ?? 0;
-    final durationSeconds = log['duration_seconds'] as int? ?? 0;
-    // toLocal(): the DB stores UTC; show the phone's local date/time
-    final date = DateTime.parse(
-      (log['started_at'] ?? log['created_at']) as String,
-    ).toLocal();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Week header
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}',
-                      style: TextStyle(fontSize: 12, color: AppColors.textLight, fontWeight: FontWeight.w500),
-                    ),
+              Expanded(
+                child: Text(
+                  _weekLabel(weekKey),
+                  style: RedesignType.bodySm.copyWith(
+                    color: RedesignColors.primario50,
+                    fontWeight: FontWeight.w600,
                   ),
-                  if (onTap != null)
-                    Icon(Icons.chevron_right, color: AppColors.textLight, size: 20),
-                ],
+                ),
               ),
-              const SizedBox(height: 12),
-               Text(
-                dayNumber != null ? '$routineName — Día $dayNumber' : routineName,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  _StatBadge(icon: Icons.repeat_rounded, text: '$setsCompleted series'),
-                  const SizedBox(width: 20),
-                  _StatBadge(
-                    icon: Icons.timer_rounded,
-                    text: '${(durationSeconds / 60).round()} min',
-                  ),
-                ],
+              Text(
+                '${logs.length} sesión${logs.length == 1 ? '' : 'es'}',
+                style: RedesignType.label.copyWith(
+                  color: RedesignColors.primario400,
+                ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _StatBadge extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _StatBadge({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
+        // Sessions card
         Container(
-          padding: const EdgeInsets.all(6),
+          margin: const EdgeInsets.only(bottom: 20),
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
+            color: RedesignColors.surface,
+            borderRadius: BorderRadius.circular(RedesignRadius.card),
+            border: Border.all(
+              color: RedesignColors.secundario300.withValues(alpha: 0.18),
+            ),
           ),
-          child: Icon(icon, size: 16, color: AppColors.primaryLight),
+          child: Column(
+            children: [
+              for (int i = 0; i < logs.length; i++) ...[
+                _SessionRow(
+                  log: logs[i],
+                  onTap: logs[i]['routine_id'] == null
+                      ? null
+                      : () => onTap(logs[i]),
+                ),
+                if (i < logs.length - 1)
+                  Divider(
+                    height: 1,
+                    color: RedesignColors.primario600.withValues(alpha: 0.5),
+                    indent: 16,
+                    endIndent: 16,
+                  ),
+              ],
+            ],
+          ),
         ),
-        const SizedBox(width: 8),
-        Text(text, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
       ],
     );
   }
 }
 
-// Provider
+class _SessionRow extends StatelessWidget {
+  final Map<String, dynamic> log;
+  final VoidCallback? onTap;
+
+  const _SessionRow({required this.log, this.onTap});
+
+  static const _weekdays = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
+
+  @override
+  Widget build(BuildContext context) {
+    final routineName = log['routines']?['title'] ?? 'Rutina';
+    final dayNumber = log['day_number'] as int?;
+    final setsCompleted = log['sets_completed'] as int? ?? 0;
+    final durationSeconds = log['duration_seconds'] as int? ?? 0;
+    final date = DateTime.parse(
+      (log['started_at'] ?? log['created_at']) as String,
+    ).toLocal();
+    final weekdayAbbr = _weekdays[(date.weekday - 1) % 7];
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(RedesignRadius.card),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            // Date block
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${date.day}',
+                  style: RedesignType.bodyMd.copyWith(
+                    color: RedesignColors.primario50,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  weekdayAbbr,
+                  style: RedesignType.label.copyWith(
+                    color: RedesignColors.secundario300,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            // Title + subtitle
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    dayNumber != null ? 'Día $dayNumber - $routineName' : routineName,
+                    style: RedesignType.bodySm.copyWith(
+                      color: RedesignColors.primario50,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${date.hour}:${date.minute.toString().padLeft(2, '0')} · $setsCompleted series · ${(durationSeconds / 60).round()} min',
+                    style: RedesignType.label.copyWith(
+                      color: RedesignColors.primario400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onTap != null)
+              const Icon(
+                Icons.chevron_right,
+                color: RedesignColors.primario300,
+                size: 20,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Providers
 final studentHistoryProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, studentId) async {
   final service = ref.watch(trainerServiceProvider);
   return service.getStudentHistory(studentId);
@@ -324,7 +522,10 @@ final athleteProgressProvider =
   return service.getAthleteProgress(studentId);
 });
 
-/// Dashboard tab: summary counts + per-exercise weight progression over time.
+// ---------------------------------------------------------------------------
+// "Resumen" tab — stats header + exercise progress chart
+// ---------------------------------------------------------------------------
+
 class _ProgressDashboard extends ConsumerStatefulWidget {
   final String studentId;
   const _ProgressDashboard({required this.studentId});
@@ -342,8 +543,17 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
   Widget build(BuildContext context) {
     final async = ref.watch(athleteProgressProvider(widget.studentId));
     return async.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, s) => Center(child: Text('Error: $e')),
+      loading: () => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(RedesignColors.actionPrimary),
+        ),
+      ),
+      error: (e, s) => Center(
+        child: Text(
+          'Error: $e',
+          style: RedesignType.bodySm.copyWith(color: RedesignColors.primario300),
+        ),
+      ),
       data: (data) {
         final exercises =
             (data['exercises'] as Map<String, dynamic>? ?? {});
@@ -353,7 +563,9 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
           return Center(
             child: Text(
               'Sin entrenamientos registrados',
-              style: TextStyle(color: AppColors.textLight),
+              style: RedesignType.bodySm.copyWith(
+                color: RedesignColors.primario400,
+              ),
             ),
           );
         }
@@ -371,17 +583,16 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
             : (names.isNotEmpty ? names.first : null);
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
           children: [
             _statsRow(data),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             if (selected != null) ...[
               Text(
                 'Progreso por ejercicio',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
+                style: RedesignType.bodySm.copyWith(
+                  color: RedesignColors.primario300,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 12),
@@ -407,7 +618,9 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
             ] else
               Text(
                 'Aún no hay pesos registrados por ejercicio',
-                style: TextStyle(color: AppColors.textLight),
+                style: RedesignType.bodySm.copyWith(
+                  color: RedesignColors.primario400,
+                ),
               ),
           ],
         );
@@ -439,24 +652,27 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          color: RedesignColors.surface,
+          borderRadius: BorderRadius.circular(RedesignRadius.card),
+          border: Border.all(
+            color: RedesignColors.secundario300.withValues(alpha: 0.18),
+          ),
         ),
         child: Column(
           children: [
             Text(
               value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 22,
+              style: RedesignType.bodyMd.copyWith(
+                color: RedesignColors.primario50,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               label,
-              style: TextStyle(color: AppColors.textLight, fontSize: 12),
+              style: RedesignType.label.copyWith(
+                color: RedesignColors.primario400,
+              ),
             ),
           ],
         ),
@@ -468,17 +684,22 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        color: RedesignColors.surface,
+        borderRadius: BorderRadius.circular(RedesignRadius.input),
+        border: Border.all(
+          color: RedesignColors.secundario300.withValues(alpha: 0.18),
+        ),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: selected,
           isExpanded: true,
-          dropdownColor: AppColors.surface,
-          style: const TextStyle(color: Colors.white),
-          icon: Icon(Icons.expand_more, color: AppColors.textLight),
+          dropdownColor: RedesignColors.primario700,
+          style: RedesignType.bodySm.copyWith(color: RedesignColors.primario50),
+          icon: const Icon(
+            Icons.expand_more,
+            color: RedesignColors.primario300,
+          ),
           items: [
             for (final n in names)
               DropdownMenuItem(value: n, child: Text(n)),
@@ -493,12 +714,12 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
   }
 
   static const List<Color> _setColors = [
-    AppColors.primary,
-    AppColors.accent,
-    AppColors.success,
-    AppColors.info,
-    AppColors.warning,
-    AppColors.primaryLight,
+    RedesignColors.actionPrimary,
+    RedesignColors.secundario500,
+    RedesignColors.success,
+    RedesignColors.secundario200,
+    RedesignColors.warning,
+    RedesignColors.secundario300,
   ];
 
   // Last 8 sessions (chronological), matching what the chart plots.
@@ -519,25 +740,27 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
 
   // Chips to view all series together or isolate a single serie's graph.
   Widget _setSelector(List<int> series) {
-    Widget chip(String label, bool selected, VoidCallback onTap) {
+    Widget chip(String label, bool isSelected, VoidCallback onTap) {
       return GestureDetector(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: selected ? AppColors.primary : AppColors.surface,
-            borderRadius: BorderRadius.circular(20),
+            color: isSelected
+                ? RedesignColors.secundario300
+                : const Color(0x4081E1CA),
+            borderRadius: BorderRadius.circular(RedesignRadius.buttonSm),
             border: Border.all(
-              color: selected
-                  ? AppColors.primary
-                  : Colors.white.withValues(alpha: 0.1),
+              color: RedesignColors.secundario300,
+              width: 0.5,
             ),
           ),
           child: Text(
             label,
-            style: TextStyle(
-              color: selected ? Colors.white : AppColors.textLight,
-              fontSize: 13,
+            style: RedesignType.buttonSm.copyWith(
+              color: isSelected
+                  ? RedesignColors.secundario900
+                  : RedesignColors.secundario300,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -623,7 +846,7 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
               radius: 3.5,
               color: color,
               strokeWidth: 2,
-              strokeColor: Colors.white,
+              strokeColor: RedesignColors.background,
             ),
           ),
         ),
@@ -644,9 +867,11 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        color: RedesignColors.surface,
+        borderRadius: BorderRadius.circular(RedesignRadius.card),
+        border: Border.all(
+          color: RedesignColors.secundario300.withValues(alpha: 0.18),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -655,10 +880,9 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
             children: [
               Text(
                 '${lastMax.toString().replaceAll('.0', '')} kg',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
+                style: RedesignType.bodyMd.copyWith(
+                  color: RedesignColors.primario50,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(width: 10),
@@ -670,13 +894,16 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
                           ? Icons.arrow_upward_rounded
                           : Icons.arrow_downward_rounded,
                       size: 16,
-                      color: delta > 0 ? AppColors.success : AppColors.error,
+                      color: delta > 0
+                          ? RedesignColors.success
+                          : RedesignColors.danger,
                     ),
                     Text(
                       '${delta.abs().toString().replaceAll('.0', '')} kg vs anterior',
-                      style: TextStyle(
-                        color: delta > 0 ? AppColors.success : AppColors.error,
-                        fontSize: 12,
+                      style: RedesignType.label.copyWith(
+                        color: delta > 0
+                            ? RedesignColors.success
+                            : RedesignColors.danger,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -693,7 +920,7 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
                   show: true,
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (v) => FlLine(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: RedesignColors.primario50.withValues(alpha: 0.05),
                     strokeWidth: 1,
                   ),
                 ),
@@ -706,9 +933,9 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
                         padding: const EdgeInsets.only(right: 8),
                         child: Text(
                           '${value.toInt()}',
-                          style: TextStyle(
+                          style: RedesignType.label.copyWith(
+                            color: RedesignColors.primario400,
                             fontSize: 10,
-                            color: AppColors.textLight,
                           ),
                         ),
                       ),
@@ -732,9 +959,9 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
                             '${d.day}/${d.month}',
-                            style: TextStyle(
+                            style: RedesignType.label.copyWith(
+                              color: RedesignColors.primario400,
                               fontSize: 9,
-                              color: AppColors.textLight,
                             ),
                           ),
                         );
@@ -742,9 +969,9 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
                     ),
                   ),
                   topTitles:
-                      AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles:
-                      AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,
@@ -777,9 +1004,8 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
                     const SizedBox(width: 6),
                     Text(
                       'Serie ${sortedSets[si]}',
-                      style: TextStyle(
-                        color: AppColors.textLight,
-                        fontSize: 12,
+                      style: RedesignType.label.copyWith(
+                        color: RedesignColors.primario300,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

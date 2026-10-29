@@ -1,5 +1,83 @@
 # Decision Log
 
+## 2026-10-27 — Trainer Perfil flow: _ProfileView rebuild + MiSuscripcionScreen + ElegirPlanScreen
+
+**Status:** Accepted
+
+**Context:** Figma redesign specified a new Perfil screen (navy/mint PRGS tokens), a Mi Suscripcion detail screen, and an Elegir Plan picker screen with Mensual/Anual toggle.
+
+**Decision:**
+- Rebuilt `_ProfileView` (in `trainer_dashboard_screen.dart`) entirely using PRGS tokens. New layout: back-arrow AppBar + centered avatar (teal-ringed, initial fallback) + name/email + plan card (plan name, "Mejorar" outlined button, alumnos progress bar) + menu card (Mi suscripcion, Estadisticas stub, Configuracion stub, Ayuda stub, chevron rows with dividers) + danger-red "Cerrar sesion" TextButton (sign-out preserved verbatim).
+- Created `mi_suscripcion_screen.dart` → `MiSuscripcionScreen`: reads `myTrainerSubscriptionProvider` + `myStudentsProvider`; shows plan card with "Activo" green pill + price + next-billing date (intl DateFormat dd/MM/yyyy); usage section with teal progress bar; payment section with "Método de pago no configurado" (no fake card number) + Cambiar stub + Historial chevron row stub; Cancel dialog → Próximamente toast.
+- Created `elegir_plan_screen.dart` → `ElegirPlanScreen`: reads `subscriptionPlansProvider` + `myTrainerSubscriptionProvider`; Mensual/Anual animated toggle (20% anual discount, badge); plan cards from provider with features list (max_students, support, analytics, custom_branding), "Recomendado" badge on Profesional, "Tu plan" badge on current plan, tap-to-select, selected indicator; bottom CTA "Pasar a <plan>" → Próximamente toast stub.
+
+**Key choices:**
+- `_ProfileView` drops the old "Beneficios" menu row — not in the Figma spec for the new profile. `trainer_benefits_screen.dart` import removed (TrainerBenefitsScreen is still accessible from other entry points if re-added; the file is not deleted).
+- `maxStudents` defaults to 10 when no active subscription (per spec: Básico free default).
+- All payment/upgrade/cancel actions are UI stubs. No stored card number shown — "Método de pago no configurado" neutral copy per spec guidance.
+- `_selectedPlanName` in `ElegirPlanScreen` defaults to Profesional on first load; safe `??=` assignment inside `when(data:)` callback avoids a duplicate `setState`.
+
+**Consequences:** `flutter analyze` clean (0 issues) on all three files and full project.
+
+## 2026-10-27 — Planes tab rebuild: unified Rutinas/Alimentacion screen
+
+**Status:** Accepted
+
+**Context:** The old Planes tab was a two-card landing that pushed into separate full-screen `_RoutinesView` and `_MealPlansView` Scaffolds. Figma redesign collapses this into one inline screen: segmented toggle + search + create button + list.
+
+**Decision:**
+- Converted `_PlanesView` from `ConsumerWidget` to `ConsumerStatefulWidget` with `_PlanesTab` enum state + `TextEditingController` for search.
+- Added `_TabSegment` (reusable animated toggle half), `_PlanRow` (shared text-only row for both lists), `_PlanesEmptyState`.
+- Rutinas list reads `myRoutinesProvider`; subtitle = `days_per_week ?? objective ?? 'Sin objetivo'`. Taps to `RoutineDetailScreen`.
+- Alimentacion list reads `myMealPlansProvider`; subtitle = `"$kcal kcal / Sin calorías - N días"` computed from `target_calories` + `days` + distinct `day_number` count in items. Taps to `MealPlanDetailScreen`.
+- Create button: rutinas opens `_CreateRoutineSheet` (preserved); alimentacion pushes `NuevoPlanScreen`.
+- Deleted dead code: `_RoutinesView`, `_MealPlansView`, `_PlanesEntryCard`, `_LibraryCard`, `_LibraryEmpty`.
+- `_CreateRoutineSheet` kept — still used by `_PlanesView` and `_FirstStepsChecklist`.
+- `ExerciseLibraryScreen` import kept — `_HomeView._SecondaryActionButton` and `_FirstStepsChecklist` both reference it.
+- `nuevo_plan_screen.dart` import was already present.
+
+**Consequences:** `flutter analyze` clean (0 issues) on file and full project.
+
+## 2026-10-27 — Plan Review: NuevoPlanScreen + meal_times detail fix — APPROVED ✅
+
+**Status:** Accepted
+
+**Decision:** Implemented NuevoPlanScreen (full-screen creation flow), wired both entry points (trainer dashboard FAB + cambiar_plan_screen "+ Crear plan nuevo" button), and made MealPlanDetailScreen._DayContent respect plan['meal_times'] when set.
+
+**Key choices:**
+- `NuevoPlanScreen._momentosKeys` stores internal keys (`breakfast`, `lunch`, `afternoon_snack`, `dinner`) — NOT Spanish labels. These are written verbatim to `meal_plans.meal_times` so `_DayContent._resolveSlots()` and `_NuevaComidaSheet._timeSlots` line up exactly.
+- `_DayContent._resolveSlots()` reads `plan['meal_times']` (a `List`), filters to valid `kMealTimeOrder` keys, sorts by `kMealTimeOrder`, falls back to `_defaultSlots` if absent/empty. Legacy items in slots outside the plan's list are still rendered in overflow (unchanged behavior).
+- `create_meal_plan_sheet.dart` remains in the codebase but its import was removed from both callers; the sheet itself is dead code (no analyzer warning on the sheet's file itself).
+- `_showCreateMealPlan` in `_MealPlansView` converted from `showModalBottomSheet` to `Navigator.push`.
+
+**Issues flagged:** None. `flutter analyze` clean (0 issues) on all four touched files.
+
+**Open questions:** None.
+
+## 2026-10-27 — Alimentacion module: IMPLEMENTED
+
+**Status:** Accepted
+
+**Context:** Trainer Alimentación (meal-plan) module reskin and new surrounding screens. Full PRGS redesign tokens; backend unchanged.
+
+**Decision:**
+
+New files:
+- `lib/features/trainer/alimentacion_sheet.dart` — gradient bottom sheet opened from Plan tab; shows active plan card + Editar/Cambiar/Quitar action rows (or Asignar CTA when empty).
+- `lib/features/trainer/cambiar_plan_screen.dart` — full-screen plan picker with search + keyword-heuristic category filter pills (Todos/Déficit/Volumen/Manten.) + radio list + Asignar button.
+- `lib/features/trainer/banco_alimentos_screen.dart` — full-screen `default_meals` browser; taps return the chosen meal map to the caller.
+
+Modified files:
+- `lib/features/trainer/meal_plan_detail_screen.dart` — full redesign: PRGS tokens throughout; day pills (Día N, scrollable horizontal list); per-day sections grouped by time_of_day (Desayuno/Almuerzo/Merienda/Cena + overflow); expandable `_OptionCard` with "Op N" badge + Editar/delete actions; `_NuevaComidaSheet` (gradient, banco CTA, photo upload via `uploadMealImageBytes`, time pills, add/edit mode); `_WhereToApplySheet` (copy-on-edit decision); `athleteId`/`studentName` context params; info banner when `cloned_from != null`. Removed old `_AddMealSheet`, `_FoodBankSearchSheet`, `_EditMealPlanSheet`. Preserved `mealPlanDetailProvider`.
+- `lib/features/trainer/student_detail_screen.dart` — added `alimentacion_sheet.dart` import; `_showAssignMealPlanSheet` now opens `AlimentacionSheet` with active meal plan context.
+
+**Simplifications flagged:**
+1. No `category` column on `meal_plans` — category filter in `CambiarPlanScreen` is a best-effort keyword match on title + description. Todos always shows all plans. A real `category` enum column would improve this.
+2. `_WhereToApplySheet` shows "todos los alumnos que lo usan" without an actual count — counting N athletes using the template would require an extra query not currently in the service.
+3. `_WhereToApplySheet` `onPersonalize` flow: after calling `personalizeMealPlanForStudent`, the screen re-renders on the copy and the edit action is re-triggered by the caller automatically (the edit gate sees `_activePlanId != widget.planId` and allows through). This is safe but the user must tap "Editar" again after the sheet. Acceptable complexity trade-off.
+
+**Consequences:** `flutter analyze` clean (0 issues). No schema changes. No service changes. Nav graph documented below.
+
 ## 2026-09-27 — Client Changes: Supplements plain text + Check-in grid/compare
 
 **Status:** Accepted

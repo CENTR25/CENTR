@@ -165,11 +165,14 @@ class _HomeContent extends ConsumerWidget {
                                 icon: Icons.medication_outlined,
                                 label: 'Suplementos',
                                 onTap: () async {
+                                  final structured = await ref.read(
+                                      myStructuredSupplementsProvider.future);
                                   final s = await ref
                                       .read(mySupplementsProvider.future);
                                   if (!context.mounted) return;
                                   _showSupplementInfo(
                                     context,
+                                    structured,
                                     s['daily'] ?? '',
                                     s['chemical'] ?? '',
                                   );
@@ -227,13 +230,21 @@ class _HomeContent extends ConsumerWidget {
     );
   }
 
-  void _showSupplementInfo(BuildContext context, String daily, String chemical) {
+  void _showSupplementInfo(
+    BuildContext context,
+    List<Map<String, dynamic>> structured,
+    String daily,
+    String chemical,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) =>
-          _SupplementInfoModal(daily: daily, chemical: chemical),
+      builder: (context) => _SupplementInfoModal(
+        structured: structured,
+        daily: daily,
+        chemical: chemical,
+      ),
     );
   }
 }
@@ -1251,18 +1262,40 @@ class _NewsCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _SupplementInfoModal extends StatelessWidget {
+  final List<Map<String, dynamic>> structured;
   final String daily;
   final String chemical;
 
   const _SupplementInfoModal({
+    required this.structured,
     required this.daily,
     required this.chemical,
   });
 
+  static const _timingLabels = {
+    'al_despertar': 'Al despertar',
+    'con_comidas': 'Con comidas',
+    'post_entreno': 'Post entreno',
+    'antes_dormir': 'Antes de dormir',
+    'pre_entreno': 'Pre entreno',
+  };
+  static const _daysLabels = {
+    'todos': 'Todos los días',
+    'entreno': 'Días de entreno',
+    'medio': 'Día por medio',
+  };
+
   @override
   Widget build(BuildContext context) {
+    final hasStructured = structured.isNotEmpty;
     final hasDaily = daily.trim().isNotEmpty;
     final hasChemical = chemical.trim().isNotEmpty;
+
+    final diaria = structured
+        .where((s) => (s['category'] as String? ?? 'diaria') != 'quimica')
+        .toList();
+    final quimica =
+        structured.where((s) => s['category'] == 'quimica').toList();
 
     return Container(
       constraints: BoxConstraints(
@@ -1331,21 +1364,40 @@ class _SupplementInfoModal extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (hasDaily)
-                    _section(
-                      icon: Icons.autorenew_rounded,
-                      title: 'Diario',
-                      body: daily.trim(),
-                      color: RedesignColors.secundario300, // #81E1CA
-                    ),
-                  if (hasDaily && hasChemical) const SizedBox(height: 18),
-                  if (hasChemical)
-                    _section(
-                      icon: Icons.science_outlined,
-                      title: 'Química',
-                      body: chemical.trim(),
-                    ),
-                  if (!hasDaily && !hasChemical)
+                  if (hasStructured) ...[
+                    if (diaria.isNotEmpty)
+                      _group(
+                        title: 'Diaria',
+                        icon: Icons.autorenew_rounded,
+                        items: diaria,
+                        bg: RedesignColors.secundario300,
+                      ),
+                    if (diaria.isNotEmpty && quimica.isNotEmpty)
+                      const SizedBox(height: 18),
+                    if (quimica.isNotEmpty)
+                      _group(
+                        title: 'Química',
+                        icon: Icons.science_outlined,
+                        items: quimica,
+                        bg: RedesignColors.secundario200,
+                      ),
+                  ] else ...[
+                    if (hasDaily)
+                      _section(
+                        icon: Icons.autorenew_rounded,
+                        title: 'Diario',
+                        body: daily.trim(),
+                        color: RedesignColors.secundario300, // #81E1CA
+                      ),
+                    if (hasDaily && hasChemical) const SizedBox(height: 18),
+                    if (hasChemical)
+                      _section(
+                        icon: Icons.science_outlined,
+                        title: 'Química',
+                        body: chemical.trim(),
+                      ),
+                  ],
+                  if (!hasStructured && !hasDaily && !hasChemical)
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.only(top: 16),
@@ -1363,6 +1415,130 @@ class _SupplementInfoModal extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  // Structured supplement group (one coloured card per category, listing items).
+  Widget _group({
+    required String title,
+    required IconData icon,
+    required List<Map<String, dynamic>> items,
+    required Color bg,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: RedesignColors.primario900, size: 22),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontFamily: 'Metropolis',
+                  color: RedesignColors.primario900,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Container(
+                  height: 1,
+                  color: RedesignColors.primario900.withValues(alpha: 0.12),
+                ),
+              ),
+            _suppItem(items[i]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _suppItem(Map<String, dynamic> s) {
+    final name = (s['name'] as String? ?? '').trim();
+    final dose = (s['dose'] as String? ?? '').trim();
+    final unit = (s['unit'] as String? ?? '').trim();
+    final daysKey = s['days'] as String? ?? 'todos';
+    final note = (s['note'] as String? ?? '').trim();
+    final timing = (s['timing'] as List?)
+            ?.map((e) => _timingLabels[e] ?? e.toString())
+            .join(', ') ??
+        '';
+    final doseStr = [dose, unit].where((e) => e.isNotEmpty).join(' ');
+    final meta = <String>[
+      if (_daysLabels[daysKey] != null) _daysLabels[daysKey]!,
+      if (timing.isNotEmpty) timing,
+    ].join(' · ');
+
+    const dark = RedesignColors.primario900;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                name,
+                style: const TextStyle(
+                  fontFamily: 'Metropolis',
+                  color: dark,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            if (doseStr.isNotEmpty) ...[
+              const SizedBox(width: 10),
+              Text(
+                doseStr,
+                style: TextStyle(
+                  fontFamily: 'Metropolis',
+                  color: dark.withValues(alpha: 0.85),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (meta.isNotEmpty) ...[
+          const SizedBox(height: 3),
+          Text(
+            meta,
+            style: TextStyle(
+              fontFamily: 'Metropolis',
+              color: dark.withValues(alpha: 0.7),
+              fontSize: 13,
+            ),
+          ),
+        ],
+        if (note.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            note,
+            style: TextStyle(
+              fontFamily: 'Metropolis',
+              color: dark.withValues(alpha: 0.75),
+              fontSize: 13,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ],
     );
   }
 

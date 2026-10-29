@@ -270,6 +270,71 @@ class TrainerService {
     }
   }
 
+  /// Structured cardio update (activity/duration/level/note + days). Also
+  /// writes a derived cardio_description for backward-compatible displays.
+  Future<void> updateAthleteCardioFull(
+    String athleteId, {
+    String? activity,
+    String? duration,
+    String? level,
+    String? note,
+    required List<int> days,
+  }) async {
+    final desc = [
+      if (activity != null && activity.isNotEmpty) activity,
+      if (duration != null && duration.isNotEmpty) duration,
+      if (level != null && level.isNotEmpty) 'Nivel $level',
+    ].join(' · ');
+
+    final updates = <String, dynamic>{
+      'cardio_activity': activity,
+      'cardio_duration': duration,
+      'cardio_level': level,
+      'cardio_note': note,
+      'cardio_description': desc.isEmpty ? null : desc,
+      'cardio_days': days,
+    };
+
+    try {
+      await _client.from('athletes').update(updates).eq('id', athleteId);
+    } catch (_) {
+      // Fallback for strict integer[] columns.
+      await _client
+          .from('athletes')
+          .update({...updates, 'cardio_days': '{${days.join(',')}}'})
+          .eq('id', athleteId);
+    }
+  }
+
+  // ==================== STRUCTURED SUPPLEMENTS ====================
+
+  /// All structured supplements for an athlete, grouped-friendly order.
+  Future<List<Map<String, dynamic>>> getAthleteSupplements(
+    String athleteId,
+  ) async {
+    final res = await _client
+        .from('athlete_supplements')
+        .select()
+        .eq('athlete_id', athleteId)
+        .order('category')
+        .order('order_index');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  /// Insert (no id) or update (with id) one structured supplement.
+  /// Returns the saved row.
+  Future<Map<String, dynamic>> upsertAthleteSupplement(
+    Map<String, dynamic> data,
+  ) async {
+    final res =
+        await _client.from('athlete_supplements').upsert(data).select().single();
+    return res;
+  }
+
+  Future<void> deleteAthleteSupplement(String id) async {
+    await _client.from('athlete_supplements').delete().eq('id', id);
+  }
+
   // ==================== EXERCISES ====================
 
   /// Get all exercises (global library)
@@ -498,7 +563,10 @@ class TrainerService {
   Future<Map<String, dynamic>?> getRoutine(String routineId) async {
     final response = await _client
         .from('routines')
-        .select('*, routine_exercises(*, exercises(*))')
+        .select(
+          '*, routine_exercises(*, exercises(*)), '
+          'athlete_routines(is_active, athletes(name))',
+        )
         .eq('id', routineId)
         .maybeSingle();
 
@@ -579,6 +647,7 @@ class TrainerService {
     String? restTime,
     int orderIndex = -1,
     String? notes,
+    String? weightTarget,
   }) async {
     // Parse rest time to seconds
     int restSeconds = 60;
@@ -605,6 +674,7 @@ class TrainerService {
       'rest_seconds': restSeconds, // Schema uses rest_seconds (integer)
       'order_index': orderIndex,
       'comment': notes, // Schema uses comment, not notes
+      if (weightTarget != null) 'weight_target': weightTarget,
     });
   }
 
@@ -867,15 +937,20 @@ class TrainerService {
     required String title,
     String? description,
     int? targetCalories,
+    String? objective,
+    int? days,
+    List<String>? mealTimes,
     File? imageFile,
-    required StorageService storageService,
+    String? imageUrl, // web-safe: pass a pre-uploaded URL instead of a File
+    StorageService? storageService,
   }) async {
     final trainerId = await _getTrainerId();
     if (trainerId == null) throw Exception('No trainer record found');
 
-    String? imageUrl;
-    if (imageFile != null) {
-      imageUrl = await storageService.uploadMealPlanCover(imageFile, trainerId);
+    String? finalImageUrl = imageUrl;
+    if (imageFile != null && storageService != null) {
+      finalImageUrl =
+          await storageService.uploadMealPlanCover(imageFile, trainerId);
     }
 
     final response = await _client
@@ -885,13 +960,24 @@ class TrainerService {
           'title': title,
           'description': description,
           'target_calories': targetCalories,
-          'image_url': imageUrl,
+          if (objective != null) 'objective': objective,
+          if (days != null) 'days': days,
+          if (mealTimes != null) 'meal_times': mealTimes,
+          if (finalImageUrl != null) 'image_url': finalImageUrl,
           'created_at': DateTime.now().toIso8601String(),
         })
         .select()
         .single();
 
     return response;
+  }
+
+  /// Patch only the image_url of an existing meal plan (web-safe upload flow).
+  Future<void> updateMealPlanImageUrl(String planId, String imageUrl) async {
+    await _client
+        .from('meal_plans')
+        .update({'image_url': imageUrl})
+        .eq('id', planId);
   }
 
   /// Update a meal plan
@@ -939,12 +1025,13 @@ class TrainerService {
     int? calories,
     Map<String, dynamic>? macros, // {protein: 30, carbs: 50, fat: 20}
     File? imageFile,
-    required StorageService storageService,
+    String? imageUrl, // web-safe: pass a pre-uploaded URL instead of a File
+    StorageService? storageService,
   }) async {
-    String? imageUrl;
+    String? finalImageUrl = imageUrl;
 
-    if (imageFile != null) {
-      imageUrl = await storageService.uploadMealImage(imageFile, mealPlanId);
+    if (imageFile != null && storageService != null) {
+      finalImageUrl = await storageService.uploadMealImage(imageFile, mealPlanId);
     }
 
     await _client.from('meal_plan_items').insert({
@@ -955,13 +1042,66 @@ class TrainerService {
       'meal_description': description,
       'calories': calories,
       'macros': macros,
-      if (imageUrl != null) 'image_url': imageUrl,
+      if (finalImageUrl != null) 'image_url': finalImageUrl,
     });
+  }
+
+  /// Update one meal item (generic field map).
+  Future<void> updateMealPlanItem(
+    String itemId,
+    Map<String, dynamic> updates,
+  ) async {
+    await _client.from('meal_plan_items').update(updates).eq('id', itemId);
   }
 
   /// Remove item from meal plan
   Future<void> removeMealPlanItem(String itemId) async {
     await _client.from('meal_plan_items').delete().eq('id', itemId);
+  }
+
+  /// "Quitar plan" — deactivate the athlete's active meal plan assignment.
+  Future<void> unassignMealPlanFromStudent(String athleteId) async {
+    await _client
+        .from('athlete_meal_plans')
+        .update({'is_active': false})
+        .eq('athlete_id', athleteId)
+        .eq('is_active', true);
+  }
+
+  /// "Banco de alimentos" — reusable meals from the default_meals table.
+  Future<List<Map<String, dynamic>>> getDefaultMeals() async {
+    final res = await _client
+        .from('default_meals')
+        .select()
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  // ==================== SUBSCRIPTION ====================
+
+  /// All active subscription tiers (Básico / Profesional / Empresarial).
+  Future<List<Map<String, dynamic>>> getSubscriptionPlans() async {
+    final res = await _client
+        .from('subscription_plans')
+        .select()
+        .eq('is_active', true)
+        .order('price');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  /// The current trainer's active subscription (with its plan), or null.
+  Future<Map<String, dynamic>?> getMyTrainerSubscription() async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return null;
+    final res = await _client
+        .from('trainer_subscriptions')
+        .select('*, subscription_plans(*)')
+        .eq('trainer_id', trainerId)
+        .eq('is_active', true)
+        .order('starts_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    return res;
   }
 
   /// Assign meal plan to student
@@ -1776,4 +1916,29 @@ final trainerTasksProvider = FutureProvider<List<TrainerTask>>((ref) async {
 final trainerScheduleProvider =
     FutureProvider<List<AthleteScheduleSlot>>((ref) async {
   return ref.watch(trainerServiceProvider).getScheduleSlots();
+});
+
+/// Structured supplements for one athlete.
+final athleteSupplementsProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, String>(
+        (ref, athleteId) async {
+  return ref.watch(trainerServiceProvider).getAthleteSupplements(athleteId);
+});
+
+/// "Banco de alimentos" — reusable default meals.
+final defaultMealsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return ref.watch(trainerServiceProvider).getDefaultMeals();
+});
+
+/// Subscription tiers for the "Elegí tu plan" screen.
+final subscriptionPlansProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return ref.watch(trainerServiceProvider).getSubscriptionPlans();
+});
+
+/// The current trainer's active subscription (with plan), or null.
+final myTrainerSubscriptionProvider =
+    FutureProvider<Map<String, dynamic>?>((ref) async {
+  return ref.watch(trainerServiceProvider).getMyTrainerSubscription();
 });

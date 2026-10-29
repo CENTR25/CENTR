@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../services/trainer_service.dart';
 import 'student_detail_screen.dart';
 
@@ -25,150 +25,38 @@ class _AssignRoutineSheetState extends ConsumerState<AssignRoutineSheet> {
   Widget build(BuildContext context) {
     final routinesAsync = ref.watch(myRoutinesProvider);
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: Column(
-        children: [
-          // Header
-          const SizedBox(height: 12),
-          Center(
-            child: Container(
-              width: 50,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.assignment_rounded,
-                    color: AppColors.primaryLight,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                const Expanded(
-                  child: Text(
-                    'Asignar Rutina',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: _isLoading || _selectedRoutineId == null
-                      ? null
-                      : _assignRoutine,
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.primaryLight,
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.primary,
-                          ),
-                        )
-                      : const Text(
-                          'ASIGNAR',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-
-          Expanded(
-            child: routinesAsync.when(
-              data: (routines) {
-                if (routines.isEmpty) {
-                  return const Center(
-                    child: Text('No tienes rutinas creadas.'),
-                  );
-                }
-                return RadioGroup<String>(
-                  groupValue: _selectedRoutineId,
-                  onChanged: (val) => setState(() => _selectedRoutineId = val),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: routines.length,
-                    itemBuilder: (context, index) {
-                      final routine = routines[index];
-                      final isSelected = _selectedRoutineId == routine['id'];
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.primary.withValues(alpha: 0.05)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.primary.withValues(alpha: 0.3)
-                                : Colors.white.withValues(alpha: 0.05),
-                          ),
-                        ),
-                        child: RadioListTile<String>(
-                          value: routine['id'],
-                          title: Text(
-                            routine['title'] ?? 'Rutina',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: Text(
-                            routine['objective'] ?? '',
-                            style: TextStyle(color: AppColors.textLight),
-                          ),
-                          secondary: isSelected
-                              ? const Icon(
-                                  Icons.check_circle_rounded,
-                                  color: AppColors.primaryLight,
-                                )
-                              : null,
-                          activeColor: AppColors.primaryLight,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+    return _AssignSheetShell(
+      title: 'Asignar rutina',
+      subtitle: 'Elegí la rutina para este alumno',
+      actionLabel: 'Guardar',
+      isLoading: _isLoading,
+      canSubmit: _selectedRoutineId != null,
+      onSubmit: _assignRoutine,
+      child: routinesAsync.when(
+        data: (routines) {
+          if (routines.isEmpty) {
+            return const _AssignEmpty(text: 'No tienes rutinas creadas.');
+          }
+          return RadioGroup<String>(
+            groupValue: _selectedRoutineId,
+            onChanged: (val) => setState(() => _selectedRoutineId = val),
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(22, 4, 22, 16),
+              itemCount: routines.length,
+              itemBuilder: (context, index) {
+                final routine = routines[index];
+                return _AssignItemCard(
+                  value: routine['id'] as String,
+                  title: routine['title'] ?? 'Rutina',
+                  subtitle: routine['objective'] ?? '',
+                  selected: _selectedRoutineId == routine['id'],
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
             ),
-          ),
-        ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => _AssignEmpty(text: 'Error: $e'),
       ),
     );
   }
@@ -196,7 +84,7 @@ class _AssignRoutineSheetState extends ConsumerState<AssignRoutineSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Rutina asignada correctamente'),
-            backgroundColor: AppColors.success,
+            backgroundColor: RedesignColors.success,
           ),
         );
       }
@@ -207,7 +95,7 @@ class _AssignRoutineSheetState extends ConsumerState<AssignRoutineSheet> {
             content: Text(
               'Error: ${e.toString().replaceAll('Exception: ', '')}',
             ),
-            backgroundColor: AppColors.error,
+            backgroundColor: RedesignColors.danger,
             duration: const Duration(seconds: 5),
           ),
         );
@@ -240,148 +128,38 @@ class _AssignMealPlanSheetState extends ConsumerState<AssignMealPlanSheet> {
   Widget build(BuildContext context) {
     final mealPlansAsync = ref.watch(myMealPlansProvider);
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: Column(
-        children: [
-          // Header
-          const SizedBox(height: 12),
-          Center(
-            child: Container(
-              width: 50,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.restaurant_menu_rounded,
-                    color: AppColors.warning,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                const Expanded(
-                  child: Text(
-                    'Asignar Plan',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: _isLoading || _selectedMealPlanId == null
-                      ? null
-                      : _assignMealPlan,
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.warning,
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.warning,
-                          ),
-                        )
-                      : const Text(
-                          'ASIGNAR',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-
-          Expanded(
-            child: mealPlansAsync.when(
-              data: (plans) {
-                if (plans.isEmpty) {
-                  return const Center(child: Text('No tienes planes creados.'));
-                }
-                return RadioGroup<String>(
-                  groupValue: _selectedMealPlanId,
-                  onChanged: (val) => setState(() => _selectedMealPlanId = val),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: plans.length,
-                    itemBuilder: (context, index) {
-                      final plan = plans[index];
-                      final isSelected = _selectedMealPlanId == plan['id'];
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.warning.withValues(alpha: 0.05)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.warning.withValues(alpha: 0.3)
-                                : Colors.white.withValues(alpha: 0.05),
-                          ),
-                        ),
-                        child: RadioListTile<String>(
-                          value: plan['id'],
-                          title: Text(
-                            plan['title'] ?? 'Plan',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: Text(
-                            plan['objective'] ?? '',
-                            style: TextStyle(color: AppColors.textLight),
-                          ),
-                          secondary: isSelected
-                              ? const Icon(
-                                  Icons.check_circle_rounded,
-                                  color: AppColors.warning,
-                                )
-                              : null,
-                          activeColor: AppColors.warning,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+    return _AssignSheetShell(
+      title: 'Asignar plan',
+      subtitle: 'Elegí el plan de alimentación',
+      actionLabel: 'Guardar',
+      isLoading: _isLoading,
+      canSubmit: _selectedMealPlanId != null,
+      onSubmit: _assignMealPlan,
+      child: mealPlansAsync.when(
+        data: (plans) {
+          if (plans.isEmpty) {
+            return const _AssignEmpty(text: 'No tienes planes creados.');
+          }
+          return RadioGroup<String>(
+            groupValue: _selectedMealPlanId,
+            onChanged: (val) => setState(() => _selectedMealPlanId = val),
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(22, 4, 22, 16),
+              itemCount: plans.length,
+              itemBuilder: (context, index) {
+                final plan = plans[index];
+                return _AssignItemCard(
+                  value: plan['id'] as String,
+                  title: plan['title'] ?? 'Plan',
+                  subtitle: plan['objective'] ?? '',
+                  selected: _selectedMealPlanId == plan['id'],
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
             ),
-          ),
-        ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => _AssignEmpty(text: 'Error: $e'),
       ),
     );
   }
@@ -408,7 +186,7 @@ class _AssignMealPlanSheetState extends ConsumerState<AssignMealPlanSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Plan asignado correctamente'),
-            backgroundColor: AppColors.success,
+            backgroundColor: RedesignColors.success,
           ),
         );
       }
@@ -417,12 +195,214 @@ class _AssignMealPlanSheetState extends ConsumerState<AssignMealPlanSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: AppColors.error,
+            backgroundColor: RedesignColors.danger,
           ),
         );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+}
+
+// ==================== SHARED PIECES ====================
+
+/// Navy→teal gradient picker sheet: handle, title/subtitle + close, a scrollable
+/// selection list, and a bottom mint action button.
+class _AssignSheetShell extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String actionLabel;
+  final bool isLoading;
+  final bool canSubmit;
+  final VoidCallback onSubmit;
+  final Widget child;
+
+  const _AssignSheetShell({
+    required this.title,
+    required this.subtitle,
+    required this.actionLabel,
+    required this.isLoading,
+    required this.canSubmit,
+    required this.onSubmit,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.8,
+        padding:
+            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              RedesignColors.primario900,
+              RedesignColors.secundario900,
+            ],
+          ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: RedesignColors.primario50.withValues(alpha: 0.30),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 14, 16, 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: RedesignType.headingMd.copyWith(
+                              color: RedesignColors.primario50,
+                              fontSize: 24,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            subtitle,
+                            style: RedesignType.bodySm.copyWith(
+                                color: RedesignColors.primario300),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).maybePop(),
+                      behavior: HitTestBehavior.opaque,
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.close_rounded,
+                            color: RedesignColors.primario300, size: 24),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(child: child),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: (isLoading || !canSubmit) ? null : onSubmit,
+                    child: isLoading
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: RedesignColors.onActionPrimary,
+                            ),
+                          )
+                        : Text(actionLabel),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AssignItemCard extends StatelessWidget {
+  final String value;
+  final String title;
+  final String subtitle;
+  final bool selected;
+
+  const _AssignItemCard({
+    required this.value,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: RedesignColors.surface,
+        borderRadius: BorderRadius.circular(RedesignRadius.card),
+        border: Border.all(
+          color: selected
+              ? RedesignColors.secundario300
+              : RedesignColors.secundario300.withValues(alpha: 0.18),
+          width: selected ? 1.2 : 1,
+        ),
+      ),
+      child: RadioListTile<String>(
+        value: value,
+        title: Text(
+          title,
+          style: RedesignType.bodySm.copyWith(
+            color: RedesignColors.primario50,
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+          ),
+        ),
+        subtitle: subtitle.isEmpty
+            ? null
+            : Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: RedesignType.label
+                    .copyWith(color: RedesignColors.primario300),
+              ),
+        secondary: selected
+            ? const Icon(Icons.check_circle_rounded,
+                color: RedesignColors.actionPrimary)
+            : null,
+        activeColor: RedesignColors.actionPrimary,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(RedesignRadius.card),
+        ),
+      ),
+    );
+  }
+}
+
+class _AssignEmpty extends StatelessWidget {
+  final String text;
+
+  const _AssignEmpty({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: RedesignType.bodySm.copyWith(color: RedesignColors.primario300),
+        ),
+      ),
+    );
   }
 }

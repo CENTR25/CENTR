@@ -37,6 +37,11 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
   // 1-based day (Mon..Sun). Default to today.
   int _selectedDay = DateTime.now().weekday.clamp(1, _daysCount);
 
+  // Cached for the bottom-nav play FAB, which starts the selected day's
+  // workout directly. Kept in sync by _buildBody on every build.
+  Map<String, dynamic>? _currentRoutine;
+  List<Map<String, dynamic>> _currentDayExercises = const [];
+
   /// True if the last completed session for this routine/day was today.
   bool _completedToday(Map<String, dynamic>? lastSession) {
     final startedStr =
@@ -60,8 +65,9 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
         child: Dialog(
           backgroundColor: RedesignColors.primario800,
           insetPadding: const EdgeInsets.symmetric(horizontal: 36),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(28, 28, 28, 22),
             child: Column(
@@ -104,42 +110,43 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
                   ),
                 ),
                 const SizedBox(height: 26),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text(
-                        'Cancelar',
-                        style: TextStyle(
-                          fontFamily: 'Metropolis',
-                          color: RedesignColors.primario50,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                // Full-width stacked buttons so the confirm action can never be
+                // pushed off-screen by a long day name or larger text scaling.
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: RedesignColors.actionPrimary,
+                    foregroundColor: RedesignColors.onActionPrimary,
+                    elevation: 0,
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
                     ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: RedesignColors.actionPrimary,
-                        foregroundColor: RedesignColors.onActionPrimary,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 22, vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30)),
-                      ),
-                      child: Text(
-                        'Entrenar $tapped',
-                        style: const TextStyle(
-                          fontFamily: 'Metropolis',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                  ),
+                  child: Text(
+                    'Entrenar $tapped',
+                    style: const TextStyle(
+                      fontFamily: 'Metropolis',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                     ),
-                  ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 44),
+                  ),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(
+                      fontFamily: 'Metropolis',
+                      color: RedesignColors.primario50,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -171,8 +178,9 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
         data: RedesignTheme.theme,
         child: AlertDialog(
           backgroundColor: RedesignColors.primario800,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: Text(
             title,
             style: const TextStyle(
@@ -222,8 +230,12 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
         extendBody: true,
         bottomNavigationBar: StudentBottomNav(
           active: StudentNavTab.entrenar,
+          isOnEntrenarScreen: true,
           onInicioTap: () => Navigator.popUntil(context, (r) => r.isFirst),
-          onEntrenarTap: () {},
+          onEntrenarTap: () {
+            if (_currentRoutine == null || _currentDayExercises.isEmpty) return;
+            _startWorkout(_currentRoutine!, _currentDayExercises);
+          },
           onNutricionTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const StudentMealPlanScreen()),
@@ -232,8 +244,9 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
         body: routineAsync.when(
           loading: () => const Center(
             child: CircularProgressIndicator(
-              valueColor:
-                  AlwaysStoppedAnimation<Color>(RedesignColors.actionPrimary),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                RedesignColors.actionPrimary,
+              ),
             ),
           ),
           error: (e, _) => const _CenteredState(
@@ -248,11 +261,19 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
 
   Widget _buildBody(Map<String, dynamic>? routine) {
     final exercises = (routine?['routine_exercises'] as List?) ?? const [];
-    final dayExercises = exercises
-        .where((e) => (e['day_number'] as num?)?.toInt() == _selectedDay)
-        .toList()
-      ..sort((a, b) => ((a['order_index'] as num?)?.toInt() ?? 0)
-          .compareTo((b['order_index'] as num?)?.toInt() ?? 0));
+    final dayExercises =
+        exercises
+            .where((e) => (e['day_number'] as num?)?.toInt() == _selectedDay)
+            .toList()
+          ..sort(
+            (a, b) => ((a['order_index'] as num?)?.toInt() ?? 0).compareTo(
+              (b['order_index'] as num?)?.toInt() ?? 0,
+            ),
+          );
+
+    // Keep the play FAB in sync with what's shown for the selected day.
+    _currentRoutine = routine;
+    _currentDayExercises = dayExercises.cast<Map<String, dynamic>>();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,20 +307,19 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
                   label: 'No tenés una rutina activa',
                 )
               : dayExercises.isEmpty
-                  ? const _CenteredState(
-                      icon: Icons.snooze_rounded,
-                      label: 'Día de descanso',
-                    )
-                  : _DayContent(
-                      routine: routine,
-                      dayNumber: _selectedDay,
-                      dayExercises:
-                          dayExercises.cast<Map<String, dynamic>>(),
-                      onStart: () => _startWorkout(
-                        routine,
-                        dayExercises.cast<Map<String, dynamic>>(),
-                      ),
-                    ),
+              ? const _CenteredState(
+                  icon: Icons.snooze_rounded,
+                  label: 'Día de descanso',
+                )
+              : _DayContent(
+                  routine: routine,
+                  dayNumber: _selectedDay,
+                  dayExercises: dayExercises.cast<Map<String, dynamic>>(),
+                  onStart: () => _startWorkout(
+                    routine,
+                    dayExercises.cast<Map<String, dynamic>>(),
+                  ),
+                ),
         ),
       ],
     );
@@ -316,8 +336,12 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
       if (proceed != true) return;
     } else {
       final last = ref
-          .read(lastSessionProvider(
-              (routineId: routine['id'], dayNumber: _selectedDay)))
+          .read(
+            lastSessionProvider((
+              routineId: routine['id'],
+              dayNumber: _selectedDay,
+            )),
+          )
           .valueOrNull;
       if (_completedToday(last)) {
         final retry = await _confirmRetrain(context);
@@ -373,8 +397,11 @@ class _Header extends StatelessWidget {
                 color: RedesignColors.primario700,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.history_rounded,
-                  color: Colors.white, size: 20),
+              child: const Icon(
+                Icons.history_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -421,8 +448,9 @@ class _DayPills extends StatelessWidget {
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: RedesignColors.secundario300
-                      .withValues(alpha: isActive ? 1 : 0.55),
+                  color: RedesignColors.secundario300.withValues(
+                    alpha: isActive ? 1 : 0.55,
+                  ),
                   width: 1.5,
                 ),
               ),
@@ -499,12 +527,14 @@ class _DayContent extends ConsumerWidget {
             final days = (cardio['days'] as List?)?.cast<int>() ?? const [];
             if (!days.contains(dayNumber)) return const SizedBox.shrink();
             final description = (cardio['description'] as String?)?.trim();
+            final note = (cardio['note'] as String?)?.trim();
             return Padding(
               padding: const EdgeInsets.only(bottom: 18),
               child: _CardioBanner(
                 description: description?.isNotEmpty == true
                     ? description!
                     : 'Consultá a tu entrenador',
+                note: (note?.isNotEmpty ?? false) ? note : null,
               ),
             );
           },
@@ -544,8 +574,9 @@ class _DayContent extends ConsumerWidget {
             foregroundColor: RedesignColors.onActionPrimary,
             minimumSize: const Size(double.infinity, 54),
             elevation: 0,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
           ),
           child: const Text(
             'Empezar entrenamiento',
@@ -567,7 +598,8 @@ class _DayContent extends ConsumerWidget {
 
 class _CardioBanner extends StatelessWidget {
   final String description;
-  const _CardioBanner({required this.description});
+  final String? note;
+  const _CardioBanner({required this.description, this.note});
 
   @override
   Widget build(BuildContext context) {
@@ -586,8 +618,11 @@ class _CardioBanner extends StatelessWidget {
               color: RedesignColors.advertencia300, // cardio icon bg
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.directions_run_rounded,
-                color: RedesignColors.advertencia900, size: 24),
+            child: const Icon(
+              Icons.directions_run_rounded,
+              color: RedesignColors.advertencia900,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -613,6 +648,18 @@ class _CardioBanner extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                if (note != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    note!,
+                    style: TextStyle(
+                      fontFamily: 'Metropolis',
+                      color: RedesignColors.primario900.withValues(alpha: 0.75),
+                      fontSize: 13,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -641,74 +688,66 @@ class _ExerciseRow extends StatelessWidget {
     final rest = (exerciseData['rest_seconds'] as num?)?.toInt() ?? 60;
     final muscle = (exercise['muscle_group'] as String?)?.trim() ?? '';
 
-    return Padding(
-      padding: const EdgeInsets.all(18),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 26,
-            child: Text(
-              number.toString().padLeft(2, '0'),
-              style: const TextStyle(
-                fontFamily: 'Metropolis',
-                color: RedesignColors.primario400,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ExerciseDetailScreen(
+            exerciseData: exerciseData,
+            coachComment: exerciseData['comment'] as String?,
+          ),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 26,
+              child: Text(
+                number.toString().padLeft(2, '0'),
+                style: const TextStyle(
+                  fontFamily: 'Metropolis',
+                  color: RedesignColors.primario400,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontFamily: 'Metropolis',
-                    color: RedesignColors.primario50,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontFamily: 'Metropolis',
+                      color: RedesignColors.primario50,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                _StatsLine(
-                  sets: sets,
-                  reps: reps,
-                  rest: rest,
-                  muscle: muscle,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ExerciseDetailScreen(
-                  exerciseData: exerciseData,
-                  coachComment: exerciseData['comment'] as String?,
-                ),
+                  const SizedBox(height: 6),
+                  _StatsLine(
+                    sets: sets,
+                    reps: reps,
+                    rest: rest,
+                    muscle: muscle,
+                  ),
+                ],
               ),
             ),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border:
-                    Border.all(color: RedesignColors.secundario500, width: 2),
-              ),
-              child: const Icon(
-                Icons.play_arrow_rounded,
-                color: RedesignColors.secundario500,
-                size: 24,
-              ),
+            const SizedBox(width: 12),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: RedesignColors.primario300,
+              size: 26,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -728,11 +767,11 @@ class _StatsLine extends StatelessWidget {
   });
 
   Widget _sep() => Container(
-        margin: const EdgeInsets.symmetric(horizontal: 9),
-        width: 1,
-        height: 13,
-        color: RedesignColors.secundario500.withValues(alpha: 0.6),
-      );
+    margin: const EdgeInsets.symmetric(horizontal: 9),
+    width: 1,
+    height: 13,
+    color: RedesignColors.secundario500.withValues(alpha: 0.6),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -746,11 +785,13 @@ class _StatsLine extends StatelessWidget {
       children: [
         Text('$sets x $reps', style: strong),
         _sep(),
-        const Icon(Icons.timer_outlined,
-            size: 14, color: RedesignColors.primario300),
+        const Icon(
+          Icons.timer_outlined,
+          size: 14,
+          color: RedesignColors.primario300,
+        ),
         const SizedBox(width: 4),
-        Text('$rest s',
-            style: strong.copyWith(fontWeight: FontWeight.w500)),
+        Text('$rest s', style: strong.copyWith(fontWeight: FontWeight.w500)),
         if (muscle.isNotEmpty) ...[
           _sep(),
           Flexible(
@@ -815,8 +856,10 @@ String _displayReps(String repsRaw) {
       : [repsRaw];
   if (repsList.length <= 1) return repsRaw;
   if (repsList.any((r) => r.contains('-'))) return repsList.first;
-  final numeric =
-      repsList.map((r) => int.tryParse(r)).whereType<int>().toList();
+  final numeric = repsList
+      .map((r) => int.tryParse(r))
+      .whereType<int>()
+      .toList();
   if (numeric.isEmpty) return repsRaw;
   final minR = numeric.reduce((a, b) => a < b ? a : b);
   final maxR = numeric.reduce((a, b) => a > b ? a : b);

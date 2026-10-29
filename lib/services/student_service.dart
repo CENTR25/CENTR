@@ -962,11 +962,13 @@ class StudentService {
 
     final response = await _client
         .from('athletes')
-        .select('cardio_description, cardio_days')
+        .select('cardio_description, cardio_days, cardio_note')
         .eq('id', athleteId)
         .maybeSingle();
 
-    if (response == null) return {'description': '', 'days': <int>[]};
+    if (response == null) {
+      return {'description': '', 'days': <int>[], 'note': ''};
+    }
 
     List<int> days = [];
     if (response['cardio_days'] != null) {
@@ -976,7 +978,22 @@ class StudentService {
     return {
       'description': response['cardio_description'] as String? ?? '',
       'days': days,
+      'note': response['cardio_note'] as String? ?? '',
     };
+  }
+
+  /// Structured supplements the trainer assigned (athlete_supplements table).
+  /// RLS lets the athlete read their own rows.
+  Future<List<Map<String, dynamic>>> getMyStructuredSupplements() async {
+    final athleteId = await _getAthleteId();
+    if (athleteId == null) return [];
+    final res = await _client
+        .from('athlete_supplements')
+        .select()
+        .eq('athlete_id', athleteId)
+        .order('category')
+        .order('order_index');
+    return List<Map<String, dynamic>>.from(res);
   }
 
   /// Get today's supplement log to check status
@@ -1146,10 +1163,17 @@ final streakProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
   return service.getMyStreak();
 });
 
-/// Provider for student's supplements configuration
+/// Provider for student's supplements configuration (legacy free-text)
 final mySupplementsProvider = FutureProvider<Map<String, String>>((ref) async {
   final service = ref.read(studentServiceProvider);
   return service.getMySupplements();
+});
+
+/// Provider for student's structured supplements (athlete_supplements table)
+final myStructuredSupplementsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.read(studentServiceProvider);
+  return service.getMyStructuredSupplements();
 });
 
 /// Provider for student's cardio configuration

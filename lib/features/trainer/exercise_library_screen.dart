@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -981,8 +981,16 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
   final _instructionsController = TextEditingController();
   final _youtubeUrlController = TextEditingController();
   String _selectedMuscleGroup = 'Pecho';
-  File? _selectedVideo;
-  final List<File> _selectedImages = [];
+  // Newly picked media as raw bytes — dart:io File is unavailable on Flutter
+  // web (the deployed PWA), so pickers hand over bytes and uploads go through
+  // the uploadBinary-based storage methods.
+  Uint8List? _videoBytes;
+  String? _videoExt;
+  String? _videoName;
+  final List<_PickedImage> _newImages = [];
+  // Media the exercise already has (shown in edit mode, carried on duplicate).
+  String? _existingVideoUrl;
+  final List<String> _existingImageUrls = [];
   bool _isLoading = false;
 
   // Edit-in-place only when we have a source AND we're not duplicating it.
@@ -999,11 +1007,19 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
       _instructionsController.text =
           widget.exerciseToEdit!['instructions'] ?? '';
       _selectedMuscleGroup = widget.exerciseToEdit!['muscle_group'] ?? 'Pecho';
-      // Load existing YouTube URL
+      // Load existing media: YouTube links go to the URL field, uploaded
+      // videos/images show as removable previews.
       final existingVideoUrl = widget.exerciseToEdit!['video_url'] as String?;
-      if (existingVideoUrl != null && _isYoutubeUrl(existingVideoUrl)) {
-        _youtubeUrlController.text = existingVideoUrl;
+      if (existingVideoUrl != null && existingVideoUrl.isNotEmpty) {
+        if (_isYoutubeUrl(existingVideoUrl)) {
+          _youtubeUrlController.text = existingVideoUrl;
+        } else {
+          _existingVideoUrl = existingVideoUrl;
+        }
       }
+      _existingImageUrls.addAll(
+        (widget.exerciseToEdit!['image_urls'] as List?)?.cast<String>() ?? [],
+      );
     }
   }
 
@@ -1158,26 +1174,33 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
                       ),
                       const SizedBox(height: 8),
                       _VideoSelector(
-                        selectedVideo: _selectedVideo,
-                        onSelect: (file) =>
-                            setState(() => _selectedVideo = file),
-                        onRemove: () => setState(() => _selectedVideo = null),
+                        selectedLabel: _videoName ??
+                            (_existingVideoUrl != null ? 'Video actual' : null),
+                        onSelect: _pickVideo,
+                        onRemove: () => setState(() {
+                          _videoBytes = null;
+                          _videoExt = null;
+                          _videoName = null;
+                          _existingVideoUrl = null;
+                        }),
                       ),
                     ],
                     const SizedBox(height: 24),
 
                     // Images
                     const Text(
-                      'Imágenes (opcional)',
+                      'Fotos (opcional)',
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
                     _ImageSelector(
-                      selectedImages: _selectedImages,
-                      onAdd: (file) =>
-                          setState(() => _selectedImages.add(file)),
-                      onRemove: (index) =>
-                          setState(() => _selectedImages.removeAt(index)),
+                      existingUrls: _existingImageUrls,
+                      newImages: _newImages,
+                      onAdd: _pickImage,
+                      onRemoveExisting: (index) => setState(
+                          () => _existingImageUrls.removeAt(index)),
+                      onRemoveNew: (index) =>
+                          setState(() => _newImages.removeAt(index)),
                     ),
                   ],
                 ),
@@ -1187,6 +1210,37 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
         ],
       ),
     );
+  }
+
+  Future<void> _pickVideo() async {
+    final video = await ImagePicker().pickVideo(source: ImageSource.gallery);
+    if (video == null) return;
+    final bytes = await video.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _videoBytes = bytes;
+      _videoExt = _fileExtension(video.name, fallback: 'mp4');
+      _videoName = video.name;
+      _existingVideoUrl = null; // the new pick replaces the current video
+    });
+  }
+
+  Future<void> _pickImage() async {
+    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (image == null) return;
+    final bytes = await image.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _newImages.add(_PickedImage(
+        bytes: bytes,
+        ext: _fileExtension(image.name, fallback: 'jpg'),
+      ));
+    });
+  }
+
+  String _fileExtension(String name, {required String fallback}) {
+    final parts = name.split('.');
+    return parts.length > 1 ? parts.last.toLowerCase() : fallback;
   }
 
   Future<void> _saveExercise() async {
@@ -1229,40 +1283,37 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
         exerciseId = exerciseData['id'] as String;
       }
 
-      // Upload video if selected (or use YouTube URL)
+      // Resolve the video: YouTube URL wins, then a freshly picked upload,
+      // then whatever the exercise already had (kept on edit, carried over on
+      // duplicate). Null means the trainer removed it.
       String? videoUrl;
       final youtubeUrl = _youtubeUrlController.text.trim();
       if (youtubeUrl.isNotEmpty) {
-        // Use YouTube URL directly
         videoUrl = youtubeUrl;
-      } else if (_selectedVideo != null) {
-        // Upload local video
-        videoUrl = await storageService.uploadExerciseVideo(
-          _selectedVideo!,
+      } else if (_videoBytes != null) {
+        videoUrl = await storageService.uploadExerciseVideoBytes(
+          _videoBytes!,
+          _videoExt ?? 'mp4',
           exerciseId,
         );
-      } else if (widget.duplicate) {
-        // Carry over an uploaded (non-YouTube) source video. A cleared YouTube
-        // field means the trainer removed it, so don't carry a YouTube source.
-        final srcVideo = widget.exerciseToEdit?['video_url'] as String?;
-        if (srcVideo != null && !_isYoutubeUrl(srcVideo)) videoUrl = srcVideo;
+      } else {
+        videoUrl = _existingVideoUrl;
       }
 
-      // Upload images if selected, else carry over the source's on duplicate.
-      List<String> imageUrls = [];
-      if (_selectedImages.isNotEmpty) {
-        imageUrls = await storageService.uploadExerciseImages(
-          _selectedImages,
+      // Images: the existing ones the trainer kept plus any new uploads.
+      final imageUrls = List<String>.from(_existingImageUrls);
+      for (var i = 0; i < _newImages.length; i++) {
+        imageUrls.add(await storageService.uploadExerciseImageBytes(
+          _newImages[i].bytes,
+          _newImages[i].ext,
           exerciseId,
-        );
-      } else if (widget.duplicate) {
-        imageUrls =
-            (widget.exerciseToEdit?['image_urls'] as List?)?.cast<String>() ??
-            [];
+          i,
+        ));
       }
 
-      // Update exercise with URLs
-      if (videoUrl != null || imageUrls.isNotEmpty) {
+      // In edit mode always write media so removals persist; on create only
+      // when there is something to attach.
+      if (_isEditMode || videoUrl != null || imageUrls.isNotEmpty) {
         await service.updateExerciseMedia(
           exerciseId,
           videoUrl: videoUrl,
@@ -1299,21 +1350,29 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
   }
 }
 
+// A freshly picked image held as raw bytes (web-safe — no dart:io File).
+class _PickedImage {
+  final Uint8List bytes;
+  final String ext;
+
+  const _PickedImage({required this.bytes, required this.ext});
+}
+
 // Video Selector Widget
 class _VideoSelector extends StatelessWidget {
-  final File? selectedVideo;
-  final Function(File) onSelect;
+  final String? selectedLabel;
+  final VoidCallback onSelect;
   final VoidCallback onRemove;
 
   const _VideoSelector({
-    required this.selectedVideo,
+    required this.selectedLabel,
     required this.onSelect,
     required this.onRemove,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (selectedVideo != null) {
+    if (selectedLabel != null) {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -1324,7 +1383,7 @@ class _VideoSelector extends StatelessWidget {
           children: [
             const Icon(Icons.video_library, color: AppColors.primary),
             const SizedBox(width: 12),
-            Expanded(child: Text(selectedVideo!.path.split('/').last)),
+            Expanded(child: Text(selectedLabel!)),
             IconButton(
               icon: const Icon(Icons.close, color: AppColors.error),
               onPressed: onRemove,
@@ -1335,13 +1394,7 @@ class _VideoSelector extends StatelessWidget {
     }
 
     return OutlinedButton.icon(
-      onPressed: () async {
-        final picker = ImagePicker();
-        final video = await picker.pickVideo(source: ImageSource.gallery);
-        if (video != null) {
-          onSelect(File(video.path));
-        }
-      },
+      onPressed: onSelect,
       icon: const Icon(Icons.video_library),
       label: const Text('Seleccionar video'),
       style: OutlinedButton.styleFrom(
@@ -1351,48 +1404,62 @@ class _VideoSelector extends StatelessWidget {
   }
 }
 
-// Image Selector Widget
+// Image Selector Widget — shows the exercise's current images (network) plus
+// newly picked ones (memory bytes), both removable.
 class _ImageSelector extends StatelessWidget {
-  final List<File> selectedImages;
-  final Function(File) onAdd;
-  final Function(int) onRemove;
+  final List<String> existingUrls;
+  final List<_PickedImage> newImages;
+  final VoidCallback onAdd;
+  final Function(int) onRemoveExisting;
+  final Function(int) onRemoveNew;
 
   const _ImageSelector({
-    required this.selectedImages,
+    required this.existingUrls,
+    required this.newImages,
     required this.onAdd,
-    required this.onRemove,
+    required this.onRemoveExisting,
+    required this.onRemoveNew,
   });
 
   @override
   Widget build(BuildContext context) {
+    final total = existingUrls.length + newImages.length;
     return Column(
       children: [
-        if (selectedImages.isNotEmpty)
+        if (total > 0)
           SizedBox(
             height: 100,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: selectedImages.length,
+              itemCount: total,
               itemBuilder: (context, index) {
+                final isExisting = index < existingUrls.length;
+                final image = isExisting
+                    ? Image.network(existingUrls[index], fit: BoxFit.cover)
+                    : Image.memory(
+                        newImages[index - existingUrls.length].bytes,
+                        fit: BoxFit.cover,
+                      );
                 return Stack(
                   children: [
                     Container(
                       margin: const EdgeInsets.only(right: 8),
                       width: 100,
                       height: 100,
+                      clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
-                        image: DecorationImage(
-                          image: FileImage(selectedImages[index]),
-                          fit: BoxFit.cover,
-                        ),
+                        color: Colors.black12,
                       ),
+                      child: image,
                     ),
                     Positioned(
                       top: 4,
                       right: 12,
                       child: GestureDetector(
-                        onTap: () => onRemove(index),
+                        onTap: () => isExisting
+                            ? onRemoveExisting(index)
+                            : onRemoveNew(index - existingUrls.length),
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: const BoxDecoration(
@@ -1414,15 +1481,9 @@ class _ImageSelector extends StatelessWidget {
           ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed: () async {
-            final picker = ImagePicker();
-            final image = await picker.pickImage(source: ImageSource.gallery);
-            if (image != null) {
-              onAdd(File(image.path));
-            }
-          },
+          onPressed: onAdd,
           icon: const Icon(Icons.add_photo_alternate),
-          label: const Text('Agregar imagen'),
+          label: const Text('Agregar foto'),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(double.infinity, 48),
           ),

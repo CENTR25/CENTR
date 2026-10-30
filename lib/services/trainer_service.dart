@@ -540,22 +540,15 @@ class TrainerService {
   /// Update exercise media URLs after upload
   Future<void> updateExerciseMedia(
     String exerciseId, {
-    String? videoUrl,
-    List<String>? imageUrls,
+    required String? videoUrl,
+    required List<String> imageUrls,
   }) async {
-    final updates = <String, dynamic>{};
-
-    if (videoUrl != null) {
-      updates['video_url'] = videoUrl;
-    }
-
-    if (imageUrls != null && imageUrls.isNotEmpty) {
-      updates['image_urls'] = imageUrls;
-    }
-
-    if (updates.isNotEmpty) {
-      await _client.from('exercises').update(updates).eq('id', exerciseId);
-    }
+    // Writes both columns unconditionally: a null video / empty list is how
+    // the editor persists a removal.
+    await _client.from('exercises').update({
+      'video_url': videoUrl,
+      'image_urls': imageUrls,
+    }).eq('id', exerciseId);
   }
 
   /// Update exercise basic info
@@ -688,7 +681,6 @@ class TrainerService {
     String? restTime,
     int orderIndex = -1,
     String? notes,
-    String? weightTarget,
   }) async {
     // Parse rest time to seconds
     int restSeconds = 60;
@@ -715,7 +707,6 @@ class TrainerService {
       'rest_seconds': restSeconds, // Schema uses rest_seconds (integer)
       'order_index': orderIndex,
       'comment': notes, // Schema uses comment, not notes
-      if (weightTarget != null) 'weight_target': weightTarget,
     });
   }
 

@@ -12,63 +12,50 @@ class StorageService {
 
   static const String _bucketName = 'exercise-media';
 
-  /// Upload exercise video (MP4)
-  /// Returns the public URL of the uploaded video
-  Future<String> uploadExerciseVideo(File file, String exerciseId) async {
-    final fileName = '$exerciseId.mp4';
-    final path = 'videos/$fileName';
+  /// Upload exercise video from raw bytes (web-safe). Keeps the gallery file's
+  /// extension so iOS .mov picks keep a playable content type.
+  /// Returns the public URL of the uploaded video.
+  Future<String> uploadExerciseVideoBytes(
+    Uint8List bytes,
+    String extension,
+    String exerciseId,
+  ) async {
+    final path = 'videos/$exerciseId.$extension';
 
-    await _client.storage.from(_bucketName).upload(
+    await _client.storage.from(_bucketName).uploadBinary(
           path,
-          file,
-          fileOptions: const FileOptions(
-            contentType: 'video/mp4',
-            upsert: true, // Overwrite if exists
+          bytes,
+          fileOptions: FileOptions(
+            contentType: _getVideoContentType(extension),
+            upsert: true,
           ),
         );
 
-    final url = _client.storage.from(_bucketName).getPublicUrl(path);
-    return url;
+    return _client.storage.from(_bucketName).getPublicUrl(path);
   }
 
-  /// Upload exercise image (JPG/PNG)
-  /// Returns the public URL of the uploaded image
-  Future<String> uploadExerciseImage(
-    File file,
+  /// Upload one exercise image from raw bytes (web-safe). Timestamped name so
+  /// newly added images never overwrite ones the exercise already has.
+  /// Returns the public URL of the uploaded image.
+  Future<String> uploadExerciseImageBytes(
+    Uint8List bytes,
+    String extension,
     String exerciseId,
     int index,
   ) async {
-    final extension = file.path.split('.').last;
-    final fileName = '${exerciseId}_$index.$extension';
-    final path = 'images/$fileName';
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final path = 'images/${exerciseId}_${timestamp}_$index.$extension';
 
-    await _client.storage.from(_bucketName).upload(
+    await _client.storage.from(_bucketName).uploadBinary(
           path,
-          file,
+          bytes,
           fileOptions: FileOptions(
             contentType: _getContentType(extension),
             upsert: true,
           ),
         );
 
-    final url = _client.storage.from(_bucketName).getPublicUrl(path);
-    return url;
-  }
-
-  /// Upload multiple images for an exercise
-  /// Returns list of public URLs
-  Future<List<String>> uploadExerciseImages(
-    List<File> files,
-    String exerciseId,
-  ) async {
-    final urls = <String>[];
-
-    for (var i = 0; i < files.length; i++) {
-      final url = await uploadExerciseImage(files[i], exerciseId, i);
-      urls.add(url);
-    }
-
-    return urls;
+    return _client.storage.from(_bucketName).getPublicUrl(path);
   }
 
   /// Delete file from storage
@@ -114,6 +101,20 @@ class StorageService {
           .toList();
     } catch (e) {
       return [];
+    }
+  }
+
+  /// Get video content type from file extension
+  String _getVideoContentType(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'mov':
+        return 'video/quicktime';
+      case 'webm':
+        return 'video/webm';
+      case 'm4v':
+        return 'video/x-m4v';
+      default:
+        return 'video/mp4';
     }
   }
 

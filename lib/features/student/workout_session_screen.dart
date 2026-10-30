@@ -209,18 +209,42 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   /// UI or the timer loop.
   void _saveDraft() {
     if (_isCompleted) return;
+
+    // During rest the set that was just logged is in the recorded maps, but
+    // _currentSet only advances when the timer ends (_endRest). A draft saved
+    // now must point at the NEXT set — otherwise a kill during the countdown
+    // restores the athlete onto the set they already completed. Mirror the
+    // advancement _endRest will do, and drop the pending text (it belongs to
+    // the finished set, not the one being restored into).
+    var visitPos = _visitPos;
+    var currentSet = _currentSet;
+    var pendingWeight = _weightController.text;
+    var pendingReps = _repsController.text;
+    if (_isResting) {
+      final totalSets =
+          (_orderedExercises[_currentExerciseIndex]['sets'] as int?) ?? 3;
+      if (_currentSet < totalSets) {
+        currentSet = _currentSet + 1;
+      } else if (_visitPos < _visitOrder.length - 1) {
+        visitPos = _visitPos + 1;
+        currentSet = 1;
+      }
+      pendingWeight = '';
+      pendingReps = '';
+    }
+
     unawaited(_draftService.save(WorkoutDraft(
       routineId: _routineId,
       dayNumber: widget.dayNumber,
       startedAt: _startTime?.toIso8601String(),
       exerciseCount: _orderedExercises.length,
       visitOrder: _visitOrder,
-      visitPos: _visitPos,
-      currentSet: _currentSet,
+      visitPos: visitPos,
+      currentSet: currentSet,
       recordedWeights: _recordedWeights,
       recordedReps: _recordedReps,
-      pendingWeight: _weightController.text,
-      pendingReps: _repsController.text,
+      pendingWeight: pendingWeight,
+      pendingReps: pendingReps,
       savedAt: DateTime.now(),
     )));
   }
@@ -366,11 +390,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   }
 
   void _updateWeightController() {
-    final currentExercise = _orderedExercises[_currentExerciseIndex];
-    final targetWeight = currentExercise['weight_target']?.toString() ?? '';
     final recordedWeight =
         _recordedWeights[_currentExerciseIndex]?[_currentSet]?.toString();
-    _weightController.text = recordedWeight ?? targetWeight;
+    _weightController.text = recordedWeight ?? '';
 
     final recordedReps =
         _recordedReps[_currentExerciseIndex]?[_currentSet]?.toString();

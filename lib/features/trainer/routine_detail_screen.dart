@@ -556,7 +556,6 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
     try {
       final service = ref.read(trainerServiceProvider);
       final repsTarget = exercise['reps_target']?.toString() ?? '10-12';
-      final weightTarget = exercise['weight_target'] as String?;
       await service.addExerciseToRoutine(
         routineId: widget.routineId,
         exerciseId: exercise['exercise_id'] as String,
@@ -565,7 +564,6 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
         reps: repsTarget,
         restTime: '${exercise['rest_seconds'] ?? 60}s',
         notes: exercise['comment'] as String?,
-        weightTarget: weightTarget,
       );
       ref.invalidate(routineDetailProvider(widget.routineId));
     } catch (e) {
@@ -1761,9 +1759,6 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
   bool _useSameReps = true;
   String _standardReps = '10-12';
   List<String> _individualReps = ['10', '10', '10'];
-  // Weight state (per-set follows _useSameReps toggle)
-  String _standardWeight = '';
-  List<String> _individualWeights = ['', '', ''];
   late int _rest = widget.defaultRest;
   String _comments = '';
   bool _isLoading = false;
@@ -1807,19 +1802,6 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
       _standardReps = repsTarget;
       _individualReps = List.filled(_sets, repsTarget);
     }
-
-    // Weight target (per-set follows same reps toggle)
-    final weightTarget = ex['weight_target']?.toString() ?? '';
-    if (weightTarget.contains('|')) {
-      _individualWeights = weightTarget.split('|');
-      if (_individualWeights.length < _sets) {
-        _individualWeights
-            .addAll(List.filled(_sets - _individualWeights.length, ''));
-      }
-    } else {
-      _standardWeight = weightTarget;
-      _individualWeights = List.filled(_sets, weightTarget);
-    }
   }
 
   void _updateSets(int newSets) {
@@ -1830,12 +1812,6 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
             List.filled(newSets - _individualReps.length, '10'));
       } else {
         _individualReps = _individualReps.sublist(0, newSets);
-      }
-      if (_individualWeights.length < newSets) {
-        _individualWeights.addAll(
-            List.filled(newSets - _individualWeights.length, ''));
-      } else {
-        _individualWeights = _individualWeights.sublist(0, newSets);
       }
     });
   }
@@ -2017,77 +1993,23 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
         ),
 
         if (_useSameReps) ...[
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: TextEditingController.fromValue(
-                    TextEditingValue(
-                      text: _standardReps,
-                      selection: TextSelection.collapsed(
-                          offset: _standardReps.length),
-                    ),
-                  ),
-                  style: RedesignType.bodySm
-                      .copyWith(color: RedesignColors.primario50),
-                  keyboardType: TextInputType.text,
-                  decoration: const InputDecoration(
-                    labelText: 'Reps (ej: 10-12)',
-                  ),
-                  onChanged: (v) => _standardReps = v,
-                ),
+          TextField(
+            controller: TextEditingController.fromValue(
+              TextEditingValue(
+                text: _standardReps,
+                selection: TextSelection.collapsed(
+                    offset: _standardReps.length),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: TextEditingController.fromValue(
-                    TextEditingValue(
-                      text: _standardWeight,
-                      selection: TextSelection.collapsed(
-                          offset: _standardWeight.length),
-                    ),
-                  ),
-                  style: RedesignType.bodySm
-                      .copyWith(color: RedesignColors.primario50),
-                  keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Peso (kg)',
-                    hintText: 'Opcional',
-                  ),
-                  onChanged: (v) => _standardWeight = v,
-                ),
-              ),
-            ],
+            ),
+            style: RedesignType.bodySm
+                .copyWith(color: RedesignColors.primario50),
+            keyboardType: TextInputType.text,
+            decoration: const InputDecoration(
+              labelText: 'Reps (ej: 10-12)',
+            ),
+            onChanged: (v) => _standardReps = v,
           ),
         ] else ...[
-          // Header row for per-set table
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
-              children: [
-                const SizedBox(width: 64),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Peso (kg)',
-                    style: RedesignType.label
-                        .copyWith(color: RedesignColors.primario400),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Reps',
-                    style: RedesignType.label
-                        .copyWith(color: RedesignColors.primario400),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
-          ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: List.generate(_sets, (index) {
@@ -2104,35 +2026,6 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        key: ValueKey('weight_input_$index'),
-                        controller: TextEditingController.fromValue(
-                          TextEditingValue(
-                            text: index < _individualWeights.length
-                                ? _individualWeights[index]
-                                : '',
-                            selection: TextSelection.collapsed(
-                              offset: (index < _individualWeights.length
-                                  ? _individualWeights[index].length
-                                  : 0),
-                            ),
-                          ),
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        style: RedesignType.bodySm
-                            .copyWith(color: RedesignColors.primario50),
-                        decoration: const InputDecoration(
-                            hintText: 'kg'),
-                        onChanged: (v) {
-                          if (index < _individualWeights.length) {
-                            _individualWeights[index] = v;
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         key: ValueKey('rep_input_$index'),
@@ -2278,21 +2171,6 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
     }
   }
 
-  String? _buildWeightTarget() {
-    if (_useSameReps) {
-      // Single weight field
-      final w = _standardWeight.trim();
-      return w.isEmpty ? null : w;
-    } else {
-      // Per-set weights
-      final parts = _individualWeights.sublist(0, _sets);
-      final encoded = parts.join('|');
-      // Return null if every part is blank
-      if (parts.every((w) => w.trim().isEmpty)) return null;
-      return encoded;
-    }
-  }
-
   Future<void> _saveExercise() async {
     if (_selectedExerciseId == null) return;
 
@@ -2310,8 +2188,6 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
         finalReps = _individualReps.sublist(0, _sets).join('|');
       }
 
-      final weightTarget = _buildWeightTarget();
-
       if (widget.existingExercise != null) {
         await service.updateRoutineExercise(widget.existingExercise!['id'], {
           'exercise_id': _selectedExerciseId,
@@ -2319,7 +2195,9 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
           'reps_target': finalReps,
           'rest_seconds': _rest,
           'comment': _comments.isNotEmpty ? _comments : null,
-          'weight_target': weightTarget,
+          // Trainers no longer set target weight; clear any value saved while
+          // the field briefly existed so it stops prefilling student inputs.
+          'weight_target': null,
         });
       } else {
         await service.addExerciseToRoutine(
@@ -2330,7 +2208,6 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
           reps: finalReps,
           restTime: '${_rest}s',
           notes: _comments.isNotEmpty ? _comments : null,
-          weightTarget: weightTarget,
         );
       }
 

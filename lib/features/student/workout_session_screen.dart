@@ -302,8 +302,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   Future<void> _fetchLastSession() async {
     try {
       final service = ref.read(studentServiceProvider);
+      // Fetch sessions across ALL days — history is per exercise_id, not per day.
       final recent = await service.getRecentWorkoutSessions(
-          widget.routine['id'], widget.dayNumber,
+          widget.routine['id'],
           limit: 4);
       if (mounted) {
         setState(() {
@@ -586,6 +587,29 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       setsCompleted += sets.length;
     });
 
+    // Key set_logs / reps_logs by exercise_id (stable UUID) instead of the
+    // positional index in _orderedExercises. This lets history lookups work
+    // correctly when the same exercise appears on different routine days (where
+    // its positional index would differ).
+    final setLogsByExerciseId = <String, Map<String, dynamic>>{};
+    final repsLogsByExerciseId = <String, Map<String, dynamic>>{};
+    for (final entry in _recordedWeights.entries) {
+      final exIdx = entry.key;
+      final exerciseId = (_orderedExercises[exIdx]['exercises']
+          as Map<String, dynamic>?)?['id'] as String?;
+      if (exerciseId == null) continue;
+      setLogsByExerciseId[exerciseId] =
+          entry.value.map((k2, v2) => MapEntry(k2.toString(), v2));
+    }
+    for (final entry in _recordedReps.entries) {
+      final exIdx = entry.key;
+      final exerciseId = (_orderedExercises[exIdx]['exercises']
+          as Map<String, dynamic>?)?['id'] as String?;
+      if (exerciseId == null) continue;
+      repsLogsByExerciseId[exerciseId] =
+          entry.value.map((k2, v2) => MapEntry(k2.toString(), v2));
+    }
+
     service.saveWorkoutSession({
       'routine_id': widget.routine['id'],
       'day_number': widget.dayNumber,
@@ -594,10 +618,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       'duration_seconds': _totalElapsed.inSeconds,
       'sets_completed': setsCompleted,
       'is_completed': isCompleted,
-      'set_logs': _recordedWeights.map((k, v) =>
-          MapEntry(k.toString(), v.map((k2, v2) => MapEntry(k2.toString(), v2)))),
-      'reps_logs': _recordedReps.map((k, v) =>
-          MapEntry(k.toString(), v.map((k2, v2) => MapEntry(k2.toString(), v2)))),
+      'set_logs': setLogsByExerciseId,
+      'reps_logs': repsLogsByExerciseId,
     });
   }
 
@@ -702,7 +724,10 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     final name = exerciseData['name'] ?? 'Ejercicio';
     final totalSets = (exercise['sets'] as int?) ?? 3;
     final notes = exercise['comment'] as String?;
-    final exIndexStr = _currentExerciseIndex.toString();
+    // Use the stable exercise UUID as the lookup key in set_logs/reps_logs so
+    // that history works when the same exercise appears on different routine days
+    // (where the positional index would differ).
+    final exerciseId = exerciseData['id'] as String? ?? _currentExerciseIndex.toString();
 
     final todayW = _recordedWeights[_currentExerciseIndex] ?? const {};
     final todayR = _recordedReps[_currentExerciseIndex] ?? const {};
@@ -804,7 +829,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                     // Historial de peso
                     _HistorialDePeso(
                       sessions: _recentSessions,
-                      exIndexStr: exIndexStr,
+                      exIndexStr: exerciseId,
                       isLoading: _isLoadingHistory,
                       onGoToHistory: () => Navigator.push(
                         context,

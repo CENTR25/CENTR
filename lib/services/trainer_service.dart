@@ -1622,15 +1622,17 @@ class TrainerService {
   ) async {
     final response = await _client
         .from('routine_exercises')
-        .select('id, sets, reps_target, order_index, exercises(name)')
+        .select('id, exercise_id, sets, reps_target, order_index, exercises(name)')
         .eq('routine_id', routineId)
         .eq('day_number', dayNumber)
         .order('order_index', ascending: true);
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// The athlete's previous completed session for the same routine day, so the
-  /// trainer can compare against last time. Excludes [excludeSessionId].
+  /// The athlete's previous completed session for the same routine (any day),
+  /// so the trainer can compare the "anterior:" hint per exercise_id.
+  /// Day filter intentionally removed — set_logs are keyed by exercise_id so
+  /// history is correct regardless of which day an exercise appeared on.
   Future<Map<String, dynamic>?> getPreviousSession({
     required String athleteId,
     required String routineId,
@@ -1643,7 +1645,6 @@ class TrainerService {
         .select('set_logs, reps_logs, started_at')
         .eq('athlete_id', athleteId)
         .eq('routine_id', routineId)
-        .eq('day_number', dayNumber)
         .eq('is_completed', true)
         .lt('started_at', beforeStartedAt);
     if (excludeSessionId != null) {

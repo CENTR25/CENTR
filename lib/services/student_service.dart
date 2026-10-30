@@ -895,12 +895,12 @@ class StudentService {
     return response;
   }
 
-  /// Get the last N completed workout sessions for a routine/day
-  /// Used for showing recent history in exercise detail screen.
+  /// Get the last N completed workout sessions for a routine across ALL days.
+  /// History is keyed by exercise_id in set_logs/reps_logs, so the caller can
+  /// look up any exercise regardless of which day it appeared on.
   Future<List<Map<String, dynamic>>> getRecentWorkoutSessions(
-    String routineId,
-    int dayNumber, {
-    int limit = 3,
+    String routineId, {
+    int limit = 4,
   }) async {
     final athleteId = await _getAthleteId();
     if (athleteId == null) return [];
@@ -910,7 +910,6 @@ class StudentService {
         .select()
         .eq('athlete_id', athleteId)
         .eq('routine_id', routineId)
-        .eq('day_number', dayNumber)
         .eq('is_completed', true)
         .order('created_at', ascending: false)
         .limit(limit);
@@ -1340,17 +1339,16 @@ final myCheckInsProvider =
       return service.getMyCheckIns();
     });
 
-/// Provider for last N workout sessions of an athlete for a given routine/day
-/// (used to show history in exercise screen - currently last 3)
+/// Provider for last N workout sessions of an athlete for a given routine
+/// across all days (used to show history in exercise screen).
 final recentSessionsProvider =
     FutureProvider.family<
       List<Map<String, dynamic>>,
-      ({String routineId, int dayNumber, int limit})
+      ({String routineId, int limit})
     >((ref, arg) async {
       final service = ref.read(studentServiceProvider);
       return service.getRecentWorkoutSessions(
         arg.routineId,
-        arg.dayNumber,
         limit: arg.limit,
       );
     });

@@ -101,8 +101,11 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
         final sets = (exercises[i]['sets'] as int?) ?? 3;
         _weightCtrls[i] = {};
         _repsCtrls[i] = {};
-        final exWeights = setLogs['$i'] as Map<String, dynamic>?;
-        final exReps = repsLogs['$i'] as Map<String, dynamic>?;
+        // Look up by exercise_id (stable UUID) so reads are correct regardless
+        // of which day the exercise appears on (positional index would differ).
+        final exerciseId = exercises[i]['exercise_id'] as String? ?? '$i';
+        final exWeights = setLogs[exerciseId] as Map<String, dynamic>?;
+        final exReps = repsLogs[exerciseId] as Map<String, dynamic>?;
         for (var s = 1; s <= sets; s++) {
           _weightCtrls[i]![s] = TextEditingController(
             text: _fmt(exWeights?['$s']),
@@ -155,8 +158,11 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
         if (reps != null) r['$s'] = reps;
         if (weight != null || reps != null) setsCompleted++;
       }
-      if (w.isNotEmpty) setLogs['$i'] = w;
-      if (r.isNotEmpty) repsLogs['$i'] = r;
+      // Key by exercise_id (stable UUID) instead of positional index so that
+      // lookups work correctly when the same exercise appears on different days.
+      final exerciseId = _exercises[i]['exercise_id'] as String? ?? '$i';
+      if (w.isNotEmpty) setLogs[exerciseId] = w;
+      if (r.isNotEmpty) repsLogs[exerciseId] = r;
     }
 
     try {
@@ -191,9 +197,9 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
     }
   }
 
-  String _prevLabel(int exIndex, int setNumber) {
-    final w = (_prevSetLogs?['$exIndex'] as Map<String, dynamic>?)?['$setNumber'];
-    final r = (_prevRepsLogs?['$exIndex'] as Map<String, dynamic>?)?['$setNumber'];
+  String _prevLabel(String exerciseId, int setNumber) {
+    final w = (_prevSetLogs?[exerciseId] as Map<String, dynamic>?)?['$setNumber'];
+    final r = (_prevRepsLogs?[exerciseId] as Map<String, dynamic>?)?['$setNumber'];
     if (w == null && r == null) return '';
     return 'anterior: ${_fmt(w).isEmpty ? '–' : _fmt(w)} kg × ${_fmt(r).isEmpty ? '–' : _fmt(r)}';
   }
@@ -303,6 +309,7 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
 
   Widget _exerciseCard(int i) {
     final name = _exercises[i]['exercises']?['name'] ?? 'Ejercicio';
+    final exerciseId = _exercises[i]['exercise_id'] as String? ?? '$i';
     final setNumbers = (_weightCtrls[i]?.keys.toList() ?? [])..sort();
 
     return Container(
@@ -326,14 +333,14 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          for (final s in setNumbers) _setRow(i, s),
+          for (final s in setNumbers) _setRow(i, s, exerciseId),
         ],
       ),
     );
   }
 
-  Widget _setRow(int exIndex, int setNumber) {
-    final prev = _prevLabel(exIndex, setNumber);
+  Widget _setRow(int exIndex, int setNumber, String exerciseId) {
+    final prev = _prevLabel(exerciseId, setNumber);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(

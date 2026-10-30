@@ -114,6 +114,25 @@ class UserModel {
     return combinedName.isEmpty ? null : combinedName;
   }
 
+  /// Resolve an avatar URL from the profile row or auth user_metadata.
+  /// Admins have no trainers/athletes row, so their photo lives in metadata.
+  static String? resolveAvatar(Map<String, dynamic> json) {
+    final metadata = json['user_metadata'];
+    final metadataMap = metadata is Map
+        ? Map<String, dynamic>.from(metadata)
+        : const <String, dynamic>{};
+    for (final value in [
+      json['avatar_url'],
+      json['photo_url'],
+      metadataMap['avatar_url'],
+      metadataMap['photo_url'],
+    ]) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty) return text;
+    }
+    return null;
+  }
+
   static DateTime _parseDate(Object? value) {
     return DateTime.tryParse(value?.toString() ?? '') ?? DateTime.now();
   }
@@ -128,8 +147,7 @@ class UserModel {
       id: json['id'] as String,
       email: email,
       name: resolvedName,
-      avatarUrl:
-          (json['avatar_url'] as String?) ?? (json['photo_url'] as String?),
+      avatarUrl: resolveAvatar(json),
       role: UserRole.fromString(json['role'] as String? ?? 'student'),
       trainerId: json['trainer_id'] as String?,
       isActive: json['is_active'] as bool? ?? true,

@@ -366,6 +366,178 @@ class AdminService {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  // ==================== DASHBOARD (Panel PRGS) ====================
+
+  /// Columns needed to render a trainer row/detail — never select('*').
+  static const _trainerColumns =
+      'id, name, specialty, profile_photo, phone, user_id, created_at, '
+      'profiles!inner(email, first_login_at, is_active, created_at)';
+
+  /// Header metrics for the admin Inicio screen (single round-trip RPC).
+  /// Returns {ingresos_mes, suscripciones_activas, total_trainers, total_alumnos}.
+  Future<Map<String, dynamic>> getDashboardMetrics() async {
+    final res = await _client.rpc('admin_dashboard_metrics');
+    return Map<String, dynamic>.from(res as Map);
+  }
+
+  /// All trainers enriched with their alumnos count and current active
+  /// subscription (plan name/max/price + ends_at), for the Entrenadores list.
+  /// `subscription` is null when the trainer has no active, unexpired plan.
+  Future<List<Map<String, dynamic>>> getTrainersEnriched() async {
+    final trainers = await _client
+        .from('trainers')
+        .select(_trainerColumns)
+        .order('created_at', ascending: false);
+
+    final counts = await _alumnosCountByTrainer();
+    final subByTrainer = await _activeSubByTrainer();
+
+    return List<Map<String, dynamic>>.from(trainers).map((t) {
+      final id = t['id'] as String;
+      return {
+        ...t,
+        'alumnos_count': counts[id] ?? 0,
+        'subscription': subByTrainer[id],
+      };
+    }).toList();
+  }
+
+  /// Single trainer enriched for the detail screen.
+  Future<Map<String, dynamic>> getTrainerDetail(String trainerId) async {
+    final t = await _client
+        .from('trainers')
+        .select(_trainerColumns)
+        .eq('id', trainerId)
+        .single();
+
+    final athletes = await _client
+        .from('athletes')
+        .select('id')
+        .eq('trainer_id', trainerId);
+
+    final nowIso = DateTime.now().toIso8601String();
+    final subs = await _client
+        .from('trainer_subscriptions')
+        .select(
+          'starts_at, ends_at, is_active, plan_id, '
+          'subscription_plans(name, max_students, price)',
+        )
+        .eq('trainer_id', trainerId)
+        .eq('is_active', true)
+        .gt('ends_at', nowIso)
+        .order('ends_at', ascending: false)
+        .limit(1);
+
+    return {
+      ...t,
+      'alumnos_count': (athletes as List).length,
+      'subscription':
+          subs.isNotEmpty ? Map<String, dynamic>.from(subs.first) : null,
+    };
+  }
+
+  /// Trainers without an active, unexpired subscription (Pendientes bucket).
+  Future<List<Map<String, dynamic>>> getTrainersWithoutSubscription() async {
+    final trainers = await _client
+        .from('trainers')
+        .select('id, name, profile_photo')
+        .order('created_at', ascending: false);
+    final subByTrainer = await _activeSubByTrainer();
+    return List<Map<String, dynamic>>.from(trainers)
+        .where((t) => subByTrainer[t['id']] == null)
+        .toList();
+  }
+
+  /// Active subscriptions expiring within [withinDays] (Pendientes bucket).
+  Future<List<Map<String, dynamic>>> getExpiringSubscriptions({
+    int withinDays = 7,
+  }) async {
+    final now = DateTime.now();
+    final until = now.add(Duration(days: withinDays));
+    final res = await _client
+        .from('trainer_subscriptions')
+        .select(
+          'id, ends_at, trainer_id, trainers(name), subscription_plans(name)',
+        )
+        .eq('is_active', true)
+        .gt('ends_at', now.toIso8601String())
+        .lt('ends_at', until.toIso8601String())
+        .order('ends_at');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  /// Pending (unused, unexpired) trainer invitations enriched with name/email.
+  Future<List<Map<String, dynamic>>> getPendingInvitations() async {
+    final nowIso = DateTime.now().toIso8601String();
+    final rows = List<Map<String, dynamic>>.from(
+      await _client
+          .from('invitation_tokens')
+          .select('user_id, expires_at, is_used, created_at')
+          .eq('is_used', false)
+          .gt('expires_at', nowIso)
+          .order('created_at', ascending: false),
+    );
+    if (rows.isEmpty) return rows;
+
+    final userIds = rows.map((r) => r['user_id'] as String).toList();
+    final trainers = await _client
+        .from('trainers')
+        .select('user_id, name, profiles!inner(email)')
+        .inFilter('user_id', userIds);
+    final byUser = {
+      for (final t in trainers) t['user_id'] as String: t,
+    };
+    return rows.map((r) {
+      final t = byUser[r['user_id']];
+      return {
+        ...r,
+        'name': t?['name'],
+        'email': (t?['profiles'] as Map<String, dynamic>?)?['email'],
+      };
+    }).toList();
+  }
+
+  /// Regenerate an invitation token for a trainer who hasn't accepted yet and
+  /// (placeholder) re-send the email. Returns the fresh invite link.
+  Future<String> resendInvitation(String userId) async {
+    final token = await _generateInvitationToken(userId);
+    // Email send is still a placeholder (see _sendInvitationEmail); the token
+    // is the real credential and is now refreshed with a new 7-day window.
+    return '${AppConstants.firstLoginBaseUrl}?token=$token';
+  }
+
+  /// alumnos count grouped by trainer_id (one query, grouped client-side).
+  Future<Map<String, int>> _alumnosCountByTrainer() async {
+    final athletes = await _client.from('athletes').select('trainer_id');
+    final counts = <String, int>{};
+    for (final a in athletes as List) {
+      final tid = a['trainer_id'] as String?;
+      if (tid != null) counts[tid] = (counts[tid] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /// Latest active, unexpired subscription per trainer (one query).
+  Future<Map<String, Map<String, dynamic>>> _activeSubByTrainer() async {
+    final nowIso = DateTime.now().toIso8601String();
+    final subs = await _client
+        .from('trainer_subscriptions')
+        .select(
+          'trainer_id, ends_at, is_active, '
+          'subscription_plans(name, max_students, price)',
+        )
+        .eq('is_active', true)
+        .gt('ends_at', nowIso)
+        .order('ends_at', ascending: false);
+    final byTrainer = <String, Map<String, dynamic>>{};
+    for (final s in subs as List) {
+      final tid = s['trainer_id'] as String?;
+      if (tid == null) continue;
+      byTrainer.putIfAbsent(tid, () => Map<String, dynamic>.from(s));
+    }
+    return byTrainer;
+  }
+
   // ==================== STATS ====================
 
   /// Get admin dashboard stats
@@ -426,4 +598,46 @@ final globalExercisesProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final service = ref.watch(adminServiceProvider);
   return service.getGlobalExercises();
+});
+
+/// Header metrics for the admin Inicio screen.
+final adminDashboardMetricsProvider =
+    FutureProvider<Map<String, dynamic>>((ref) async {
+  final service = ref.watch(adminServiceProvider);
+  return service.getDashboardMetrics();
+});
+
+/// Enriched trainer list (alumnos count + active subscription) for Entrenadores.
+final adminTrainersProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.watch(adminServiceProvider);
+  return service.getTrainersEnriched();
+});
+
+/// Single enriched trainer for the detail screen.
+final adminTrainerDetailProvider =
+    FutureProvider.family<Map<String, dynamic>, String>((ref, trainerId) async {
+  final service = ref.watch(adminServiceProvider);
+  return service.getTrainerDetail(trainerId);
+});
+
+/// The three "Pendientes" buckets for the admin Inicio screen.
+typedef AdminPendientes = ({
+  List<Map<String, dynamic>> withoutSubscription,
+  List<Map<String, dynamic>> expiring,
+  List<Map<String, dynamic>> invitations,
+});
+
+final adminPendientesProvider = FutureProvider<AdminPendientes>((ref) async {
+  final service = ref.watch(adminServiceProvider);
+  final results = await Future.wait([
+    service.getTrainersWithoutSubscription(),
+    service.getExpiringSubscriptions(),
+    service.getPendingInvitations(),
+  ]);
+  return (
+    withoutSubscription: results[0],
+    expiring: results[1],
+    invitations: results[2],
+  );
 });

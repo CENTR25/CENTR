@@ -551,6 +551,45 @@ class TrainerService {
     }).eq('id', exerciseId);
   }
 
+  /// Fetch an existing trainer_exercise_media row for a given trainer+exercise.
+  /// Returns null if no overlay exists yet.
+  Future<Map<String, dynamic>?> getOverlayRow(
+    String trainerId,
+    String exerciseId,
+  ) async {
+    final result = await _client
+        .from('trainer_exercise_media')
+        .select('video_url, image_urls')
+        .eq('trainer_id', trainerId)
+        .eq('exercise_id', exerciseId)
+        .maybeSingle();
+    return result;
+  }
+
+  /// Upsert a trainer's media overlay for a global/seed exercise.
+  /// Use this instead of duplicating the exercise row when the trainer wants
+  /// to attach their own video or photos to a shared exercise.
+  /// For trainer-owned exercises (source='trainer') the caller should still
+  /// use [updateExerciseMedia] which writes directly to the exercises row.
+  Future<void> upsertTrainerExerciseMedia(
+    String exerciseId, {
+    required String? videoUrl,
+    required List<String> imageUrls,
+  }) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) throw Exception('No trainer record found');
+
+    await _client.from('trainer_exercise_media').upsert(
+      {
+        'trainer_id': trainerId,
+        'exercise_id': exerciseId,
+        'video_url': videoUrl,
+        'image_urls': imageUrls,
+      },
+      onConflict: 'trainer_id,exercise_id',
+    );
+  }
+
   /// Update exercise basic info
   Future<void> updateExercise(
     String exerciseId, {

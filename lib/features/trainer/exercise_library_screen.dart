@@ -805,13 +805,17 @@ class _ExerciseDetailSheetState extends ConsumerState<_ExerciseDetailSheet> {
                     _HeroButton(
                       icon: isOwn
                           ? Icons.edit_outlined
-                          : Icons.copy_all_outlined,
-                      tooltip: isOwn ? 'Editar' : 'Duplicar y editar',
+                          : Icons.perm_media_outlined,
+                      tooltip: isOwn ? 'Editar' : 'Añadir mi video/fotos',
                       onTap: myTrainerAsync.isLoading
                           ? null
                           : () {
                               Navigator.pop(context);
-                              _showEdit(context, duplicate: !isOwn);
+                              _showEdit(
+                                context,
+                                duplicate: false,
+                                mediaOverlay: !isOwn,
+                              );
                             },
                     ),
                     if (isOwn) ...[
@@ -1002,13 +1006,17 @@ class _ExerciseDetailSheetState extends ConsumerState<_ExerciseDetailSheet> {
                   ),
                   const SizedBox(height: 12),
 
-                  // ── Secondary: Editar ──────────────────────────────────
+                  // ── Secondary: Editar / Añadir mi video/fotos ─────────
                   OutlinedButton(
                     onPressed: myTrainerAsync.isLoading
                         ? null
                         : () {
                             Navigator.pop(context);
-                            _showEdit(context, duplicate: !isOwn);
+                            _showEdit(
+                              context,
+                              duplicate: false,
+                              mediaOverlay: !isOwn,
+                            );
                           },
                     style: OutlinedButton.styleFrom(
                       backgroundColor: RedesignColors.primario700,
@@ -1021,7 +1029,7 @@ class _ExerciseDetailSheetState extends ConsumerState<_ExerciseDetailSheet> {
                       ),
                     ),
                     child: Text(
-                      isOwn ? 'Editar' : 'Duplicar y editar',
+                      isOwn ? 'Editar' : 'Añadir mi video/fotos',
                       style: RedesignType.buttonLg.copyWith(
                         color: RedesignColors.primario50,
                       ),
@@ -1083,7 +1091,11 @@ class _ExerciseDetailSheetState extends ConsumerState<_ExerciseDetailSheet> {
     ));
   }
 
-  void _showEdit(BuildContext context, {required bool duplicate}) {
+  void _showEdit(
+    BuildContext context, {
+    required bool duplicate,
+    bool mediaOverlay = false,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1093,6 +1105,7 @@ class _ExerciseDetailSheetState extends ConsumerState<_ExerciseDetailSheet> {
         child: _CreateExerciseSheet(
           exerciseToEdit: widget.exercise,
           duplicate: duplicate,
+          mediaOverlay: mediaOverlay,
         ),
       ),
     );
@@ -1214,8 +1227,15 @@ final muscleGroupsProvider = FutureProvider<List<String>>((ref) async {
 class _CreateExerciseSheet extends ConsumerStatefulWidget {
   final Map<String, dynamic>? exerciseToEdit;
   final bool duplicate;
+  /// When true: the exercise is a global seed and we only write media to
+  /// trainer_exercise_media (no duplication, no name/instructions editing).
+  final bool mediaOverlay;
 
-  const _CreateExerciseSheet({this.exerciseToEdit, this.duplicate = false});
+  const _CreateExerciseSheet({
+    this.exerciseToEdit,
+    this.duplicate = false,
+    this.mediaOverlay = false,
+  });
 
   @override
   ConsumerState<_CreateExerciseSheet> createState() =>
@@ -1236,31 +1256,71 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
   final List<String> _existingImageUrls = [];
   bool _isLoading = false;
 
-  bool get _isEditMode => widget.exerciseToEdit != null && !widget.duplicate;
-  String get _title => widget.duplicate
-      ? 'Duplicar y editar'
-      : (_isEditMode ? 'Editar ejercicio' : 'Nuevo ejercicio');
+  bool get _isEditMode =>
+      widget.exerciseToEdit != null && !widget.duplicate && !widget.mediaOverlay;
+  String get _title => widget.mediaOverlay
+      ? 'Añadir mi video/fotos'
+      : (widget.duplicate
+          ? 'Duplicar y editar'
+          : (_isEditMode ? 'Editar ejercicio' : 'Nuevo ejercicio'));
 
   @override
   void initState() {
     super.initState();
     if (widget.exerciseToEdit != null) {
-      _nameController.text = widget.exerciseToEdit!['name'] as String? ?? '';
-      _instructionsController.text =
-          widget.exerciseToEdit!['instructions'] as String? ?? '';
-      _selectedMuscleGroup =
-          widget.exerciseToEdit!['muscle_group'] as String? ?? 'Pecho';
-      final existingVideo = widget.exerciseToEdit!['video_url'] as String?;
-      if (existingVideo != null && existingVideo.isNotEmpty) {
-        if (_isYoutubeUrl(existingVideo)) {
-          _youtubeUrlController.text = existingVideo;
-        } else {
-          _existingVideoUrl = existingVideo;
+      if (!widget.mediaOverlay) {
+        // Normal edit / duplicate / create: pre-populate all fields.
+        _nameController.text = widget.exerciseToEdit!['name'] as String? ?? '';
+        _instructionsController.text =
+            widget.exerciseToEdit!['instructions'] as String? ?? '';
+        _selectedMuscleGroup =
+            widget.exerciseToEdit!['muscle_group'] as String? ?? 'Pecho';
+        final existingVideo = widget.exerciseToEdit!['video_url'] as String?;
+        if (existingVideo != null && existingVideo.isNotEmpty) {
+          if (_isYoutubeUrl(existingVideo)) {
+            _youtubeUrlController.text = existingVideo;
+          } else {
+            _existingVideoUrl = existingVideo;
+          }
         }
+        _existingImageUrls.addAll(
+          (widget.exerciseToEdit!['image_urls'] as List?)?.cast<String>() ?? [],
+        );
+      } else {
+        // Media-overlay mode: load the trainer's existing overlay row (if any)
+        // so the form shows what they already have.
+        _loadExistingOverlay();
       }
-      _existingImageUrls.addAll(
-        (widget.exerciseToEdit!['image_urls'] as List?)?.cast<String>() ?? [],
-      );
+    }
+  }
+
+  /// Fetch any previously saved trainer_exercise_media row and pre-populate
+  /// the media fields in the form.
+  Future<void> _loadExistingOverlay() async {
+    final exerciseId = widget.exerciseToEdit!['id'] as String?;
+    if (exerciseId == null) return;
+    try {
+      final trainerId = await ref.read(trainerServiceProvider).getTrainerId();
+      if (trainerId == null || !mounted) return;
+      final row = await ref
+          .read(trainerServiceProvider)
+          .getOverlayRow(trainerId, exerciseId);
+      if (row == null || !mounted) return;
+      setState(() {
+        final v = row['video_url'] as String?;
+        if (v != null && v.isNotEmpty) {
+          if (_isYoutubeUrl(v)) {
+            _youtubeUrlController.text = v;
+          } else {
+            _existingVideoUrl = v;
+          }
+        }
+        _existingImageUrls
+          ..clear()
+          ..addAll((row['image_urls'] as List?)?.cast<String>() ?? []);
+      });
+    } catch (_) {
+      // Overlay row may not exist yet — that's fine.
     }
   }
 
@@ -1328,48 +1388,55 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Nombre
-                    _FieldLabel(label: 'Nombre'),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _nameController,
-                      style: RedesignType.bodySm
-                          .copyWith(color: RedesignColors.primario50),
-                      decoration: const InputDecoration(
-                        hintText: 'Ej: Press inclinado en Smith',
+                    // In media-overlay mode we only show the media picker —
+                    // no name / muscle-group / instructions editing.
+                    if (!widget.mediaOverlay) ...[
+                      // Nombre
+                      _FieldLabel(label: 'Nombre'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _nameController,
+                        style: RedesignType.bodySm
+                            .copyWith(color: RedesignColors.primario50),
+                        decoration: const InputDecoration(
+                          hintText: 'Ej: Press inclinado en Smith',
+                        ),
+                        validator: (v) =>
+                            v?.isEmpty == true ? 'Requerido' : null,
                       ),
-                      validator: (v) =>
-                          v?.isEmpty == true ? 'Requerido' : null,
-                    ),
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
-                    // Grupo muscular
-                    _FieldLabel(label: 'Grupo muscular'),
-                    const SizedBox(height: 10),
-                    _MuscleGroupChips(
-                      selected: _selectedMuscleGroup,
-                      onSelect: (g) =>
-                          setState(() => _selectedMuscleGroup = g),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Instrucciones
-                    _FieldLabelOptional(label: 'Instrucciones'),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _instructionsController,
-                      style: RedesignType.bodySm
-                          .copyWith(color: RedesignColors.primario50),
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        hintText:
-                            'Ej: banco a 30°, bajar la barra al pecho alto…',
+                      // Grupo muscular
+                      _FieldLabel(label: 'Grupo muscular'),
+                      const SizedBox(height: 10),
+                      _MuscleGroupChips(
+                        selected: _selectedMuscleGroup,
+                        onSelect: (g) =>
+                            setState(() => _selectedMuscleGroup = g),
                       ),
-                    ),
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 20),
+
+                      // Instrucciones
+                      _FieldLabelOptional(label: 'Instrucciones'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _instructionsController,
+                        style: RedesignType.bodySm
+                            .copyWith(color: RedesignColors.primario50),
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          hintText:
+                              'Ej: banco a 30°, bajar la barra al pecho alto…',
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
 
                     // Videos y fotos
-                    _FieldLabelOptional(label: 'Videos y fotos'),
+                    if (widget.mediaOverlay)
+                      _FieldLabel(label: 'Videos y fotos')
+                    else
+                      _FieldLabelOptional(label: 'Videos y fotos'),
                     const SizedBox(height: 12),
                     _MediaTiles(
                       videoName: _videoName,
@@ -1459,7 +1526,12 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
       final storageService = ref.read(storageServiceProvider);
       String exerciseId;
 
-      if (_isEditMode) {
+      if (widget.mediaOverlay) {
+        // Media-overlay mode: write to trainer_exercise_media, not exercises.
+        // The exercise row is the global/seed one — we never touch it.
+        exerciseId = widget.exerciseToEdit!['id'] as String;
+        // (No name/instructions update — the trainer's name field is hidden.)
+      } else if (_isEditMode) {
         exerciseId = widget.exerciseToEdit!['id'] as String;
         await service.updateExercise(
           exerciseId,
@@ -1505,7 +1577,14 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
         ));
       }
 
-      if (_isEditMode || videoUrl != null || imageUrls.isNotEmpty) {
+      if (widget.mediaOverlay) {
+        // Upsert into the overlay table — no changes to the exercises row.
+        await service.upsertTrainerExerciseMedia(
+          exerciseId,
+          videoUrl: videoUrl,
+          imageUrls: imageUrls,
+        );
+      } else if (_isEditMode || videoUrl != null || imageUrls.isNotEmpty) {
         await service.updateExerciseMedia(
           exerciseId,
           videoUrl: videoUrl,
@@ -1518,9 +1597,9 @@ class _CreateExerciseSheetState extends ConsumerState<_CreateExerciseSheet> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_isEditMode
-                ? 'Ejercicio actualizado'
-                : 'Ejercicio creado'),
+            content: Text(widget.mediaOverlay
+                ? 'Media guardada'
+                : (_isEditMode ? 'Ejercicio actualizado' : 'Ejercicio creado')),
             backgroundColor: RedesignColors.success,
           ),
         );

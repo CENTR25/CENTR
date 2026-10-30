@@ -212,6 +212,73 @@ class StudentService {
         .eq('id', routineId)
         .maybeSingle();
 
+    if (response == null) return null;
+
+    // Merge any trainer media overlay rows into their exercise maps.
+    // trainer_exercise_media rows are keyed by (trainer_id, exercise_id).
+    // RLS on that table already restricts the student to only see rows whose
+    // trainer_id matches their own trainer — so this fetch is safe.
+    final trainerId = response['trainer_id'] as String?;
+    if (trainerId != null) {
+      final routineExercises =
+          (response['routine_exercises'] as List?) ?? const [];
+
+      final exerciseIds = routineExercises
+          .map((re) {
+            final ex = re['exercises'];
+            if (ex is Map) return ex['id']?.toString();
+            return null;
+          })
+          .whereType<String>()
+          .toSet()
+          .toList();
+
+      if (exerciseIds.isNotEmpty) {
+        final overlayRows = await _client
+            .from('trainer_exercise_media')
+            .select('exercise_id, video_url, image_urls')
+            .eq('trainer_id', trainerId)
+            .inFilter('exercise_id', exerciseIds);
+
+        // Build a lookup map: exercise_id -> overlay
+        final overlayByExercise = <String, Map<String, dynamic>>{};
+        for (final row in overlayRows) {
+          final eid = row['exercise_id'] as String?;
+          if (eid != null) overlayByExercise[eid] = row;
+        }
+
+        if (overlayByExercise.isNotEmpty) {
+          // Re-build the routine_exercises list with overlays merged in.
+          final merged = routineExercises.map((re) {
+            final rawEx = re['exercises'];
+            if (rawEx is! Map) return re;
+            final exId = rawEx['id']?.toString() ?? '';
+            final overlay = overlayByExercise[exId];
+            if (overlay == null) return re;
+
+            // Deep-copy the exercise map and overlay trainer media fields.
+            final updatedEx = Map<String, dynamic>.from(
+              rawEx as Map<String, dynamic>,
+            );
+            final overlayVideo = overlay['video_url'] as String?;
+            final overlayImages = overlay['image_urls'];
+            if (overlayVideo != null && overlayVideo.isNotEmpty) {
+              updatedEx['video_url'] = overlayVideo;
+            }
+            if (overlayImages is List && overlayImages.isNotEmpty) {
+              updatedEx['image_urls'] = overlayImages;
+            }
+
+            return Map<String, dynamic>.from(re as Map<String, dynamic>)
+              ..['exercises'] = updatedEx;
+          }).toList();
+
+          return Map<String, dynamic>.from(response)
+            ..['routine_exercises'] = merged;
+        }
+      }
+    }
+
     return response;
   }
 

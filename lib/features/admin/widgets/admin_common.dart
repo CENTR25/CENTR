@@ -389,6 +389,22 @@ String adminFormatCurrency(num value) {
   return '\$$buf';
 }
 
+/// Normalise a subscription plan's `features` jsonb (List or Map) into a flat
+/// list of human labels.
+List<String> adminFeatureLabels(dynamic features) {
+  if (features == null) return const [];
+  if (features is List) {
+    return features.map((e) => e.toString()).toList();
+  }
+  if (features is Map) {
+    return features.entries
+        .where((e) => e.value == true || e.value == null)
+        .map((e) => e.key.toString())
+        .toList();
+  }
+  return const [];
+}
+
 /// Short date "dd/mm" from an ISO timestamp (local).
 String adminShortDate(String? iso) {
   if (iso == null) return '—';

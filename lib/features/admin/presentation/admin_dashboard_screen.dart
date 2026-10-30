@@ -5,6 +5,7 @@ import '../../../core/theme/theme_redesign.dart';
 import '../widgets/admin_bottom_nav.dart';
 import '../widgets/admin_common.dart';
 import 'admin_home_screen.dart';
+import 'admin_subscriptions_screen.dart';
 import 'admin_trainers_screen.dart';
 
 /// PRGS admin shell — 4-tab information architecture (Inicio · Entrenadores ·
@@ -61,7 +62,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               onOpenSuscripciones: () => _goTo(2),
             ),
             const AdminTrainersView(),
-            const _ComingSoonView(title: 'Suscripciones'),
+            const AdminSubscriptionsView(),
             const _ComingSoonView(title: 'Contenido'),
           ],
         ),

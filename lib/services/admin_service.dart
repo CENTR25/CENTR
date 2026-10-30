@@ -313,7 +313,7 @@ class AdminService {
     required double price,
     required int durationDays,
     int? maxStudents,
-    Map<String, dynamic>? features,
+    List<String>? features,
   }) async {
     final response = await _client.from('subscription_plans').insert({
       'name': name,
@@ -351,6 +351,78 @@ class AdminService {
       'is_active': true,
       'created_at': DateTime.now().toIso8601String(),
     });
+  }
+
+  /// Update an existing subscription plan.
+  Future<void> updateSubscriptionPlan(
+    String planId, {
+    String? name,
+    double? price,
+    int? durationDays,
+    int? maxStudents,
+    List<String>? features,
+  }) async {
+    final updates = <String, dynamic>{};
+    if (name != null) updates['name'] = name;
+    if (price != null) updates['price'] = price;
+    if (durationDays != null) updates['duration_days'] = durationDays;
+    if (maxStudents != null) updates['max_students'] = maxStudents;
+    if (features != null) updates['features'] = features;
+    if (updates.isEmpty) return;
+    await _client.from('subscription_plans').update(updates).eq('id', planId);
+  }
+
+  /// Deactivate a plan (soft delete — hidden from new assignments).
+  Future<void> deactivatePlan(String planId) async {
+    await _client
+        .from('subscription_plans')
+        .update({'is_active': false})
+        .eq('id', planId);
+  }
+
+  /// Active-trainer count per plan (for the Suscripciones list cards).
+  Future<Map<String, int>> getPlanTrainerCounts() async {
+    final nowIso = DateTime.now().toIso8601String();
+    final subs = await _client
+        .from('trainer_subscriptions')
+        .select('plan_id')
+        .eq('is_active', true)
+        .gt('ends_at', nowIso);
+    final counts = <String, int>{};
+    for (final s in subs as List) {
+      final pid = s['plan_id'] as String?;
+      if (pid != null) counts[pid] = (counts[pid] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /// Trainers currently on [planId] (active, unexpired) with alumnos count +
+  /// renewal date, for the plan detail screen.
+  Future<List<Map<String, dynamic>>> getTrainersByPlan(String planId) async {
+    final nowIso = DateTime.now().toIso8601String();
+    final subs = await _client
+        .from('trainer_subscriptions')
+        .select('trainer_id, ends_at, trainers(id, name, profile_photo)')
+        .eq('plan_id', planId)
+        .eq('is_active', true)
+        .gt('ends_at', nowIso)
+        .order('ends_at');
+    final counts = await _alumnosCountByTrainer();
+    final seen = <String>{};
+    final out = <Map<String, dynamic>>[];
+    for (final s in subs as List) {
+      final trainer = s['trainers'] as Map<String, dynamic>?;
+      final tid = trainer?['id'] as String?;
+      if (tid == null || !seen.add(tid)) continue;
+      out.add({
+        'trainer_id': tid,
+        'name': trainer?['name'],
+        'profile_photo': trainer?['profile_photo'],
+        'alumnos_count': counts[tid] ?? 0,
+        'ends_at': s['ends_at'],
+      });
+    }
+    return out;
   }
 
   /// Get trainers with expired subscriptions
@@ -640,4 +712,19 @@ final adminPendientesProvider = FutureProvider<AdminPendientes>((ref) async {
     expiring: results[1],
     invitations: results[2],
   );
+});
+
+/// Active-trainer count per plan for the Suscripciones list.
+final planTrainerCountsProvider =
+    FutureProvider<Map<String, int>>((ref) async {
+  final service = ref.watch(adminServiceProvider);
+  return service.getPlanTrainerCounts();
+});
+
+/// Trainers on a given plan for the plan detail screen.
+final trainersByPlanProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, String>(
+        (ref, planId) async {
+  final service = ref.watch(adminServiceProvider);
+  return service.getTrainersByPlan(planId);
 });

@@ -281,6 +281,27 @@ class StorageService {
     return _client.storage.from(_bucketName).getPublicUrl(path);
   }
 
+  /// Upload a news cover image from raw bytes (web-safe). Returns the public
+  /// URL to store in news_articles.image_url.
+  Future<String> uploadNewsCoverBytes(
+    Uint8List bytes,
+    String extension,
+  ) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final path = 'news_covers/cover_$timestamp.$extension';
+
+    await _client.storage.from(_bucketName).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+            upsert: true,
+          ),
+        );
+
+    return _client.storage.from(_bucketName).getPublicUrl(path);
+  }
+
   /// Upload a routine cover image from raw bytes (web-safe). Returns the
   /// public URL to store in routines.image_url.
   Future<String> uploadRoutineImageBytes(

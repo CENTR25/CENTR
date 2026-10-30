@@ -58,6 +58,7 @@ class NewsService {
     bool isPublished = true,
     int displayOrder = 0,
     String? trainerId,
+    String audience = 'all',
   }) async {
     try {
       final response = await _client.from('news_articles').insert({
@@ -68,6 +69,7 @@ class NewsService {
         'icon_name': iconName,
         'is_published': isPublished,
         'display_order': displayOrder,
+        'audience': audience,
         'created_at': DateTime.now().toIso8601String(),
         if (trainerId != null) 'trainer_id': trainerId,
       }).select().single();
@@ -88,6 +90,7 @@ class NewsService {
     String? iconName,
     bool? isPublished,
     int? displayOrder,
+    String? audience,
   }) async {
     try {
       final updates = <String, dynamic>{
@@ -101,6 +104,7 @@ class NewsService {
       if (iconName != null) updates['icon_name'] = iconName;
       if (isPublished != null) updates['is_published'] = isPublished;
       if (displayOrder != null) updates['display_order'] = displayOrder;
+      if (audience != null) updates['audience'] = audience;
 
       await _client.from('news_articles').update(updates).eq('id', id);
       return true;
@@ -161,11 +165,14 @@ final studentNewsProvider = FutureProvider<List<NewsArticle>>((ref) async {
   // 2. Fetch published articles: global OR assigned trainer.
   //    Using .or() with a column filter for the two cases.
   final List<dynamic> response;
+  // Audience gate: students see 'all' + 'students' articles (never 'trainers').
+  const studentAudiences = ['all', 'students'];
   if (studentTrainerId != null) {
     response = await client
         .from('news_articles')
         .select()
         .eq('is_published', true)
+        .inFilter('audience', studentAudiences)
         .or('trainer_id.is.null,trainer_id.eq.$studentTrainerId')
         .order('display_order', ascending: true)
         .order('created_at', ascending: false);
@@ -175,6 +182,7 @@ final studentNewsProvider = FutureProvider<List<NewsArticle>>((ref) async {
         .from('news_articles')
         .select()
         .eq('is_published', true)
+        .inFilter('audience', studentAudiences)
         .isFilter('trainer_id', null)
         .order('display_order', ascending: true)
         .order('created_at', ascending: false);

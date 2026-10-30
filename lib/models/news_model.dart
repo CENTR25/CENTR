@@ -14,6 +14,9 @@ class NewsArticle {
   /// Non-null = scoped to that trainer's athletes only.
   final String? trainerId;
 
+  /// Target audience: 'all' | 'trainers' | 'students'.
+  final String audience;
+
   NewsArticle({
     required this.id,
     required this.title,
@@ -26,6 +29,7 @@ class NewsArticle {
     this.isPublished = true,
     this.displayOrder = 0,
     this.trainerId,
+    this.audience = 'all',
   });
 
   factory NewsArticle.fromJson(Map<String, dynamic> json) {
@@ -43,6 +47,7 @@ class NewsArticle {
       isPublished: json['is_published'] as bool? ?? true,
       displayOrder: json['display_order'] as int? ?? 0,
       trainerId: json['trainer_id'] as String?,
+      audience: json['audience'] as String? ?? 'all',
     );
   }
 
@@ -59,6 +64,7 @@ class NewsArticle {
       'is_published': isPublished,
       'display_order': displayOrder,
       'trainer_id': trainerId,
+      'audience': audience,
     };
   }
 
@@ -74,6 +80,7 @@ class NewsArticle {
     bool? isPublished,
     int? displayOrder,
     String? trainerId,
+    String? audience,
   }) {
     return NewsArticle(
       id: id ?? this.id,
@@ -87,6 +94,7 @@ class NewsArticle {
       isPublished: isPublished ?? this.isPublished,
       displayOrder: displayOrder ?? this.displayOrder,
       trainerId: trainerId ?? this.trainerId,
+      audience: audience ?? this.audience,
     );
   }
 }

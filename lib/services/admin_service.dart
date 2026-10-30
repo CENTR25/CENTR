@@ -163,7 +163,8 @@ class AdminService {
 
   /// Columns needed for the admin exercise list — never select('*').
   static const _exerciseColumns =
-      'id, name, muscle_group, category, equipment, is_hidden, source, created_at';
+      'id, name, muscle_group, secondary_muscles, category, equipment, '
+      'is_hidden, source, created_at';
 
   /// Global exercises (created_by_trainer IS NULL): seed + admin-created.
   /// Admins see hidden rows too (RLS). Ordered by name.
@@ -181,6 +182,7 @@ class AdminService {
   Future<Map<String, dynamic>> createGlobalExercise({
     required String name,
     required String muscleGroup,
+    List<String>? secondaryMuscles,
     String? category,
     List<String>? equipment,
   }) async {
@@ -189,6 +191,8 @@ class AdminService {
         .insert({
           'name': name,
           'muscle_group': muscleGroup,
+          if (secondaryMuscles != null && secondaryMuscles.isNotEmpty)
+            'secondary_muscles': secondaryMuscles,
           if (category != null && category.isNotEmpty) 'category': category,
           if (equipment != null && equipment.isNotEmpty) 'equipment': equipment,
           'created_by_trainer': null,
@@ -216,6 +220,7 @@ class AdminService {
     String exerciseId, {
     required String name,
     required String muscleGroup,
+    List<String>? secondaryMuscles,
     String? category,
     List<String>? equipment,
   }) async {
@@ -223,6 +228,7 @@ class AdminService {
       'name': name,
       'muscle_group': muscleGroup,
       'category': (category != null && category.isNotEmpty) ? category : null,
+      if (secondaryMuscles != null) 'secondary_muscles': secondaryMuscles,
       if (equipment != null) 'equipment': equipment,
     };
     await _client.from('exercises').update(updates).eq('id', exerciseId);

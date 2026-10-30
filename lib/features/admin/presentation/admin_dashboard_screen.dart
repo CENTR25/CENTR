@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/theme_redesign.dart';
 import '../widgets/admin_bottom_nav.dart';
-import '../widgets/admin_common.dart';
+import 'admin_content_screen.dart';
 import 'admin_home_screen.dart';
 import 'admin_subscriptions_screen.dart';
 import 'admin_trainers_screen.dart';
@@ -63,7 +63,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             ),
             const AdminTrainersView(),
             const AdminSubscriptionsView(),
-            const _ComingSoonView(title: 'Contenido'),
+            const AdminContentView(),
           ],
         ),
         bottomNavigationBar: AdminBottomNav(
@@ -74,30 +74,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           onContenidoTap: () => _goTo(3),
         ),
       ),
-    );
-  }
-}
-
-/// Temporary placeholder for tabs delivered in later batches.
-class _ComingSoonView extends StatelessWidget {
-  final String title;
-  const _ComingSoonView({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AdminGradientHeader(title: title),
-        const Expanded(
-          child: Center(
-            child: Text(
-              'Próximamente',
-              style: TextStyle(color: RedesignColors.primario300),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

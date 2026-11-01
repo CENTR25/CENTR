@@ -410,7 +410,42 @@ class TrainerService {
     }
 
     final response = await query.order('name');
-    return List<Map<String, dynamic>>.from(response);
+    final exercises = List<Map<String, dynamic>>.from(response);
+
+    // Merge trainer's own media overlay rows so the exercise library
+    // shows the trainer's uploaded video/photos on global/seed exercises.
+    final trainerId = await _getTrainerId();
+    if (trainerId == null || exercises.isEmpty) return exercises;
+
+    final exerciseIds =
+        exercises.map((e) => e['id']?.toString()).whereType<String>().toList();
+
+    final overlayRows = await _client
+        .from('trainer_exercise_media')
+        .select('exercise_id, video_url, image_urls')
+        .eq('trainer_id', trainerId)
+        .inFilter('exercise_id', exerciseIds);
+
+    if (overlayRows.isEmpty) return exercises;
+
+    final overlayByExercise = <String, Map<String, dynamic>>{};
+    for (final row in overlayRows) {
+      final eid = row['exercise_id'] as String?;
+      if (eid != null) overlayByExercise[eid] = row;
+    }
+
+    return exercises.map((ex) {
+      final eid = ex['id']?.toString() ?? '';
+      final overlay = overlayByExercise[eid];
+      if (overlay == null) return ex;
+
+      final updated = Map<String, dynamic>.from(ex);
+      final ov = overlay['video_url'] as String?;
+      final oi = overlay['image_urls'];
+      if (ov != null && ov.isNotEmpty) updated['video_url'] = ov;
+      if (oi is List && oi.isNotEmpty) updated['image_urls'] = oi;
+      return updated;
+    }).toList();
   }
 
   /// Get single exercise by id (with all seed fields).

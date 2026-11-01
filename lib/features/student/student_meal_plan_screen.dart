@@ -227,7 +227,7 @@ class _DayPills extends StatelessWidget {
 // Day view — progress card + meal groups, or "Día libre"
 // ---------------------------------------------------------------------------
 
-class _DayView extends ConsumerWidget {
+class _DayView extends ConsumerStatefulWidget {
   final int dayNumber;
   final List<dynamic> items;
   final int? targetCalories;
@@ -239,9 +239,39 @@ class _DayView extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final dayItems = items
-        .where((i) => (i['day_number'] as num?)?.toInt() == dayNumber)
+  ConsumerState<_DayView> createState() => _DayViewState();
+}
+
+class _DayViewState extends ConsumerState<_DayView> {
+  // Optimistic pending toggles: maps meal_plan_item id → desired completion state.
+  // These override the provider value until the network round-trip completes.
+  final Map<String, bool> _pending = {};
+
+  Future<void> _toggle(String id, Set<String> confirmedCompletions) async {
+    final currentlyDone =
+        _pending.containsKey(id) ? _pending[id]! : confirmedCompletions.contains(id);
+    // Apply optimistic state immediately.
+    setState(() => _pending[id] = !currentlyDone);
+    try {
+      await ref
+          .read(studentServiceProvider)
+          .toggleMealCompletion(id, !currentlyDone);
+      // Success: provider will eventually sync; clear pending override so we
+      // stay in sync with the server truth.
+      if (mounted) {
+        setState(() => _pending.remove(id));
+        ref.invalidate(todayMealCompletionsProvider);
+      }
+    } catch (_) {
+      // Revert on error.
+      if (mounted) setState(() => _pending.remove(id));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dayItems = widget.items
+        .where((i) => (i['day_number'] as num?)?.toInt() == widget.dayNumber)
         .toList();
 
     if (dayItems.isEmpty) {
@@ -251,13 +281,15 @@ class _DayView extends ConsumerWidget {
       );
     }
 
-    // Completions are logged against today; a tick on any day tab counts today.
-    final completions =
+    // Confirmed completions from the server; pending overrides take precedence.
+    final confirmed =
         ref.watch(todayMealCompletionsProvider).valueOrNull ?? const <String>{};
 
     bool isDone(dynamic item) {
       final id = item['id'] as String?;
-      return id != null && completions.contains(id);
+      if (id == null) return false;
+      if (_pending.containsKey(id)) return _pending[id]!;
+      return confirmed.contains(id);
     }
 
     int kcalOf(dynamic item) => (item['calories'] as num?)?.toInt() ?? 0;
@@ -267,9 +299,9 @@ class _DayView extends ConsumerWidget {
     final doneCount = dayItems.where(isDone).length;
     final consumed =
         dayItems.where(isDone).fold<int>(0, (s, i) => s + kcalOf(i));
-    final hasTarget = targetCalories != null && targetCalories! > 0;
+    final hasTarget = widget.targetCalories != null && widget.targetCalories! > 0;
     final fraction = hasTarget
-        ? (consumed / targetCalories!).clamp(0.0, 1.0)
+        ? (consumed / widget.targetCalories!).clamp(0.0, 1.0)
         : (total > 0 ? doneCount / total : 0.0);
 
     // Group by time-of-day, ordered by the canonical meal-time order.
@@ -284,13 +316,6 @@ class _DayView extends ConsumerWidget {
       groups.putIfAbsent(key, () => []).add(item);
     }
 
-    Future<void> toggle(String id) async {
-      await ref
-          .read(studentServiceProvider)
-          .toggleMealCompletion(id, !completions.contains(id));
-      ref.invalidate(todayMealCompletionsProvider);
-    }
-
     return ListView(
       padding: const EdgeInsets.fromLTRB(22, 20, 22, 120),
       children: [
@@ -298,7 +323,7 @@ class _DayView extends ConsumerWidget {
           doneCount: doneCount,
           total: total,
           consumed: consumed,
-          target: hasTarget ? targetCalories : null,
+          target: hasTarget ? widget.targetCalories : null,
           fraction: fraction,
         ),
         const SizedBox(height: 24),
@@ -312,9 +337,10 @@ class _DayView extends ConsumerWidget {
             _MealRow(
               title: (item['meal_title'] as String?) ?? '',
               description: (item['meal_description'] as String?)?.trim(),
+              imageUrl: (item['image_url'] as String?)?.trim(),
               isDone: isDone(item),
               onTap: item['id'] is String
-                  ? () => toggle(item['id'] as String)
+                  ? () => _toggle(item['id'] as String, confirmed)
                   : null,
             ),
             const SizedBox(height: 12),
@@ -454,18 +480,22 @@ class _GroupHeader extends StatelessWidget {
 class _MealRow extends StatelessWidget {
   final String title;
   final String? description;
+  final String? imageUrl;
   final bool isDone;
   final VoidCallback? onTap;
 
   const _MealRow({
     required this.title,
     required this.description,
+    this.imageUrl,
     required this.isDone,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasPhoto = imageUrl != null && imageUrl!.isNotEmpty;
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -518,6 +548,32 @@ class _MealRow extends StatelessWidget {
                 ],
               ),
             ),
+            // Meal option photo thumbnail (trainer-attached)
+            if (hasPhoto) ...[
+              const SizedBox(width: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  imageUrl!,
+                  width: 54,
+                  height: 54,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color: RedesignColors.primario600,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.broken_image_outlined,
+                      color: RedesignColors.primario400,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

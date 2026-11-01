@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../widgets/check_in_photo.dart';
 
 /// Side-by-side comparison of two check-ins' photos so the trainer can gauge
@@ -344,7 +345,7 @@ class _CheckInGridSheetState extends State<CheckInGridSheet> {
     return Container(
       constraints: BoxConstraints(maxHeight: screenH * 0.92),
       decoration: const BoxDecoration(
-        color: AppColors.surface,
+        color: RedesignColors.primario800,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -449,7 +450,7 @@ class _CheckInGridSheetState extends State<CheckInGridSheet> {
                         borderRadius: BorderRadius.circular(14),
                         child: thumb != null
                             ? Container(
-                                color: AppColors.surfaceVariant,
+                                color: RedesignColors.primario700,
                                 child: CheckInPhoto(
                                   url: thumb,
                                   cacheWidth: 300,
@@ -457,7 +458,7 @@ class _CheckInGridSheetState extends State<CheckInGridSheet> {
                               )
                             : Container(
                                 decoration: BoxDecoration(
-                                  color: AppColors.surfaceVariant,
+                                  color: RedesignColors.primario700,
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                                 child: const Icon(
@@ -507,7 +508,7 @@ class _CheckInGridSheetState extends State<CheckInGridSheet> {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: AppColors.primary,
+                                color: RedesignColors.actionPrimary,
                                 width: 3,
                               ),
                             ),
@@ -521,7 +522,7 @@ class _CheckInGridSheetState extends State<CheckInGridSheet> {
                             width: 24,
                             height: 24,
                             decoration: BoxDecoration(
-                              color: AppColors.primary,
+                              color: RedesignColors.actionPrimary,
                               shape: BoxShape.circle,
                               border: Border.all(
                                   color: Colors.white, width: 1.5),
@@ -558,8 +559,8 @@ class _CheckInGridSheetState extends State<CheckInGridSheet> {
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
+                            backgroundColor: RedesignColors.actionPrimary,
+                            foregroundColor: RedesignColors.onActionPrimary,
                             padding:
                                 const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(

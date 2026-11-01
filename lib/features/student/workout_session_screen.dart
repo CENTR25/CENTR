@@ -9,6 +9,7 @@ import '../../services/active_workout_service.dart';
 import '../../services/workout_draft_service.dart';
 import '../../services/notification_service.dart';
 import 'exercise_detail_screen.dart';
+import 'student_meal_plan_screen.dart';
 import 'student_workout_history_screen.dart';
 import 'widgets/student_bottom_nav.dart';
 
@@ -682,11 +683,28 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     );
   }
 
+  /// Navigate away from the session WITHOUT abandoning or finishing it.
+  /// Draft and activeWorkoutProvider marker stay alive; the student resumes
+  /// via the Entrenar FAB or the home "Entrenamiento en curso" card.
+  void _goBackground() {
+    // Pause the rest timer while we're away so the athlete doesn't miss it.
+    if (_isResting && !_isPaused) _togglePause();
+    Navigator.of(context).pop();
+  }
+
   StudentBottomNav _sessionNav() => StudentBottomNav(
         active: StudentNavTab.entrenar,
-        onInicioTap: _showExitDialog,
+        onInicioTap: _goBackground,
         onEntrenarTap: () {},
-        onNutricionTap: _showExitDialog,
+        onNutricionTap: () {
+          // Capture the navigator before we pop (context will be unmounted).
+          final nav = Navigator.of(context);
+          _goBackground();
+          // Now push the meal plan screen — nav is still valid after pop.
+          nav.push(MaterialPageRoute(
+            builder: (_) => const StudentMealPlanScreen(),
+          ));
+        },
       );
 
   // ── Countdown (3·2·1) ──────────────────────────────────────────────────────

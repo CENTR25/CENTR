@@ -496,16 +496,30 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
             fontSize: 24,
             fontFamily: 'Metropolis',
           ),
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: '0.0',
-            hintStyle: TextStyle(color: RedesignColors.primario500),
+            hintStyle: const TextStyle(color: RedesignColors.primario500),
             suffixText: 'kg',
-            suffixStyle: TextStyle(color: RedesignColors.primario400),
+            suffixStyle: const TextStyle(color: RedesignColors.primario400),
+            filled: true,
+            fillColor: RedesignColors.primario800,
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                  color: RedesignColors.secundario500, width: 2),
+            ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(
+              foregroundColor: RedesignColors.primario300,
+            ),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
@@ -543,6 +557,14 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                 }
               }
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: RedesignColors.actionPrimary,
+              foregroundColor: RedesignColors.onActionPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              elevation: 0,
+            ),
             child: const Text('Guardar'),
           ),
         ],

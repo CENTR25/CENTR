@@ -14,6 +14,7 @@ import '../../../services/storage_service.dart';
 import '../../../services/notification_providers.dart';
 import '../../../models/trainer_task_model.dart';
 import '../../../models/notification_model.dart';
+import '../../../widgets/weekday_picker.dart';
 import 'student_detail_screen.dart';
 import 'routine_detail_screen.dart';
 import 'meal_plan_detail_screen.dart';
@@ -2648,7 +2649,10 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
   final _titleController = TextEditingController();
   final _objectiveController = TextEditingController();
   String _level = 'beginner';
+  // Frequency (days per week) chosen in the dropdown.
   int _daysPerWeek = 3;
+  // Selected training weekdays (1=Mon … 7=Sun). Defaults to Mon–Wed.
+  final Set<int> _selectedWeekdays = {1, 2, 3};
   // Web-safe image state: bytes + extension instead of dart:io File
   Uint8List? _imageBytes;
   String _imageExt = 'jpg';
@@ -2688,6 +2692,16 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
 
   Future<void> _createRoutine() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_selectedWeekdays.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selecciona al menos un día de entrenamiento.'),
+          backgroundColor: RedesignColors.danger,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -2734,6 +2748,7 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
         objective: _objectiveController.text.trim(),
         level: _level,
         daysPerWeek: _daysPerWeek,
+        weekDays: _selectedWeekdays.toList()..sort(),
         imageUrl: imageUrl,
         storageService: storageService,
       );
@@ -2946,7 +2961,7 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Días por semana — teal pills 1–7
+                  // Días por semana — frequency dropdown
                   Text(
                     'Días por semana',
                     style: RedesignType.bodySm.copyWith(
@@ -2954,16 +2969,28 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
-                    children: List.generate(7, (i) {
-                      final day = i + 1;
-                      return _FilterPill(
-                        label: '$day',
-                        selected: _daysPerWeek == day,
-                        onTap: () => setState(() => _daysPerWeek = day),
-                      );
+                  DaysPerWeekDropdown(
+                    value: _daysPerWeek,
+                    onChanged: (v) => setState(() => _daysPerWeek = v),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Selecciona qué días — weekday pills
+                  Text(
+                    'Selecciona qué días',
+                    style: RedesignType.bodySm.copyWith(
+                      color: RedesignColors.primario300,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  WeekdayPills(
+                    selected: _selectedWeekdays,
+                    onToggle: (weekday) => setState(() {
+                      if (_selectedWeekdays.contains(weekday)) {
+                        _selectedWeekdays.remove(weekday);
+                      } else {
+                        _selectedWeekdays.add(weekday);
+                      }
                     }),
                   ),
                   const SizedBox(height: 32),

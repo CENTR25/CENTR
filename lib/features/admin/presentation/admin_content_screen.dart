@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/theme_redesign.dart';
+import '../../../core/utils/string_utils.dart';
 import '../../../models/affiliated_brand_model.dart';
 import '../../../models/news_model.dart';
 import '../../../services/admin_service.dart';
@@ -334,31 +335,76 @@ class _BrandCard extends ConsumerWidget {
 }
 
 // ── Ejercicios ─────────────────────────────────────────────────────────────
-class _ExercisesList extends ConsumerWidget {
+class _ExercisesList extends ConsumerStatefulWidget {
   const _ExercisesList();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ExercisesList> createState() => _ExercisesListState();
+}
+
+class _ExercisesListState extends ConsumerState<_ExercisesList> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
     final exAsync = ref.watch(globalExercisesProvider);
-    return RefreshIndicator(
-      color: RedesignColors.actionPrimary,
-      backgroundColor: RedesignColors.primario800,
-      onRefresh: () async {
-        ref.invalidate(globalExercisesProvider);
-        await ref.read(globalExercisesProvider.future);
-      },
-      child: exAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _error('$e'),
-        data: (items) {
-          if (items.isEmpty) return _empty('No hay ejercicios todavía.');
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(22, 4, 22, 130),
-            children: [for (final e in items) _ExerciseCard(exercise: e)],
-          );
-        },
-      ),
+    return Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 8),
+          child: TextField(
+            onChanged: (val) => setState(() => _query = val),
+            style:
+                RedesignType.bodySm.copyWith(color: RedesignColors.primario50),
+            decoration: const InputDecoration(
+              hintText: 'Buscar ejercicios',
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                size: 20,
+                color: RedesignColors.primario300,
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            color: RedesignColors.actionPrimary,
+            backgroundColor: RedesignColors.primario800,
+            onRefresh: () async {
+              ref.invalidate(globalExercisesProvider);
+              await ref.read(globalExercisesProvider.future);
+            },
+            child: exAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => _error('$e'),
+              data: (items) {
+                if (items.isEmpty) {
+                  return _empty('No hay ejercicios todavía.');
+                }
+                final q = foldSearch(_query);
+                final filtered = q.isEmpty
+                    ? items
+                    : items
+                        .where((e) => foldSearch(
+                                (e['name'] ?? '').toString())
+                            .contains(q))
+                        .toList();
+                if (filtered.isEmpty) {
+                  return _empty('No se encontraron ejercicios.');
+                }
+                return ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(22, 4, 22, 130),
+                  children: [
+                    for (final e in filtered) _ExerciseCard(exercise: e),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

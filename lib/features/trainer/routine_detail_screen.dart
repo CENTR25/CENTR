@@ -9,6 +9,7 @@ import '../../../services/exercise_media_service.dart';
 import '../../../services/storage_service.dart';
 import '../../../services/trainer_service.dart';
 import '../../../widgets/exercise_gif_view.dart';
+import '../../../widgets/weekday_picker.dart';
 import '../shared/redesign_toast.dart';
 import 'package:north_star/utils/exercise_category.dart';
 
@@ -25,6 +26,23 @@ const _kDayNames = [
   'Sábado',
   'Domingo',
 ];
+
+/// Resolve the specific training weekdays (1=Mon … 7=Sun, sorted) for a routine.
+/// Falls back to the first N consecutive days for legacy routines that only
+/// have a `days_per_week` count and no explicit `week_days`.
+List<int> resolveWeekDays(Map<String, dynamic> routine) {
+  final raw = routine['week_days'];
+  final days = (raw is List ? raw : const [])
+      .map((e) => (e as num).toInt())
+      .where((d) => d >= 1 && d <= 7)
+      .toList();
+  if (days.isNotEmpty) {
+    days.sort();
+    return days;
+  }
+  final count = (routine['days_per_week'] as int?) ?? 3;
+  return [for (var d = 1; d <= count.clamp(1, 7); d++) d];
+}
 
 // ---------------------------------------------------------------------------
 // RoutineDetailScreen
@@ -137,12 +155,12 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
               );
             }
 
-            final daysPerWeek = (routine['days_per_week'] as int?) ?? 3;
+            final weekDays = resolveWeekDays(routine);
 
-            // Clamp selected day if daysPerWeek changes
-            if (_currentDay > daysPerWeek) {
+            // Keep the selected day valid if the routine's weekdays change
+            if (!weekDays.contains(_currentDay)) {
               WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => setState(() => _currentDay = 1));
+                  (_) => setState(() => _currentDay = weekDays.first));
             }
 
             final exercises = routine['routine_exercises'] as List? ?? [];
@@ -171,7 +189,7 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
 
                 // ── Day pill selector ────────────────────────────────────
                 _DayPillSelector(
-                  daysPerWeek: daysPerWeek,
+                  weekDays: weekDays,
                   selectedDay: _currentDay,
                   onDaySelected: (day) => setState(() => _currentDay = day),
                 ),
@@ -696,12 +714,12 @@ class _RoutineInfoCard extends StatelessWidget {
 // _DayPillSelector — pill row L M X J V S D
 // ---------------------------------------------------------------------------
 class _DayPillSelector extends StatelessWidget {
-  final int daysPerWeek;
-  final int selectedDay; // 1-based
+  final List<int> weekDays; // sorted weekday numbers (1=Mon … 7=Sun)
+  final int selectedDay; // weekday number
   final ValueChanged<int> onDaySelected;
 
   const _DayPillSelector({
-    required this.daysPerWeek,
+    required this.weekDays,
     required this.selectedDay,
     required this.onDaySelected,
   });
@@ -713,11 +731,12 @@ class _DayPillSelector extends StatelessWidget {
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: daysPerWeek,
+        itemCount: weekDays.length,
         itemBuilder: (context, index) {
-          final day = index + 1;
+          final day = weekDays[index];
           final isSelected = day == selectedDay;
-          final label = index < _kDayLabels.length ? _kDayLabels[index] : 'D$day';
+          final label =
+              (day >= 1 && day <= _kDayLabels.length) ? _kDayLabels[day - 1] : 'D$day';
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
@@ -1163,7 +1182,8 @@ class _EditRoutineSheet extends ConsumerStatefulWidget {
 class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
   late final TextEditingController _titleController;
   late final TextEditingController _objectiveController;
-  late int _selectedDays;
+  final Set<int> _selectedWeekdays = {};
+  late int _daysPerWeek;
   late String _level;
   String? _imageUrl;
   Uint8List? _pickedImageBytes;
@@ -1184,7 +1204,8 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
         TextEditingController(text: widget.routine['title'] ?? '');
     _objectiveController =
         TextEditingController(text: widget.routine['objective'] ?? '');
-    _selectedDays = (widget.routine['days_per_week'] as int?) ?? 3;
+    _selectedWeekdays.addAll(resolveWeekDays(widget.routine));
+    _daysPerWeek = (widget.routine['days_per_week'] as int?) ?? 3;
     _level = (widget.routine['level'] as String?) ?? 'beginner';
     _imageUrl = widget.routine['image_url'] as String?;
   }
@@ -1252,48 +1273,32 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
         ),
         const SizedBox(height: 20),
 
-        // Días por semana pills
+        // Días por semana — frequency dropdown
         Text(
           'Días por semana',
           style: RedesignType.label.copyWith(color: RedesignColors.primario300),
         ),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: List.generate(7, (index) {
-            final d = index + 1;
-            final selected = d == _selectedDays;
-            return GestureDetector(
-              onTap: () => setState(() => _selectedDays = d),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 120),
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected
-                      ? RedesignColors.secundario300
-                      : RedesignColors.secundario300.withValues(alpha: 0.12),
-                  borderRadius:
-                      BorderRadius.circular(RedesignRadius.buttonSm),
-                  border: Border.all(
-                    color: RedesignColors.secundario300
-                        .withValues(alpha: selected ? 1 : 0.4),
-                    width: 0.5,
-                  ),
-                ),
-                child: Text(
-                  '$d',
-                  style: RedesignType.buttonSm.copyWith(
-                    color: selected
-                        ? RedesignColors.secundario900
-                        : RedesignColors.secundario300,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            );
+        DaysPerWeekDropdown(
+          value: _daysPerWeek,
+          onChanged: (v) => setState(() => _daysPerWeek = v),
+        ),
+        const SizedBox(height: 20),
+
+        // Selecciona qué días — weekday pills
+        Text(
+          'Selecciona qué días',
+          style: RedesignType.label.copyWith(color: RedesignColors.primario300),
+        ),
+        const SizedBox(height: 8),
+        WeekdayPills(
+          selected: _selectedWeekdays,
+          onToggle: (weekday) => setState(() {
+            if (_selectedWeekdays.contains(weekday)) {
+              _selectedWeekdays.remove(weekday);
+            } else {
+              _selectedWeekdays.add(weekday);
+            }
           }),
         ),
         const SizedBox(height: 20),
@@ -1497,6 +1502,15 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
 
   Future<void> _save() async {
     if (_titleController.text.trim().isEmpty) return;
+    if (_selectedWeekdays.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selecciona al menos un día de entrenamiento.'),
+          backgroundColor: RedesignColors.danger,
+        ),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     final nav = Navigator.of(context);
     final overlay = Overlay.of(context);
@@ -1514,10 +1528,12 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
                 _pickedImageBytes!, _pickedImageExt, userId);
       }
 
+      final weekDays = _selectedWeekdays.toList()..sort();
       await service.updateRoutine(widget.routineId, {
         'title': _titleController.text.trim(),
         'objective': _objectiveController.text.trim(),
-        'days_per_week': _selectedDays,
+        'week_days': weekDays,
+        'days_per_week': _daysPerWeek,
         'level': _level,
         if (finalImageUrl != null) 'image_url': finalImageUrl,
       });

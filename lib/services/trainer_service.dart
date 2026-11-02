@@ -688,6 +688,7 @@ class TrainerService {
     String? objective,
     String level = 'beginner',
     int daysPerWeek = 3,
+    List<int> weekDays = const [1, 2, 3],
     File? imageFile,
     String? imageUrl, // NEW: Allow passing URL directly
     required StorageService storageService,
@@ -718,6 +719,7 @@ class TrainerService {
       'title': name, // Column is 'title' in schema
       'objective': objective,
       'level': level,
+      'week_days': weekDays,
       'days_per_week': daysPerWeek,
       'created_at': DateTime.now().toIso8601String(),
       if (finalImageUrl != null) 'image_url': finalImageUrl,
@@ -928,6 +930,7 @@ class TrainerService {
       'objective': sourceRoutine['objective'],
       'level': sourceRoutine['level'],
       'days_per_week': sourceRoutine['days_per_week'],
+      'week_days': sourceRoutine['week_days'],
       'created_at': DateTime.now().toIso8601String(),
       'image_url': sourceRoutine['image_url'],
       // Ensure it's not linked to any specific athlete implicitly (schema doesn't have an owner field other than trainer_id)
@@ -980,6 +983,7 @@ class TrainerService {
           'objective': source['objective'],
           'level': source['level'],
           'days_per_week': source['days_per_week'],
+          'week_days': source['week_days'],
           'description': source['description'],
           'image_url': source['image_url'],
           'cardio_days': source['cardio_days'],

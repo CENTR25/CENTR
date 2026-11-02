@@ -34,6 +34,8 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
   YoutubePlayerController? _youtubeController;
   bool _isYoutube = false;
   bool _isVideoInitialized = false;
+  final PageController _photoController = PageController();
+  int _photoIndex = 0;
 
   @override
   void initState() {
@@ -45,6 +47,7 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
   void dispose() {
     _videoController?.dispose();
     _youtubeController?.close();
+    _photoController.dispose();
     super.dispose();
   }
 
@@ -272,6 +275,10 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
         ),
       );
     }
+    // Photos (trainer-uploaded overlay images)
+    if (ex.imageUrls.isNotEmpty) {
+      return _buildPhotoCarousel(ex.imageUrls);
+    }
     // Placeholder
     return Container(
       height: 200,
@@ -292,6 +299,66 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPhotoCarousel(List<String> urls) {
+    Widget photo(String url) => ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: ExerciseGifView(
+        url: url,
+        height: 280,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        placeholder: (_, __) => Container(
+          height: 280,
+          color: RedesignColors.primario700,
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+        errorWidget: (_, __, ___) => Container(
+          height: 280,
+          color: RedesignColors.primario700,
+          child: const Icon(
+            Icons.broken_image,
+            color: Colors.white54,
+            size: 48,
+          ),
+        ),
+      ),
+    );
+
+    if (urls.length == 1) return photo(urls.first);
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 280,
+          child: PageView.builder(
+            controller: _photoController,
+            itemCount: urls.length,
+            onPageChanged: (i) => setState(() => _photoIndex = i),
+            itemBuilder: (_, i) => photo(urls[i]),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            urls.length,
+            (i) => Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _photoIndex == i
+                    ? RedesignColors.actionPrimary
+                    : RedesignColors.primario600,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

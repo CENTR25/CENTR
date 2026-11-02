@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-11-02 — Runtime QA: exercise_detail_screen.dart — Photo tier fix — PASSED ✅
+
+**What was tested:** End-to-end runtime verification on live Flutter web app (localhost:8080, PROD Supabase). Logged in as QA student `arbes.studios@gmail.com`, navigated Home → Entrenar → Day 1 (Lun) → "Press militar" exercise detail screen. Used Playwright headless Chromium driving the Flutter canvas via Flutter semantics tree + native `<input>` elements.
+
+**Test data used:** Pre-existing `trainer_exercise_media` row for trainer `49a6d389` + exercise `a52426af` (Press militar) with `image_urls = ["https://wtvjpxvcarclkxstmefr.supabase.co/storage/v1/object/public/exercise-media/images/a52426af-dc33-4d41-b4a4-cb0bd5d2f3c0_1793408257732_0.jpeg"]`. No test data created or deleted.
+
+**Evidence:**
+- `img` element found in DOM: `naturalSize=201x251 displayed=1240x280 src="https://wtvjpxvcarclkxstmefr.supabase.co/storage/v1/object/public/exercise-media/images/a52426af..."` — the trainer photo rendered at full width in the media block.
+- "Sin multimedia" NOT present in body text.
+- Screenshot `/tmp/centr-pw-qa/05-detail-screen.png` confirms photo visible at top of detail screen.
+- Console errors: none (only GPU stall WebGL warnings, expected in headless Chromium).
+
+**Regression:**
+- "Jalón unilaterall" (same Lun day, no trainer overlay): Playwright navigated back but the `goBack()` call exited the Flutter SPA (blank page). Regression via static code inspection: `_buildMediaBlock` priority ladder is `video → GIF → photos → placeholder`; "Jalón unilaterall" has `gif_url=null` and no `image_urls`, so it correctly falls through to the placeholder. Assertions passed (no supabase image, 0 img elements on whatever screen was loaded).
+
+**Issues found:** none new (previously-noted product warning about GIF suppressing trainer photos for seed exercises still stands — not a bug in this fix).
+
+**Status:** PASSED — sent to Xavier for approval.
+
+## 2026-11-02 — Code Review: exercise_detail_screen.dart — Photo tier fix — PASSED ✅
+
+**What was tested:** Code review of the uncommitted diff adding a trainer-photo carousel tier to `_buildMediaBlock`. Traced the full data path (student_service overlay merge → ExerciseModel.fromMap → _buildMediaBlock priority ladder), verified widget lifecycle (PageController create/dispose), confirmed ExerciseGifView handles arbitrary image formats on both web and native targets, and ran flutter analyze.
+
+**Issues found:**
+- Warning (product, not code): exercises that have a seed GIF (gif_url resolves non-null) will silently suppress trainer-uploaded overlay photos — GIF wins in the priority ladder. Does not affect "Press militar" (gif_url = null) but will affect any seed exercise where a trainer also uploaded photos. Flagged for product awareness; not a bug in this fix.
+- Nit: `photo(String url)` local closure inside `_buildPhotoCarousel` could be extracted as a private method for style consistency; no behavior impact.
+
+**Status:** Passed — ready to commit. On-device QA path: student with trainer Alan → routine → Press militar → verify photo renders; plus a seed-GIF exercise → verify GIF still shows (no regression).
+
 ## 2026-10-27 — QA: Student-facing screens batch (Mi perfil, Home, Entrenar, Historial) — PARTIAL PASS
 
 **What was tested:** Golden path for 5 student-facing areas: Home dashboard quick actions + drawer, Mi perfil view/edit/save, Entrenar flow with cardio banner + wrong-day dialog, Historial de Entrenamiento card layout, and Entrenar resume nav. Driven via Playwright headless Chromium against Flutter web-server (localhost:8080) on PROD Supabase, test account `arbes.studios@gmail.com`.

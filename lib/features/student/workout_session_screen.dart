@@ -614,8 +614,8 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     service.saveWorkoutSession({
       'routine_id': widget.routine['id'],
       'day_number': widget.dayNumber,
-      'started_at':
-          _startTime?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      'started_at': _startTime?.toUtc().toIso8601String() ??
+          DateTime.now().toUtc().toIso8601String(),
       'duration_seconds': _totalElapsed.inSeconds,
       'sets_completed': setsCompleted,
       'is_completed': isCompleted,

@@ -946,7 +946,7 @@ class StudentService {
   ) async {
     final response = await _client
         .from('routine_exercises')
-        .select('sets, order_index, exercises(name)')
+        .select('exercise_id, sets, order_index, exercises(name)')
         .eq('routine_id', routineId)
         .eq('day_number', dayNumber)
         .order('order_index', ascending: true);

@@ -308,11 +308,23 @@ class _ExpandedDetail extends StatelessWidget {
               future: exercisesFuture,
               builder: (context, snap) {
                 final exercises = snap.data ?? const [];
+                // set_logs is keyed by exercise_id (UUID); map each id to its
+                // name and the routine's order_index for labelling + ordering.
+                final nameById = <String, String>{};
+                final orderById = <String, int>{};
+                for (var i = 0; i < exercises.length; i++) {
+                  final id = exercises[i]['exercise_id'] as String?;
+                  if (id == null) continue;
+                  nameById[id] =
+                      exercises[i]['exercises']?['name'] as String? ?? '';
+                  orderById[id] =
+                      (exercises[i]['order_index'] as num?)?.toInt() ?? i;
+                }
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final entry in _orderedExerciseKeys(setLogs))
-                      _exerciseBlock(entry, exercises, setLogs, repsLogs),
+                    for (final id in _orderedExerciseIds(setLogs, orderById))
+                      _exerciseBlock(id, nameById, setLogs, repsLogs),
                   ],
                 );
               },
@@ -322,29 +334,31 @@ class _ExpandedDetail extends StatelessWidget {
     );
   }
 
-  /// Exercise indices present in the logs, in ascending numeric order.
-  List<int> _orderedExerciseKeys(Map<String, dynamic> setLogs) {
-    final keys = setLogs.keys
-        .map((k) => int.tryParse(k))
-        .whereType<int>()
-        .toList()
-      ..sort();
+  /// Exercise ids present in the logs, ordered by the routine's order_index.
+  /// Ids no longer in the routine (e.g. an exercise removed after the session)
+  /// sort last but stay visible.
+  List<String> _orderedExerciseIds(
+    Map<String, dynamic> setLogs,
+    Map<String, int> orderById,
+  ) {
+    final keys = setLogs.keys.toList()
+      ..sort((a, b) =>
+          (orderById[a] ?? 1 << 30).compareTo(orderById[b] ?? 1 << 30));
     return keys;
   }
 
   Widget _exerciseBlock(
-    int exIndex,
-    List<Map<String, dynamic>> exercises,
+    String exId,
+    Map<String, String> nameById,
     Map<String, dynamic> setLogs,
     Map<String, dynamic> repsLogs,
   ) {
-    final name = exIndex < exercises.length
-        ? (exercises[exIndex]['exercises']?['name'] as String? ??
-            'Ejercicio ${exIndex + 1}')
-        : 'Ejercicio ${exIndex + 1}';
+    final resolved = nameById[exId];
+    final name =
+        (resolved != null && resolved.isNotEmpty) ? resolved : 'Ejercicio';
 
-    final exWeights = setLogs['$exIndex'] as Map<String, dynamic>? ?? const {};
-    final exReps = repsLogs['$exIndex'] as Map<String, dynamic>? ?? const {};
+    final exWeights = setLogs[exId] as Map<String, dynamic>? ?? const {};
+    final exReps = repsLogs[exId] as Map<String, dynamic>? ?? const {};
     final setNumbers = exWeights.keys
         .map((k) => int.tryParse(k))
         .whereType<int>()

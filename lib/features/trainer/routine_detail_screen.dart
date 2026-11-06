@@ -177,6 +177,18 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                 List<int>.from(routine['cardio_days'] ?? []);
             final isCardioDay = cardioDays.contains(_currentDay);
 
+            // Per-day muscle-group titles keyed by day_number, shown under the
+            // weekday and editable by tapping the header.
+            final dayTitles = <int, String>{};
+            for (final t in (routine['routine_day_titles'] as List? ?? [])) {
+              final dn = (t['day_number'] as num?)?.toInt();
+              final title = (t['title'] as String?)?.trim();
+              if (dn != null && title != null && title.isNotEmpty) {
+                dayTitles[dn] = title;
+              }
+            }
+            final currentDayTitle = dayTitles[_currentDay];
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -202,15 +214,57 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              _dayName(_currentDay),
-                              style: RedesignType.bodySm.copyWith(
-                                color: RedesignColors.primario50,
-                                fontWeight: FontWeight.w700,
+                            Expanded(
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => _editDayTitle(
+                                  _currentDay,
+                                  currentDayTitle,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _dayName(_currentDay),
+                                      style: RedesignType.bodySm.copyWith(
+                                        color: RedesignColors.primario50,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            currentDayTitle ?? 'Agregar título',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: RedesignType.label.copyWith(
+                                              color: currentDayTitle != null
+                                                  ? RedesignColors.secundario300
+                                                  : RedesignColors.primario400,
+                                              fontWeight:
+                                                  currentDayTitle != null
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          Icons.edit_rounded,
+                                          size: 13,
+                                          color: RedesignColors.primario400,
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                            const Spacer(),
+                            const SizedBox(width: 8),
                             TextButton(
                               onPressed: () =>
                                   _showAddExercise(context, _currentDay),
@@ -296,6 +350,92 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
   String _dayName(int day) {
     final idx = (day - 1).clamp(0, _kDayNames.length - 1);
     return _kDayNames[idx];
+  }
+
+  /// Edit the muscle-group title for [day] (e.g. "Pecho Tríceps"). An empty
+  /// value clears it. Persists via TrainerService.setDayTitle.
+  Future<void> _editDayTitle(int day, String? current) async {
+    final controller = TextEditingController(text: current ?? '');
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => Theme(
+        data: RedesignTheme.theme,
+        child: AlertDialog(
+          backgroundColor: RedesignColors.primario800,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(RedesignRadius.card),
+          ),
+          title: Text(
+            'Título del ${_dayName(day)}',
+            style: RedesignType.bodySm.copyWith(
+              color: RedesignColors.primario50,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ej: Pecho Tríceps. Se muestra al atleta en Entrenar.',
+                style: RedesignType.label.copyWith(
+                  color: RedesignColors.primario300,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                maxLength: 40,
+                style: const TextStyle(color: RedesignColors.primario50),
+                decoration: const InputDecoration(
+                  hintText: 'Título del día',
+                  counterText: '',
+                ),
+                onSubmitted: (v) => Navigator.pop(ctx, v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(color: RedesignColors.primario300),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, controller.text),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: RedesignColors.actionPrimary,
+                foregroundColor: RedesignColors.onActionPrimary,
+                elevation: 0,
+              ),
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null) return; // cancelled
+
+    try {
+      final service = ref.read(trainerServiceProvider);
+      await service.setDayTitle(widget.routineId, day, result);
+      ref.invalidate(routineDetailProvider(widget.routineId));
+      ref.invalidate(myRoutinesProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar el título: $e'),
+            backgroundColor: RedesignColors.danger,
+          ),
+        );
+      }
+    }
   }
 
   void _showAssignToStudents(BuildContext context) {

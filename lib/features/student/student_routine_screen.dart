@@ -275,6 +275,17 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
     _currentRoutine = routine;
     _currentDayExercises = dayExercises.cast<Map<String, dynamic>>();
 
+    // Per-day muscle-group titles (e.g. "Pecho Tríceps"), keyed by day_number
+    // (weekday 1=Mon..7=Sun), shown under the weekday in each pill.
+    final dayTitles = <int, String>{};
+    for (final t in (routine?['routine_day_titles'] as List?) ?? const []) {
+      final dn = (t['day_number'] as num?)?.toInt();
+      final title = (t['title'] as String?)?.trim();
+      if (dn != null && title != null && title.isNotEmpty) {
+        dayTitles[dn] = title;
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -290,6 +301,7 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
         _DayPills(
           count: _daysCount,
           selected: _selectedDay,
+          titles: dayTitles,
           onSelect: (d) => setState(() => _selectedDay = d),
         ),
         const SizedBox(height: 14),
@@ -417,18 +429,27 @@ class _Header extends StatelessWidget {
 class _DayPills extends StatelessWidget {
   final int count;
   final int selected;
+
+  /// Per-day muscle-group titles keyed by day_number (1=Mon..7=Sun). A day
+  /// without a title renders as a single centered weekday pill.
+  final Map<int, String> titles;
   final ValueChanged<int> onSelect;
 
   const _DayPills({
     required this.count,
     required this.selected,
     required this.onSelect,
+    this.titles = const {},
   });
 
   @override
   Widget build(BuildContext context) {
+    // Taller pills when any day carries a title so weekday + label fit on two
+    // lines; stays compact when the whole routine is untitled.
+    final hasAnyTitle = titles.values.any((t) => t.isNotEmpty);
+
     return SizedBox(
-      height: 40,
+      height: hasAnyTitle ? 58 : 40,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -437,11 +458,14 @@ class _DayPills extends StatelessWidget {
         itemBuilder: (_, i) {
           final day = i + 1;
           final isActive = day == selected;
+          final title = titles[day];
+          final hasTitle = title != null && title.isNotEmpty;
           return GestureDetector(
             onTap: () => onSelect(day),
             child: Container(
               alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(horizontal: 22),
+              constraints: const BoxConstraints(maxWidth: 130),
+              padding: EdgeInsets.symmetric(horizontal: hasTitle ? 16 : 22),
               decoration: BoxDecoration(
                 color: isActive
                     ? RedesignColors.secundario300
@@ -454,16 +478,42 @@ class _DayPills extends StatelessWidget {
                   width: 1.5,
                 ),
               ),
-              child: Text(
-                _weekdayAbbr[i],
-                style: TextStyle(
-                  fontFamily: 'Metropolis',
-                  color: isActive
-                      ? RedesignColors.onActionPrimary
-                      : RedesignColors.secundario300,
-                  fontSize: 15,
-                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _weekdayAbbr[i],
+                    style: TextStyle(
+                      fontFamily: 'Metropolis',
+                      color: isActive
+                          ? RedesignColors.onActionPrimary
+                          : RedesignColors.secundario300,
+                      fontSize: 15,
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                  if (hasTitle) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Metropolis',
+                        color: isActive
+                            ? RedesignColors.onActionPrimary.withValues(
+                                alpha: 0.85,
+                              )
+                            : RedesignColors.secundario300.withValues(
+                                alpha: 0.75,
+                              ),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           );

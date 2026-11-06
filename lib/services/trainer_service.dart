@@ -660,7 +660,10 @@ class TrainerService {
 
     final response = await _client
         .from('routines')
-        .select('*, routine_exercises(*, exercises(*))')
+        .select(
+          '*, routine_exercises(*, exercises(*)), '
+          'routine_day_titles(day_number, title)',
+        )
         .eq('trainer_id', trainerId)
         .order('created_at', ascending: false);
 
@@ -673,12 +676,37 @@ class TrainerService {
         .from('routines')
         .select(
           '*, routine_exercises(*, exercises(*)), '
+          'routine_day_titles(day_number, title), '
           'athlete_routines(is_active, athletes(name))',
         )
         .eq('id', routineId)
         .maybeSingle();
 
     return response;
+  }
+
+  /// Set (or clear) the muscle-group title for a routine day. A blank title
+  /// deletes the row so days revert to showing only the weekday.
+  Future<void> setDayTitle(
+    String routineId,
+    int dayNumber,
+    String title,
+  ) async {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) {
+      await _client
+          .from('routine_day_titles')
+          .delete()
+          .eq('routine_id', routineId)
+          .eq('day_number', dayNumber);
+      return;
+    }
+    await _client.from('routine_day_titles').upsert({
+      'routine_id': routineId,
+      'day_number': dayNumber,
+      'title': trimmed,
+      'updated_at': DateTime.now().toIso8601String(),
+    }, onConflict: 'routine_id,day_number');
   }
 
   /// Create a new routine

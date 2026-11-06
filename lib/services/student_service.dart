@@ -208,7 +208,10 @@ class StudentService {
     // Get full routine details
     final response = await _client
         .from('routines')
-        .select('*, routine_exercises(*, exercises(*))')
+        .select(
+          '*, routine_exercises(*, exercises(*)), '
+          'routine_day_titles(day_number, title)',
+        )
         .eq('id', routineId)
         .maybeSingle();
 

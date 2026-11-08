@@ -322,7 +322,16 @@ class _Header extends StatelessWidget {
 
             return GestureDetector(
               onTap: () async {
-                if (athleteId == null) return;
+                if (athleteId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Tu perfil todavía se está cargando. Probá de nuevo en un momento.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
                 await Navigator.push(
                   context,
                   MaterialPageRoute(

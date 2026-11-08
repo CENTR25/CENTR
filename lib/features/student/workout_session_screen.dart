@@ -824,6 +824,47 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
               ),
             ),
 
+            // Live workout stopwatch — stays visible while training.
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: RedesignColors.primario800,
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(
+                    color: RedesignColors.secundario300.withValues(alpha: 0.25),
+                    width: 0.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _isPaused
+                          ? Icons.pause_rounded
+                          : Icons.timer_outlined,
+                      size: 16,
+                      color: RedesignColors.secundario300,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatClock(_totalElapsed),
+                      style: const TextStyle(
+                        fontFamily: 'Metropolis',
+                        color: RedesignColors.primario50,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        height: 1.0,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(22, 8, 22, 130),
@@ -1385,6 +1426,17 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds % 60;
     return '${minutes}m ${seconds}s';
+  }
+
+  /// Clock-style elapsed time for the live in-workout stopwatch: MM:SS, or
+  /// HH:MM:SS once the session passes an hour.
+  String _formatClock(Duration duration) {
+    final h = duration.inHours;
+    final m = duration.inMinutes % 60;
+    final s = duration.inSeconds % 60;
+    final mm = m.toString().padLeft(2, '0');
+    final ss = s.toString().padLeft(2, '0');
+    return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
   }
 
   // ── Abandon dialog ─────────────────────────────────────────────────────────

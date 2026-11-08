@@ -1709,7 +1709,7 @@ class TrainerService {
   }) async {
     var query = _client
         .from('workout_sessions')
-        .select('set_logs, reps_logs, started_at')
+        .select('set_logs, reps_logs, started_at, day_number')
         .eq('athlete_id', athleteId)
         .eq('routine_id', routineId)
         .eq('is_completed', true)
@@ -1876,6 +1876,21 @@ class TrainerService {
         .from('athletes')
         .update({'next_renewal_date': dateStr})
         .eq('id', athleteId);
+  }
+
+  /// All of the trainer's athletes with just the fields the finances
+  /// dashboard needs (renewal date + name). Ordered by name.
+  Future<List<Map<String, dynamic>>> getStudentsFinance() async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return [];
+
+    final response = await _client
+        .from('athletes')
+        .select('id, name, next_renewal_date, last_fee_notified_at')
+        .eq('trainer_id', trainerId)
+        .order('name');
+
+    return List<Map<String, dynamic>>.from(response);
   }
 
   /// Returns athletes belonging to this trainer whose next_renewal_date falls
@@ -2174,6 +2189,13 @@ final expandedRenewalsProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final service = ref.watch(trainerServiceProvider);
   return service.getUpcomingRenewals(withinDays: 30, pastDays: 7);
+});
+
+/// Every student's renewal/cuota status for the finances dashboard.
+final studentsFinanceProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final service = ref.watch(trainerServiceProvider);
+  return service.getStudentsFinance();
 });
 
 /// Provider for trainer's check-in form

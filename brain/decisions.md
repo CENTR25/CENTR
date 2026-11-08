@@ -278,3 +278,19 @@ Read the client WhatsApp thread (Arc + WhatsApp Web DOM extraction) from 25/09 6
 ### Pending (need Xavier)
 - Real PRGS WhatsApp number.
 - Skip-exercise reorder: skip currently sends exercise to END; Alan leans toward skip→NEXT position but is confirming with designer + another trainer. NOT built.
+
+## 2026-11-07 — November QA Batch (Alan, 6/11) — Group A/C/D + chat hardening
+
+Alan's "Noviembre observaciones" (14 items). Shipped all non-MP, non-design-blocked items on branch `feat/nov-qa-batch`. `flutter analyze` clean (2 pre-existing infos only). MP (#7) deferred as its own milestone; loading-screen (#13) needs the Figma frame; #2/#5 need an Alan screenshot.
+
+### ADR-004: Previous-sets for legacy sessions — read-side same-day fallback, no data migration
+**Status:** Accepted (2026-11-07)
+**Context:** Trainer "registro manual" showed no "anterior:" hint (#3). `set_logs`/`reps_logs` were re-keyed from positional index → `exercise_id` UUID in `5ad162e`; sessions written before it are integer-keyed, so the UUID lookup in `SessionDetailScreen._prevLabel` always missed for athletes whose history predates the change.
+**Decision:** Non-destructive read-side fallback instead of a one-time data migration (Supabase MCP was not connected this session to validate a migration; routine exercise order can drift, making a blind index→UUID backfill unsafe). `getPreviousSession` now also returns `day_number`; `_prevLabel(exerciseId, exIndex, setNumber)` tries the UUID key first, then falls back to the positional-index key **only when the previous session's `day_number` == the current day** — same day ⇒ same `order_index` ordering ⇒ index lines up. A numeric key can never collide with a UUID key, so new sessions are unaffected; the same-day guard prevents cross-day false matches.
+**Consequences:** Legacy same-day history shows again with zero data mutation. Legacy *different-day* history still won't show (acceptable — safe over wrong). If a global backfill is later wanted, do it in SQL mapping `routine_exercises(routine_id, day_number, order_index)` with the MCP connected. Student-side history (`workout_session_screen` / history screen) has the same legacy-key limitation but was out of scope (#3 is trainer-only).
+
+### Notes
+- #9 (per-day titles) shipped in `c369d06` — likely a stale PWA cache on Alan's device; needs a hard refresh to confirm before treating as a bug.
+- #6/#14 (chat): code is sound (ChatScreen already handles loading/error/empty/send-failure; RLS + realtime declared in `create_messages.sql`). Hardened the one silent path (student chat button when athleteId null).
+  - **Prod DB audit 2026-11-08 (via SQL editor — Supabase MCP was down) — ALL GREEN, chat is NOT a DB problem:** `messages` RLS enabled=true; all 3 `messages_*_participant` policies (SELECT/INSERT/UPDATE) live; `messages` IS in the `supabase_realtime` publication; `total_messages`=6 (INSERT path works); `orphan_athletes`=1/21 but that orphan has **never chatted** (`orphan_athletes_that_chatted`=none) → every real conversation is visible to its trainer via RLS. Both DB hypotheses (config gap, orphaned students) RULED OUT.
+  - **Remaining cause is CLIENT/RUNTIME.** Likely order: (1) stale PWA / old build on Alan's device (same suspicion as #9); (2) realtime websocket not streaming on the deployed Flutter-web build — messages still appear on open via the `.stream()` initial REST fetch but don't update live → reads as "no funciona bien"; (3) a specific UX symptom. Next step: run the web build against prod on the QA student account, open chat, watch console/network for the realtime wss connection + the `.stream()` snapshot. Need Alan's exact symptom (won't open / won't send / won't update live).

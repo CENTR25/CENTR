@@ -26,6 +26,8 @@ import 'mi_suscripcion_screen.dart';
 import 'elegir_plan_screen.dart';
 import 'trainer_stats_screen.dart';
 import 'trainer_settings_screen.dart';
+import 'trainer_novedades_screen.dart';
+import 'trainer_finance_screen.dart';
 import 'help_screen.dart';
 import 'trainer_messages_screen.dart';
 import '../../../services/messaging_service.dart';
@@ -2971,7 +2973,17 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                   const SizedBox(height: 10),
                   DaysPerWeekDropdown(
                     value: _daysPerWeek,
-                    onChanged: (v) => setState(() => _daysPerWeek = v),
+                    onChanged: (v) => setState(() {
+                      _daysPerWeek = v;
+                      // Keep the day picker consistent: if the new frequency is
+                      // lower than the days already selected, drop the extras.
+                      if (_selectedWeekdays.length > v) {
+                        final kept = (_selectedWeekdays.toList()..sort()).take(v);
+                        _selectedWeekdays
+                          ..clear()
+                          ..addAll(kept);
+                      }
+                    }),
                   ),
                   const SizedBox(height: 20),
 
@@ -2985,13 +2997,24 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                   const SizedBox(height: 10),
                   WeekdayPills(
                     selected: _selectedWeekdays,
-                    onToggle: (weekday) => setState(() {
+                    onToggle: (weekday) {
                       if (_selectedWeekdays.contains(weekday)) {
-                        _selectedWeekdays.remove(weekday);
+                        setState(() => _selectedWeekdays.remove(weekday));
+                      } else if (_selectedWeekdays.length >= _daysPerWeek) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Ya elegiste $_daysPerWeek ${_daysPerWeek == 1 ? 'día' : 'días'}. '
+                              'Aumentá "Días por semana" para elegir más.',
+                            ),
+                            backgroundColor: RedesignColors.danger,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
                       } else {
-                        _selectedWeekdays.add(weekday);
+                        setState(() => _selectedWeekdays.add(weekday));
                       }
-                    }),
+                    },
                   ),
                   const SizedBox(height: 32),
 
@@ -3119,6 +3142,28 @@ class _ProfileView extends ConsumerWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => const TrainerStatsScreen(),
+                    ),
+                  ),
+                ),
+                _ProfileMenuRow(
+                  icon: Icons.campaign_rounded,
+                  title: 'Novedades',
+                  subtitle: 'Publica avisos para tus alumnos',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TrainerNovedadesScreen(),
+                    ),
+                  ),
+                ),
+                _ProfileMenuRow(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'Finanzas',
+                  subtitle: 'Cuotas y vencimientos de tus alumnos',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TrainerFinanceScreen(),
                     ),
                   ),
                 ),

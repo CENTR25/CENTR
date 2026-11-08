@@ -1421,7 +1421,18 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
         const SizedBox(height: 8),
         DaysPerWeekDropdown(
           value: _daysPerWeek,
-          onChanged: (v) => setState(() => _daysPerWeek = v),
+          onChanged: (v) => setState(() {
+            _daysPerWeek = v;
+            // Keep the day picker consistent: if the new frequency is lower
+            // than the number of days already selected, drop the extra days
+            // (keep the earliest weekdays).
+            if (_selectedWeekdays.length > v) {
+              final kept = (_selectedWeekdays.toList()..sort()).take(v);
+              _selectedWeekdays
+                ..clear()
+                ..addAll(kept);
+            }
+          }),
         ),
         const SizedBox(height: 20),
 
@@ -1433,13 +1444,25 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
         const SizedBox(height: 8),
         WeekdayPills(
           selected: _selectedWeekdays,
-          onToggle: (weekday) => setState(() {
+          onToggle: (weekday) {
             if (_selectedWeekdays.contains(weekday)) {
-              _selectedWeekdays.remove(weekday);
+              setState(() => _selectedWeekdays.remove(weekday));
+            } else if (_selectedWeekdays.length >= _daysPerWeek) {
+              // Can't pick more days than the chosen weekly frequency.
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Ya elegiste $_daysPerWeek ${_daysPerWeek == 1 ? 'día' : 'días'}. '
+                    'Aumentá "Días por semana" para elegir más.',
+                  ),
+                  backgroundColor: RedesignColors.danger,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
             } else {
-              _selectedWeekdays.add(weekday);
+              setState(() => _selectedWeekdays.add(weekday));
             }
-          }),
+          },
         ),
         const SizedBox(height: 20),
 

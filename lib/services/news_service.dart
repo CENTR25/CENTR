@@ -29,6 +29,24 @@ class NewsService {
     }
   }
 
+  /// Get a trainer's own news articles (published + drafts), newest first.
+  Future<List<NewsArticle>> getTrainerNews(String trainerId) async {
+    try {
+      final response = await _client
+          .from('news_articles')
+          .select()
+          .eq('trainer_id', trainerId)
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((json) => NewsArticle.fromJson(json))
+          .toList();
+    } catch (e) {
+      debugPrint('Error fetching trainer news: $e');
+      return [];
+    }
+  }
+
   /// Get all news articles (for admin)
   Future<List<NewsArticle>> getAllNews() async {
     try {

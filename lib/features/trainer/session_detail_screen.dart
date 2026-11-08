@@ -44,10 +44,22 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
   List<Map<String, dynamic>> _exercises = [];
   Map<String, dynamic>? _prevSetLogs;
   Map<String, dynamic>? _prevRepsLogs;
+  // Day of the previous session; used to safely fall back to legacy
+  // position-keyed set_logs (pre-exercise_id migration) only when it's the
+  // same routine day, where the exercise order — and thus the index — matches.
+  int? _prevDayNumber;
 
   // controllers[exerciseIndex][setNumber] -> (weight, reps)
   final Map<int, Map<int, TextEditingController>> _weightCtrls = {};
   final Map<int, Map<int, TextEditingController>> _repsCtrls = {};
+
+  /// Identifies an in-progress new session so it survives navigating away.
+  String get _draftKey =>
+      '${widget.athleteId}|${widget.routineId}|${widget.dayNumber}';
+
+  /// True once saved (or the draft was intentionally cleared) so dispose() does
+  /// not re-persist a stale draft.
+  bool _draftCleared = false;
 
   @override
   void initState() {
@@ -57,6 +69,11 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
 
   @override
   void dispose() {
+    // Persist whatever the trainer typed for a not-yet-saved new session so it
+    // can be restored when they come back. Read controllers BEFORE disposing.
+    if (_isNew && !_draftCleared) {
+      _persistDraft();
+    }
     for (final m in _weightCtrls.values) {
       for (final c in m.values) {
         c.dispose();
@@ -68,6 +85,33 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
       }
     }
     super.dispose();
+  }
+
+  /// Snapshot the current field values into the in-memory draft store (or clear
+  /// it if nothing was typed).
+  void _persistDraft() {
+    final weights = <String, Map<String, String>>{};
+    final reps = <String, Map<String, String>>{};
+    for (var i = 0; i < _exercises.length; i++) {
+      final exerciseId = _exercises[i]['exercise_id'] as String? ?? '$i';
+      final w = <String, String>{};
+      final r = <String, String>{};
+      _weightCtrls[i]?.forEach((s, c) {
+        if (c.text.trim().isNotEmpty) w['$s'] = c.text;
+      });
+      _repsCtrls[i]?.forEach((s, c) {
+        if (c.text.trim().isNotEmpty) r['$s'] = c.text;
+      });
+      if (w.isNotEmpty) weights[exerciseId] = w;
+      if (r.isNotEmpty) reps[exerciseId] = r;
+    }
+    final store = ref.read(manualSessionDraftStoreProvider);
+    final draft = ManualSessionDraft(weights: weights, reps: reps);
+    if (draft.isEmpty) {
+      store.clear(_draftKey);
+    } else {
+      store.save(_draftKey, draft);
+    }
   }
 
   Future<void> _load() async {
@@ -97,6 +141,11 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
         excludeSessionId: widget.session?['id'] as String?,
       );
 
+      // Restore an in-progress draft for a brand-new session (if any).
+      final draft = _isNew
+          ? ref.read(manualSessionDraftStoreProvider).get(_draftKey)
+          : null;
+
       for (var i = 0; i < exercises.length; i++) {
         final sets = (exercises[i]['sets'] as int?) ?? 3;
         _weightCtrls[i] = {};
@@ -106,18 +155,32 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
         final exerciseId = exercises[i]['exercise_id'] as String? ?? '$i';
         final exWeights = setLogs[exerciseId] as Map<String, dynamic>?;
         final exReps = repsLogs[exerciseId] as Map<String, dynamic>?;
+        final draftWeights = draft?.weights[exerciseId];
+        final draftReps = draft?.reps[exerciseId];
         for (var s = 1; s <= sets; s++) {
           _weightCtrls[i]![s] = TextEditingController(
-            text: _fmt(exWeights?['$s']),
+            text: draftWeights?['$s'] ?? _fmt(exWeights?['$s']),
           );
-          _repsCtrls[i]![s] = TextEditingController(text: _fmt(exReps?['$s']));
+          _repsCtrls[i]![s] = TextEditingController(
+            text: draftReps?['$s'] ?? _fmt(exReps?['$s']),
+          );
         }
+      }
+
+      if (draft != null && !draft.isEmpty && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Borrador restaurado')),
+          );
+        });
       }
 
       setState(() {
         _exercises = exercises;
         _prevSetLogs = prev?['set_logs'] as Map<String, dynamic>?;
         _prevRepsLogs = prev?['reps_logs'] as Map<String, dynamic>?;
+        _prevDayNumber = prev?['day_number'] as int?;
         _loading = false;
       });
     } catch (e) {
@@ -183,6 +246,9 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
           setsCompleted: setsCompleted,
         );
       }
+      // Session persisted — drop any in-progress draft for this athlete/day.
+      ref.read(manualSessionDraftStoreProvider).clear(_draftKey);
+      _draftCleared = true;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Pesos guardados')),
@@ -197,9 +263,21 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
     }
   }
 
-  String _prevLabel(String exerciseId, int setNumber) {
-    final w = (_prevSetLogs?[exerciseId] as Map<String, dynamic>?)?['$setNumber'];
-    final r = (_prevRepsLogs?[exerciseId] as Map<String, dynamic>?)?['$setNumber'];
+  String _prevLabel(String exerciseId, int exIndex, int setNumber) {
+    // Primary: look up by stable exercise_id (post-migration sessions).
+    var setMap = _prevSetLogs?[exerciseId] as Map<String, dynamic>?;
+    var repMap = _prevRepsLogs?[exerciseId] as Map<String, dynamic>?;
+    // Fallback: legacy sessions keyed by positional index. Only trust the
+    // position when the previous session is the SAME routine day, where the
+    // exercise order (order_index) — and thus the index — still lines up.
+    // A numeric key can never collide with a UUID key, so this is safe for
+    // new sessions; the same-day guard prevents cross-day false matches.
+    if (setMap == null && repMap == null && _prevDayNumber == widget.dayNumber) {
+      setMap = _prevSetLogs?['$exIndex'] as Map<String, dynamic>?;
+      repMap = _prevRepsLogs?['$exIndex'] as Map<String, dynamic>?;
+    }
+    final w = setMap?['$setNumber'];
+    final r = repMap?['$setNumber'];
     if (w == null && r == null) return '';
     return 'anterior: ${_fmt(w).isEmpty ? '–' : _fmt(w)} kg × ${_fmt(r).isEmpty ? '–' : _fmt(r)}';
   }
@@ -340,7 +418,7 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
   }
 
   Widget _setRow(int exIndex, int setNumber, String exerciseId) {
-    final prev = _prevLabel(exerciseId, setNumber);
+    final prev = _prevLabel(exerciseId, exIndex, setNumber);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -434,3 +512,36 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// In-progress manual-session drafts
+//
+// Lets a trainer leave a new manual session (e.g. to check something on the
+// student detail) and come back without losing the weights/reps they typed.
+// Kept in-memory for the app session, keyed by athlete|routine|day. Cleared
+// once the session is saved.
+// ---------------------------------------------------------------------------
+
+/// Typed weights/reps for an in-progress manual session.
+/// Maps exerciseId -> setNumber(String) -> raw text field value.
+class ManualSessionDraft {
+  final Map<String, Map<String, String>> weights;
+  final Map<String, Map<String, String>> reps;
+
+  const ManualSessionDraft({required this.weights, required this.reps});
+
+  bool get isEmpty =>
+      weights.values.every((m) => m.values.every((v) => v.trim().isEmpty)) &&
+      reps.values.every((m) => m.values.every((v) => v.trim().isEmpty));
+}
+
+class ManualSessionDraftStore {
+  final Map<String, ManualSessionDraft> _drafts = {};
+
+  ManualSessionDraft? get(String key) => _drafts[key];
+  void save(String key, ManualSessionDraft draft) => _drafts[key] = draft;
+  void clear(String key) => _drafts.remove(key);
+}
+
+final manualSessionDraftStoreProvider =
+    Provider<ManualSessionDraftStore>((ref) => ManualSessionDraftStore());

@@ -364,6 +364,14 @@ class StudentService {
               '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
           'body_weight': weight,
         });
+        // Surface the new weight in the trainer's Novedades feed.
+        final w = weight % 1 == 0 ? weight.toInt().toString() : weight.toString();
+        await _notifyTrainerOfActivity(
+          athleteId: athleteId,
+          type: 'weightLogged',
+          title: 'Nuevo peso registrado',
+          buildMessage: (name) => '$name registró su peso: $w kg',
+        );
       }
     }
   }
@@ -515,6 +523,7 @@ class StudentService {
           .update({'last_check_in_at': DateTime.now().toIso8601String()})
           .eq('id', athleteId);
       await _updateStreak(athleteId);
+      await _notifyTrainerCheckIn(athleteId);
     }
   }
 
@@ -560,6 +569,7 @@ class StudentService {
           .update({'last_check_in_at': now})
           .eq('id', athleteId);
       await _updateStreak(athleteId);
+      await _notifyTrainerCheckIn(athleteId);
     }
 
     // Save form responses if provided
@@ -618,6 +628,7 @@ class StudentService {
           .update({'last_check_in_at': now})
           .eq('id', athleteId);
       await _updateStreak(athleteId);
+      await _notifyTrainerCheckIn(athleteId);
     }
 
     if (formId != null && formResponses != null && formResponses.isNotEmpty) {
@@ -875,6 +886,62 @@ class StudentService {
       // Non-critical, don't throw
     }
   }
+
+  /// Resolve the athlete's trainer user_id and insert a trainer-facing
+  /// notification so student activity shows up in the trainer "Novedades" feed.
+  /// No-op (and never throws) if the athlete has no trainer — notifications are
+  /// non-critical side effects.
+  Future<void> _notifyTrainerOfActivity({
+    required String athleteId,
+    required String type,
+    required String title,
+    required String Function(String studentName) buildMessage,
+  }) async {
+    try {
+      final athlete = await _client
+          .from('athletes')
+          .select('user_id, trainer_id, name')
+          .eq('id', athleteId)
+          .maybeSingle();
+      if (athlete == null) return;
+
+      final trainerRecordId = athlete['trainer_id'] as String?;
+      if (trainerRecordId == null) return;
+
+      final trainer = await _client
+          .from('trainers')
+          .select('user_id')
+          .eq('id', trainerRecordId)
+          .maybeSingle();
+      final trainerUserId = trainer?['user_id'] as String?;
+      if (trainerUserId == null) return;
+
+      final studentName = athlete['name'] as String? ?? 'Alumno';
+      final studentUserId = athlete['user_id'] as String? ?? athleteId;
+
+      await _client.from('notifications').insert({
+        'user_id': trainerUserId,
+        'type': type,
+        'title': title,
+        'message': buildMessage(studentName),
+        'data': {'student_id': studentUserId, 'athlete_id': athleteId},
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('⚠️ Error notifying trainer of activity: $e');
+      // Non-critical, don't throw
+    }
+  }
+
+  /// Notify the trainer that the student submitted a new check-in.
+  Future<void> _notifyTrainerCheckIn(String athleteId) =>
+      _notifyTrainerOfActivity(
+        athleteId: athleteId,
+        type: 'checkInSubmitted',
+        title: 'Nuevo check-in',
+        buildMessage: (name) => '$name subió un nuevo check-in',
+      );
 
   /// Get the last completed workout session for a routine, specific to a day
   Future<Map<String, dynamic>?> getLastWorkoutSession(

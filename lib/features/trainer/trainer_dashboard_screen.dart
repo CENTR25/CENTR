@@ -297,11 +297,72 @@ class _HomeViewState extends ConsumerState<_HomeView> {
 
                 // Primeros pasos (auto-hides when all complete)
                 const _FirstStepsChecklist(),
+
+                // Novedades — recent student activity (check-ins, workouts,
+                // new active students). Full list + broadcast composer live
+                // behind the bell; this surfaces the latest few on home.
+                if (user?.id != null)
+                  _HomeNovedadesFeed(
+                    userId: user!.id,
+                    onSeeAll: () => _openNotifications(context),
+                  ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Home "Novedades" section: the latest student-activity notifications,
+/// reusing the same provider and row as the bell sheet.
+class _HomeNovedadesFeed extends ConsumerWidget {
+  final String userId;
+  final VoidCallback onSeeAll;
+
+  const _HomeNovedadesFeed({required this.userId, required this.onSeeAll});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifsAsync = ref.watch(notificationsProvider(userId));
+    return notifsAsync.maybeWhen(
+      data: (notifs) {
+        if (notifs.isEmpty) return const SizedBox.shrink();
+        final recent = notifs.take(6).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 28),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Novedades',
+                  style: RedesignType.bodySm.copyWith(
+                    color: RedesignColors.primario50,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: onSeeAll,
+                  child: Text(
+                    'Ver todas ›',
+                    style: RedesignType.label.copyWith(
+                      color: RedesignColors.actionPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            for (final n in recent) _NovedadRow(notif: n),
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
     );
   }
 }

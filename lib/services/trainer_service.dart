@@ -1901,19 +1901,111 @@ class TrainerService {
         .eq('id', athleteId);
   }
 
-  /// All of the trainer's athletes with just the fields the finances
-  /// dashboard needs (renewal date + name). Ordered by name.
+  /// All of the trainer's athletes with the fields the finances dashboard
+  /// needs: renewal date, monthly fee, and whether the student has paid in the
+  /// current calendar month. Ordered by name.
   Future<List<Map<String, dynamic>>> getStudentsFinance() async {
     final trainerId = await _getTrainerId();
     if (trainerId == null) return [];
 
-    final response = await _client
+    // 1. Athlete rows with the new monthly_fee column.
+    final athletes = await _client
         .from('athletes')
-        .select('id, name, next_renewal_date, last_fee_notified_at')
+        .select('id, name, next_renewal_date, last_fee_notified_at, monthly_fee')
         .eq('trainer_id', trainerId)
         .order('name');
 
-    return List<Map<String, dynamic>>.from(response);
+    // 2. Payments recorded in the current calendar month for this trainer.
+    final now = DateTime.now();
+    final firstOfMonth =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-01';
+    final payments = await _client
+        .from('student_payments')
+        .select('athlete_id, amount')
+        .eq('trainer_id', trainerId)
+        .gte('paid_on', firstOfMonth);
+
+    // Build a map: athleteId → total paid this month.
+    final Map<String, double> paidMap = {};
+    for (final p in payments) {
+      final aid = p['athlete_id'] as String;
+      final amount = (p['amount'] as num?)?.toDouble() ?? 0.0;
+      paidMap[aid] = (paidMap[aid] ?? 0.0) + amount;
+    }
+
+    // Merge payment info into the athlete rows.
+    final result = athletes.map<Map<String, dynamic>>((a) {
+      final aid = a['id'] as String;
+      final paidAmount = paidMap[aid] ?? 0.0;
+      return {
+        ...Map<String, dynamic>.from(a),
+        'paid_this_month': paidAmount > 0,
+        'paid_amount_this_month': paidAmount,
+      };
+    }).toList();
+
+    return result;
+  }
+
+  /// Set (or clear) the stored monthly fee for a student.
+  Future<void> setMonthlyFee(String athleteId, double? fee) async {
+    await _client
+        .from('athletes')
+        .update({'monthly_fee': fee})
+        .eq('id', athleteId);
+  }
+
+  /// Record a payment for a student, then advance their next_renewal_date by
+  /// +1 month (from existing date if still in the future, else from today).
+  Future<void> recordPayment({
+    required String athleteId,
+    required double amount,
+    DateTime? paidOn,
+    String? note,
+  }) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) throw Exception('Trainer no encontrado');
+
+    // Format paid_on as a plain date string (local calendar date).
+    final d = paidOn ?? DateTime.now();
+    final paidOnStr =
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+    // Insert the payment row.
+    await _client.from('student_payments').insert({
+      'trainer_id': trainerId,
+      'athlete_id': athleteId,
+      'amount': amount,
+      'paid_on': paidOnStr,
+      if (note != null && note.isNotEmpty) 'note': note,
+    });
+
+    // Advance renewal date: base = existing future date OR today.
+    final athleteRow = await _client
+        .from('athletes')
+        .select('next_renewal_date')
+        .eq('id', athleteId)
+        .maybeSingle();
+
+    final existing = athleteRow?['next_renewal_date'] as String?;
+    final today = DateTime.now();
+    DateTime base;
+    if (existing != null) {
+      final parsed = DateTime.tryParse(existing);
+      base = (parsed != null && parsed.isAfter(today)) ? parsed : today;
+    } else {
+      base = today;
+    }
+
+    // Add exactly one month (clamp to end-of-month if the day overflows).
+    final newMonth = base.month + 1;
+    final newYear = base.year + (newMonth > 12 ? 1 : 0);
+    final adjustedMonth = newMonth > 12 ? newMonth - 12 : newMonth;
+    final maxDay = DateTime(newYear, adjustedMonth + 1, 0).day;
+    final newDay = base.day > maxDay ? maxDay : base.day;
+    final newDate = DateTime(newYear, adjustedMonth, newDay);
+
+    await updateStudentRenewalDate(athleteId, newDate);
   }
 
   /// Returns athletes belonging to this trainer whose next_renewal_date falls

@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-11-10 — Build: Editable Intake Form + Remove Onboarding Screen
+
+**What was built:** Full implementation of editable intake form schemas (Part 1) and removal of the height/weight onboarding screen (Part 2) per tasks/editable-intake-plan.md.
+
+**Files created:**
+- `lib/models/intake_schema.dart` — IntakeSectionDto/IntakeFieldDto DTOs with JSON serialization, keyLocked flag, icon string lookup
+- `lib/services/intake_schema_service.dart` — schema fetch/save/reset with trainer→admin-global→hardcoded fallback chain
+- `lib/features/admin/presentation/admin_intake_editor_screen.dart` — admin global form editor with key-locking enforcement
+- `lib/features/trainer/intake_editor_screen.dart` — trainer form editor with key-locking and Reset-to-default (live admin fetch on confirm)
+- `add_intake_form_schemas_table.sql` — table + RLS policies + SQL seed of full default schema (incl. height_cm/weight_kg)
+- `remove_onboarding_gate.sql` — backfill has_completed_onboarding; set default true
+
+**Files modified:**
+- `lib/core/constants/intake_form.dart` — added height_cm and weight_kg fields to Datos Personales section
+- `lib/features/student/student_intake_screen.dart` — loads schema from IntakeSchemaService; falls back to kIntakeSections while loading
+- `lib/features/trainer/intake_view_screen.dart` — loads trainer schema via FutureProvider.family; accepts trainerId param
+- `lib/services/student_service.dart` — submitIntake now extracts height_cm/weight_kg and calls logMetrics
+- `lib/core/routing/app_router.dart` — removed has_completed_onboarding gate, studentOnboarding route and constant
+- `lib/features/admin/presentation/admin_home_screen.dart` — added Formulario de Atleta entry card
+- `lib/features/trainer/trainer_settings_screen.dart` — added Personalizar formulario de atleta row
+
+**Files deleted:**
+- `lib/features/student/student_onboarding_screen.dart`
+
+**profiles.goal migration notes:** `profiles.goal` was written ONLY by `StudentService.completeOnboarding()`, which is now dead code (the screen that called it is deleted and the route removed). The `athletes.goal` column (used by the student profile edit screen via `updateMyProfile`) is a DIFFERENT column on a different table and is NOT retired — it still serves the profile editor. No reads of `profiles.goal` exist anywhere outside the now-deleted onboarding screen. The column itself is left in the DB as dead data; a follow-up migration `drop_profiles_goal.sql` can drop it after confirming no live traffic writes to it.
+
+**analyze result:** Zero errors. Two pre-existing info items in trainer_dashboard_screen.dart (curly_braces_in_flow_control_structures) are unrelated to this change.
+
+**Status:** Built — awaiting migration apply and runtime QA.
+
 ## 2026-11-02 — Runtime QA: exercise_detail_screen.dart — Photo tier fix — PASSED ✅
 
 **What was tested:** End-to-end runtime verification on live Flutter web app (localhost:8080, PROD Supabase). Logged in as QA student `arbes.studios@gmail.com`, navigated Home → Entrenar → Day 1 (Lun) → "Press militar" exercise detail screen. Used Playwright headless Chromium driving the Flutter canvas via Flutter semantics tree + native `<input>` elements.

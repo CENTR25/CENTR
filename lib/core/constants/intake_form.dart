@@ -93,6 +93,20 @@ const List<IntakeSection> kIntakeSections = [
         placeholder: 'Ej. 25',
       ),
       IntakeField(
+        key: 'height_cm',
+        label: 'Altura (cm)',
+        type: IntakeFieldType.number,
+        required: true,
+        placeholder: 'Ej. 170',
+      ),
+      IntakeField(
+        key: 'weight_kg',
+        label: 'Peso actual (kg)',
+        type: IntakeFieldType.number,
+        required: true,
+        placeholder: 'Ej. 70',
+      ),
+      IntakeField(
         key: 'sexo',
         label: 'Sexo',
         type: IntakeFieldType.singleChoice,

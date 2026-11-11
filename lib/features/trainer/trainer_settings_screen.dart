@@ -6,6 +6,7 @@ import '../../services/auth_service.dart';
 import '../../services/trainer_service.dart';
 import '../shared/redesign_toast.dart';
 import 'change_password_screen.dart';
+import 'intake_editor_screen.dart';
 
 // ---------------------------------------------------------------------------
 // TrainerSettingsScreen (Figma "Configuración")
@@ -110,6 +111,16 @@ class _TrainerSettingsScreenState extends ConsumerState<TrainerSettingsScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => const ChangePasswordScreen(),
+                      ),
+                    ),
+                  ),
+                  const _RowDivider(),
+                  _NavRow(
+                    title: 'Personalizar formulario de atleta',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TrainerIntakeEditorScreen(),
                       ),
                     ),
                   ),

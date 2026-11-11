@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../core/constants/intake_form.dart';
+import '../../services/intake_schema_service.dart';
 import '../../services/trainer_service.dart';
 
 /// Provider for a single athlete's intake questionnaire (trainer/admin read).
@@ -15,21 +16,45 @@ final athleteIntakeProvider =
       return service.getAthleteIntake(athleteId);
     });
 
-/// Read-only view of an athlete's "Formulario para conocer al Atleta",
-/// rendered from [kIntakeSections] so it always matches the student form.
+/// Provider for the trainer's own intake form schema (resolved sections).
+final trainerIntakeSchemaSectionsProvider =
+    FutureProvider.family<List<IntakeSection>, String>((
+      ref,
+      trainerId,
+    ) async {
+      final dtos = await ref
+          .read(intakeSchemaServiceProvider)
+          .getMySchema(trainerId);
+      return dtos.map((s) => s.toIntakeSection()).toList();
+    });
+
+/// Read-only view of an athlete's "Formulario para conocer al Atleta".
+/// Renders from the trainer's own schema (or the admin-global fallback) so the
+/// trainer always sees the same fields that were shown to the student.
 class IntakeViewScreen extends ConsumerWidget {
   final String athleteId;
   final String athleteName;
+
+  /// The trainer's own record ID (used to load their customized schema).
+  /// If null, falls back to [kIntakeSections].
+  final String? trainerId;
 
   const IntakeViewScreen({
     super.key,
     required this.athleteId,
     required this.athleteName,
+    this.trainerId,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final intakeAsync = ref.watch(athleteIntakeProvider(athleteId));
+    final schemaAsync = trainerId != null
+        ? ref.watch(trainerIntakeSchemaSectionsProvider(trainerId!))
+        : null;
+
+    // Determine the sections to render.
+    final sections = schemaAsync?.valueOrNull ?? kIntakeSections;
 
     return Theme(
       data: RedesignTheme.theme,
@@ -74,7 +99,7 @@ class IntakeViewScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
-                ...kIntakeSections.map((s) => _section(s, responses)),
+                ...sections.map((s) => _section(s, responses)),
               ],
             );
           },

@@ -78,17 +78,33 @@ class IntakeSchemaService {
     return kIntakeSectionsAsDto();
   }
 
-  /// Upserts the admin-global schema row.
+  /// Saves the admin-global schema row. Can't use upsert(onConflict) here
+  /// because the admin row has trainer_id IS NULL and Postgres treats NULLs as
+  /// distinct — a conflict on (owner_type, trainer_id) would never match, so an
+  /// upsert would keep inserting duplicate admin rows. Update-or-insert instead.
   Future<void> saveAdminSchema(List<IntakeSectionDto> sections) async {
-    await _client.from('intake_form_schemas').upsert(
-      {
+    final payload = {
+      'sections': sections.map((s) => s.toMap()).toList(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+    final existing = await _client
+        .from('intake_form_schemas')
+        .select('id')
+        .eq('owner_type', 'admin')
+        .isFilter('trainer_id', null)
+        .maybeSingle();
+    if (existing != null) {
+      await _client
+          .from('intake_form_schemas')
+          .update(payload)
+          .eq('id', existing['id']);
+    } else {
+      await _client.from('intake_form_schemas').insert({
         'owner_type': 'admin',
         'trainer_id': null,
-        'sections': sections.map((s) => s.toMap()).toList(),
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      },
-      onConflict: 'owner_type,trainer_id',
-    );
+        ...payload,
+      });
+    }
   }
 
   /// Returns true if any athlete has submitted an intake response (globally).

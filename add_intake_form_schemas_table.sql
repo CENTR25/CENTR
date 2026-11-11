@@ -18,6 +18,13 @@ create table if not exists public.intake_form_schemas (
   unique (owner_type, trainer_id)
 );
 
+-- The (owner_type, trainer_id) unique constraint does NOT constrain the admin
+-- row: its trainer_id IS NULL and Postgres treats NULLs as distinct, so you
+-- could insert many admin rows. Enforce exactly one admin-global row here.
+create unique index if not exists intake_form_schemas_single_admin
+  on public.intake_form_schemas (owner_type)
+  where owner_type = 'admin';
+
 comment on table public.intake_form_schemas is
   'Per-owner versions of the athlete intake questionnaire. One admin-global '
   'row (trainer_id IS NULL) and one row per trainer who customises the form.';
@@ -111,10 +118,7 @@ create policy "student_read_applicable_intake_schema"
 -- ============================================================
 
 insert into public.intake_form_schemas (owner_type, trainer_id, sections)
-values (
-  'admin',
-  null,
-  '[
+select 'admin', null, '[
     {
       "title": "Datos Personales",
       "subtitle": "Datos básicos del atleta.",
@@ -383,5 +387,6 @@ values (
       ]
     }
   ]'::jsonb
-)
-on conflict (owner_type, trainer_id) do nothing;
+where not exists (
+  select 1 from public.intake_form_schemas where owner_type = 'admin'
+);

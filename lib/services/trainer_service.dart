@@ -1587,17 +1587,22 @@ class TrainerService {
         .toSet()
         .toList();
     final namesByKey = <String, List<String>>{};
+    // exercise_id (UUID) -> exercise name. set_logs are keyed by exercise_id,
+    // so this is the primary lookup; namesByKey is only a legacy fallback for
+    // old sessions that were keyed by positional index.
+    final nameById = <String, String>{};
     if (routineIds.isNotEmpty) {
       final re = await _client
           .from('routine_exercises')
-          .select('routine_id, day_number, order_index, exercises(name)')
+          .select('routine_id, day_number, order_index, exercise_id, exercises(name)')
           .inFilter('routine_id', routineIds)
           .order('order_index', ascending: true);
       for (final r in re as List) {
         final key = '${r['routine_id']}|${r['day_number']}';
-        (namesByKey[key] ??= []).add(
-          (r['exercises']?['name'] as String?) ?? 'Ejercicio',
-        );
+        final name = (r['exercises']?['name'] as String?) ?? 'Ejercicio';
+        (namesByKey[key] ??= []).add(name);
+        final exId = r['exercise_id'] as String?;
+        if (exId != null) nameById[exId] = name;
       }
     }
 
@@ -1619,9 +1624,15 @@ class TrainerService {
       final names = namesByKey['${s['routine_id']}|${s['day_number']}'] ?? [];
       final setLogs = s['set_logs'] as Map<String, dynamic>?;
       if (setLogs == null) continue;
-      setLogs.forEach((exIdxStr, setsRaw) {
-        final exIdx = int.tryParse(exIdxStr);
-        if (exIdx == null || exIdx >= names.length) return;
+      setLogs.forEach((exKey, setsRaw) {
+        // Modern sessions key set_logs by exercise_id (UUID); legacy sessions
+        // key by positional index into the routine's exercise list.
+        String? exName = nameById[exKey];
+        if (exName == null) {
+          final exIdx = int.tryParse(exKey);
+          if (exIdx != null && exIdx < names.length) exName = names[exIdx];
+        }
+        if (exName == null) return;
         final sets = setsRaw as Map<String, dynamic>?;
         if (sets == null) return;
         // Keep the weight of each individual set so the chart can show one line
@@ -1631,7 +1642,7 @@ class TrainerService {
           if (v is num && v > 0) perSet[setStr] = v;
         });
         if (perSet.isEmpty) return;
-        (progress[names[exIdx]] ??= []).add({
+        (progress[exName] ??= []).add({
           'date': startedAt,
           'sets': perSet,
         });

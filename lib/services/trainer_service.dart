@@ -180,6 +180,18 @@ class TrainerService {
   }
 
   /// Get student details with progress
+  /// Resolve an athlete row id (athletes.id) from a student's auth user_id.
+  /// Used to open the student detail from notifications that only carry the
+  /// student's user_id (e.g. legacy firstLogin) instead of athlete_id.
+  Future<String?> athleteIdForUser(String userId) async {
+    final row = await _client
+        .from('athletes')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+    return row?['id'] as String?;
+  }
+
   Future<Map<String, dynamic>?> getStudentDetails(String studentId) async {
     final response = await _client
         .from('athletes')

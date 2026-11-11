@@ -1694,14 +1694,33 @@ class _FilterPill extends StatelessWidget {
   }
 }
 
-class _NovedadRow extends StatelessWidget {
+class _NovedadRow extends ConsumerWidget {
   final NotificationModel notif;
 
   const _NovedadRow({required this.notif});
 
+  bool get _hasStudentTarget =>
+      notif.data?['athlete_id'] != null || notif.data?['student_id'] != null;
+
+  Future<void> _openStudent(BuildContext context, WidgetRef ref) async {
+    var athleteId = notif.data?['athlete_id'] as String?;
+    final studentUserId = notif.data?['student_id'] as String?;
+    if (athleteId == null && studentUserId != null) {
+      athleteId =
+          await ref.read(trainerServiceProvider).athleteIdForUser(studentUserId);
+    }
+    if (athleteId == null || !context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StudentDetailScreen(studentId: athleteId!),
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
-    return Padding(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1751,6 +1770,13 @@ class _NovedadRow extends StatelessWidget {
             ),
         ],
       ),
+    );
+
+    if (!_hasStudentTarget) return row;
+    return InkWell(
+      onTap: () => _openStudent(context, ref),
+      borderRadius: BorderRadius.circular(12),
+      child: row,
     );
   }
 }

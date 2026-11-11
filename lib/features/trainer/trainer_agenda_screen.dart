@@ -905,6 +905,10 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
       initialDate: _dueDate ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
+      builder: (ctx, child) => Theme(
+        data: RedesignTheme.theme,
+        child: child!,
+      ),
     );
     if (picked != null) {
       setState(() {
@@ -1368,6 +1372,10 @@ class _SlotSheetState extends ConsumerState<_SlotSheet> {
                 final picked = await showTimePicker(
                   context: context,
                   initialTime: _time,
+                  builder: (ctx, child) => Theme(
+                    data: RedesignTheme.theme,
+                    child: child!,
+                  ),
                 );
                 if (picked != null) {
                   setState(() => _time = picked);

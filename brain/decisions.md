@@ -1,5 +1,25 @@
 # Decision Log
 
+## 2026-11-10 — Editable Intake Form + Remove Onboarding Screen
+
+**Status:** Accepted
+
+**Context:** Alan requested that the "Formulario para conocer al Atleta" be customizable per trainer (and globally by admin), and that the separate height/weight onboarding screen be removed since those values can be captured inside the intake form.
+
+**Decision:**
+- Intake form schemas stored in `intake_form_schemas` table (owner_type, trainer_id unique key, sections jsonb). One admin-global row; one row per trainer who customises. Resolution chain: trainer-specific then admin-global then hardcoded fallback.
+- `IntakeSectionDto` / `IntakeFieldDto` are runtime-serializable DTOs that parallel the existing const types. Icon stored as a string name. `keyLocked` is UI-only (never persisted).
+- Key-locking policy: once any athlete has submitted a response for a field, that field key becomes immutable. Label stays editable; removal shows a warning dialog.
+- `profiles.goal` (written only by the now-dead `completeOnboarding`) is retired. The `athletes.goal` column used by the student profile edit screen is NOT touched.
+- Reset-to-default for trainer pulls the CURRENT admin schema live at reset time.
+- Admin global schema is seeded via SQL in the migration (kIntakeSections with height_cm/weight_kg).
+- Students mid-onboarding land directly on the intake form; no special case needed.
+
+**Consequences:**
+- Two new migrations to apply: `add_intake_form_schemas_table.sql`, `remove_onboarding_gate.sql`.
+- `student_onboarding_screen.dart` deleted; `AppRoutes.studentOnboarding` removed.
+- `flutter analyze` passes with zero errors (2 pre-existing info items in trainer_dashboard_screen.dart unrelated to this change).
+
 ## 2026-10-27 — Trainer Perfil flow: _ProfileView rebuild + MiSuscripcionScreen + ElegirPlanScreen
 
 **Status:** Accepted

@@ -60,7 +60,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   // Timers
   Timer? _restTimer;
   Timer? _countdownTimer;
-  Timer? _elapsedTimer;
 
   // Rest timer — wall-clock deadline is the source of truth so background /
   // lock-screen suspension never drifts. _restSecondsRemaining is a derived
@@ -69,22 +68,39 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   DateTime? _restPausedAt; // non-null while the timer is paused
   int _restSecondsRemaining = 0; // recomputed; kept for display / progress bar
 
-  // Background tracking (fix timer drift)
+  // Background tracking — only the rest-time stat needs background
+  // reconciliation now that total elapsed is derived from wall-clock anchors.
   DateTime? _backgroundEnterTime;
-  Duration _stopwatchAtBackground = Duration.zero;
+  Duration _restElapsedAtBackground = Duration.zero;
 
-  // Time tracking
-  final Stopwatch _totalStopwatch = Stopwatch();
+  // Time tracking. Total session time is wall-clock based (now - startTime,
+  // minus any paused spans) so it never drifts or jumps when the app is
+  // backgrounded/minimized — see _totalElapsed.
   final Stopwatch _restStopwatch = Stopwatch();
   Duration _totalRestTime = Duration.zero;
-  // Stopwatch freezes while iOS/Android suspend the app (locked screen between
-  // sets), so background time is accumulated separately on resume.
-  Duration _backgroundTime = Duration.zero;
+  Duration _pausedAccumulated = Duration.zero; // total time spent paused
+  DateTime? _pauseStartedAt; // non-null while the whole session is paused
   // Frozen snapshot captured at completion — null while the workout is live.
   Duration? _completedElapsed;
   Duration? _completedRestTime;
 
-  Duration get _totalElapsed => _totalStopwatch.elapsed + _backgroundTime;
+  // Anchor for the session duration, set when training (re)starts on THIS
+  // screen open. Separate from _startTime (which may be restored from a draft
+  // to the original start for `started_at`) so a draft resumed hours later
+  // doesn't count the time the app was closed.
+  DateTime? _elapsedAnchor;
+
+  // Wall-clock session duration: elapsed since the anchor minus paused spans.
+  // Immune to background suspension because it measures, never counts.
+  Duration get _totalElapsed {
+    final anchor = _elapsedAnchor;
+    if (anchor == null) return Duration.zero;
+    var elapsed = DateTime.now().difference(anchor) - _pausedAccumulated;
+    if (_pauseStartedAt != null) {
+      elapsed -= DateTime.now().difference(_pauseStartedAt!);
+    }
+    return elapsed.isNegative ? Duration.zero : elapsed;
+  }
 
   // Audio — duck (lower) the athlete's music for the beep instead of pausing
   // it. iOS -> playback + duckOthers; Android -> gainTransientMayDuck. Web
@@ -257,7 +273,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
       _backgroundEnterTime = DateTime.now();
-      _stopwatchAtBackground = _totalStopwatch.elapsed;
+      _restElapsedAtBackground = _restStopwatch.elapsed;
       // Flush a draft now — the OS may kill us while backgrounded. Captures
       // even a half-typed set via the current text-field values.
       _saveDraft();
@@ -266,13 +282,13 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       final bgDuration = DateTime.now().difference(_backgroundEnterTime!);
       _backgroundEnterTime = null;
 
-      // Accumulate background time in the total-elapsed counter (Stopwatch
-      // freezes while the OS suspends Dart execution).
-      final ticked = _totalStopwatch.elapsed - _stopwatchAtBackground;
-      final frozen = bgDuration - ticked;
-      if (_totalStopwatch.isRunning && frozen > Duration.zero) {
-        _backgroundTime += frozen;
-        if (_isResting && !_isPaused) {
+      // Total elapsed is wall-clock based, so it needs no correction here.
+      // Only the rest-time stat relies on _restStopwatch, which freezes while
+      // the OS suspends Dart execution — add back the frozen span.
+      if (_isResting && !_isPaused) {
+        final ticked = _restStopwatch.elapsed - _restElapsedAtBackground;
+        final frozen = bgDuration - ticked;
+        if (frozen > Duration.zero) {
           _totalRestTime += Duration(
             seconds: frozen.inSeconds.clamp(0, _restSecondsRemaining),
           );
@@ -325,8 +341,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
   void dispose() {
     _restTimer?.cancel();
     _countdownTimer?.cancel();
-    _elapsedTimer?.cancel();
-    _totalStopwatch.stop();
     _restStopwatch.stop();
     _audioPlayer.dispose();
     _countdownController.dispose();
@@ -350,23 +364,15 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
         timer.cancel();
         setState(() {
           _isCountingDown = false;
-          _totalStopwatch.start();
-          // Keep the original start time if a draft was restored.
+          // Keep the original start time if a draft was restored (used for the
+          // DB `started_at`); anchor the duration clock to now so a resumed
+          // draft doesn't count time the app was closed.
           _startTime ??= DateTime.now();
+          _elapsedAnchor = DateTime.now();
         });
-        _startElapsedTimer();
+        _updateWeightController();
       }
     });
-  }
-
-  void _startElapsedTimer() {
-    _elapsedTimer?.cancel();
-    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-    _updateWeightController();
   }
 
   String _getCurrentTargetReps() {
@@ -562,9 +568,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
 
     _restTimer?.cancel();
     _countdownTimer?.cancel();
-    _elapsedTimer?.cancel();
     _restStopwatch.stop();
-    _totalStopwatch.stop();
     setState(() {
       _completedElapsed = frozenTotal;
       _completedRestTime = frozenRest;
@@ -628,14 +632,17 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     setState(() {
       _isPaused = !_isPaused;
       if (_isPaused) {
-        _totalStopwatch.stop();
+        _pauseStartedAt = DateTime.now();
         _restStopwatch.stop();
         // Snapshot the moment we paused so the deadline can be shifted on resume.
         if (_isResting && _restDeadline != null) {
           _restPausedAt = DateTime.now();
         }
       } else {
-        _totalStopwatch.start();
+        if (_pauseStartedAt != null) {
+          _pausedAccumulated += DateTime.now().difference(_pauseStartedAt!);
+          _pauseStartedAt = null;
+        }
         if (_isResting) {
           _restStopwatch.start();
           // Shift the deadline forward by however long we were paused so the
@@ -821,47 +828,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
                     ],
                   ),
                 ],
-              ),
-            ),
-
-            // Live workout stopwatch — stays visible while training.
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: RedesignColors.primario800,
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(
-                    color: RedesignColors.secundario300.withValues(alpha: 0.25),
-                    width: 0.5,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _isPaused
-                          ? Icons.pause_rounded
-                          : Icons.timer_outlined,
-                      size: 16,
-                      color: RedesignColors.secundario300,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _formatClock(_totalElapsed),
-                      style: const TextStyle(
-                        fontFamily: 'Metropolis',
-                        color: RedesignColors.primario50,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        height: 1.0,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
 
@@ -1426,17 +1392,6 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds % 60;
     return '${minutes}m ${seconds}s';
-  }
-
-  /// Clock-style elapsed time for the live in-workout stopwatch: MM:SS, or
-  /// HH:MM:SS once the session passes an hour.
-  String _formatClock(Duration duration) {
-    final h = duration.inHours;
-    final m = duration.inMinutes % 60;
-    final s = duration.inSeconds % 60;
-    final mm = m.toString().padLeft(2, '0');
-    final ss = s.toString().padLeft(2, '0');
-    return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
   }
 
   // ── Abandon dialog ─────────────────────────────────────────────────────────

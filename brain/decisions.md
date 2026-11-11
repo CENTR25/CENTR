@@ -1,5 +1,21 @@
 # Decision Log
 
+## 2026-11-10 — Trainer payment tracker (Finanzas screen)
+
+**Status:** Accepted
+
+**Context:** Trainer needed to record per-student monthly cuota payments and see a monthly earnings total. Payments are strictly trainer-internal — students must never read them.
+
+**Decision:**
+- `athletes.monthly_fee numeric(12,2)` stores the recurring fee per student; set by the trainer via "Editar cuota" in the Finanzas screen.
+- New `student_payments` table (trainer_id, athlete_id, amount, paid_on date, note, created_at timestamptz) with RLS policy using `private.my_trainer_id()` and `private.get_role()` helpers — same pattern as the rest of the app. No student policy whatsoever.
+- `recordPayment()` in TrainerService inserts a payment row then auto-advances `next_renewal_date` +1 month (from existing future date or today, whichever is later); delegates the write to the existing `updateStudentRenewalDate()`.
+- `getStudentsFinance()` extended with a second Supabase query for the current-month payments; merges `monthly_fee`, `paid_this_month` (bool), and `paid_amount_this_month` (num) into each athlete map — no breaking change to existing keys.
+- Monthly earnings total is **summed in the UI** via a `fold` over the rows; no separate `currentMonthEarnings()` service method.
+- Currency formatted as es-AR `$X.XXX` (thousands-dot, no decimal cents) — same algorithm as `adminFormatCurrency()` in admin_common.dart, copied locally to avoid a cross-feature import.
+
+**Consequences:** Migration `add_student_payments.sql` written but NOT applied to prod (by design — Xavier reviews before applying). `flutter analyze` clean (0 issues on changed files; 2 pre-existing infos in trainer_dashboard_screen.dart untouched). Commit: `9122dc8`.
+
 ## 2026-10-27 — Trainer Perfil flow: _ProfileView rebuild + MiSuscripcionScreen + ElegirPlanScreen
 
 **Status:** Accepted

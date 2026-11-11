@@ -106,6 +106,9 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                     builder: (_) => IntakeViewScreen(
                       athleteId: widget.studentId,
                       athleteName: name,
+                      // Render with this trainer's customized schema (labels),
+                      // falling back to the default if not yet loaded.
+                      trainerId: ref.read(myTrainerIdProvider).valueOrNull,
                     ),
                   ),
                 );

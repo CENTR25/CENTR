@@ -5,8 +5,15 @@ import '../../widgets/benefits_content.dart';
 
 /// Student "Beneficios" — affiliated-brand discounts. Reached from the home
 /// quick-actions. Wraps the shared [BenefitsContent] in the redesign shell.
-class StudentBenefitsScreen extends StatelessWidget {
+class StudentBenefitsScreen extends StatefulWidget {
   const StudentBenefitsScreen({super.key});
+
+  @override
+  State<StudentBenefitsScreen> createState() => _StudentBenefitsScreenState();
+}
+
+class _StudentBenefitsScreenState extends State<StudentBenefitsScreen> {
+  bool _grid = false;
 
   @override
   Widget build(BuildContext context) {
@@ -32,14 +39,19 @@ class StudentBenefitsScreen extends StatelessWidget {
               fontFamily: 'Metropolis',
             ),
           ),
-          actions: const [
-            Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: Icon(Icons.grid_view_rounded, color: Colors.white, size: 22),
+          actions: [
+            IconButton(
+              onPressed: () => setState(() => _grid = !_grid),
+              tooltip: _grid ? 'Ver en lista' : 'Ver en cuadrícula',
+              icon: Icon(
+                _grid ? Icons.view_agenda_rounded : Icons.grid_view_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
             ),
           ],
         ),
-        body: const BenefitsContent(),
+        body: BenefitsContent(grid: _grid),
       ),
     );
   }

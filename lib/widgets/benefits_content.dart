@@ -9,7 +9,11 @@ import '../models/affiliated_brand_model.dart';
 /// Read-only list of affiliated-brand discounts. Shared by the student
 /// "Beneficio" tab and the trainer's benefits screen.
 class BenefitsContent extends ConsumerStatefulWidget {
-  const BenefitsContent({super.key});
+  /// When true, brand cards render in a compact 2-column grid instead of the
+  /// full-width stacked list. Defaults to the list (trainer screen passes none).
+  final bool grid;
+
+  const BenefitsContent({super.key, this.grid = false});
 
   @override
   ConsumerState<BenefitsContent> createState() => _BenefitsContentState();
@@ -100,6 +104,22 @@ class _BenefitsContentState extends ConsumerState<BenefitsContent> {
                         textAlign: TextAlign.center,
                       ),
                     ),
+                  );
+                }
+                if (widget.grid) {
+                  return GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.78,
+                    children: filtered
+                        .map((b) => _BrandGridCard(
+                              brand: b,
+                              onOpenUrl: (url) => _openUrl(context, url),
+                            ))
+                        .toList(),
                   );
                 }
                 return Column(
@@ -376,6 +396,88 @@ class _BrandCard extends StatelessWidget {
               ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Brand card — compact grid variant (2 columns)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BrandGridCard extends StatelessWidget {
+  final AffiliatedBrand brand;
+  final void Function(String? url) onOpenUrl;
+
+  const _BrandGridCard({required this.brand, required this.onOpenUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final categoryLabel = _categoryDisplayLabel(brand.category);
+    final headlineText = brand.discountLabel?.isNotEmpty == true
+        ? brand.discountLabel!
+        : (brand.benefitDescription?.isNotEmpty == true
+            ? brand.benefitDescription!
+            : brand.name);
+    // Primary tap target: website first, then Instagram.
+    final primaryUrl = brand.hasWebsite
+        ? brand.websiteUrl
+        : (brand.hasInstagram ? brand.instagramDisplayUrl : null);
+
+    return GestureDetector(
+      onTap: primaryUrl == null ? null : () => onOpenUrl(primaryUrl),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: RedesignColors.primario700,
+          borderRadius: BorderRadius.circular(RedesignRadius.card),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _IconTile(brand: brand),
+            const SizedBox(height: 12),
+            Text(
+              headlineText,
+              style: const TextStyle(
+                fontFamily: 'Metropolis',
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                height: 1.2,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              categoryLabel.isNotEmpty
+                  ? '$categoryLabel • ${brand.name}'
+                  : brand.name,
+              style: const TextStyle(
+                fontFamily: 'Metropolis',
+                color: RedesignColors.primario300,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const Spacer(),
+            if (brand.discountCode?.isNotEmpty == true)
+              Text(
+                'Código: ${brand.discountCode}',
+                style: const TextStyle(
+                  fontFamily: 'Metropolis',
+                  color: RedesignColors.actionPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
       ),
     );
   }

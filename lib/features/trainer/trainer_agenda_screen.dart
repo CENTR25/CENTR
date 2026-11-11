@@ -5,6 +5,7 @@ import '../../models/trainer_task_model.dart';
 import '../../models/athlete_schedule_slot.dart';
 import '../../services/trainer_service.dart';
 import '../shared/redesign_toast.dart';
+import 'student_detail_screen.dart';
 
 // ---------------------------------------------------------------------------
 // Trainer "Agenda" — redesigned for PRGS design system.
@@ -583,8 +584,6 @@ class _SlotCard extends ConsumerWidget {
       ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: RedesignColors.surface,
           borderRadius: BorderRadius.circular(RedesignRadius.card),
@@ -593,7 +592,21 @@ class _SlotCard extends ConsumerWidget {
             width: 1,
           ),
         ),
-        child: Row(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: slot.athleteId.isEmpty
+              ? null
+              : () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          StudentDetailScreen(studentId: slot.athleteId),
+                    ),
+                  ),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
           children: [
             // Time badge
             Container(
@@ -651,6 +664,8 @@ class _SlotCard extends ConsumerWidget {
             const Icon(Icons.chevron_right_rounded,
                 color: RedesignColors.primario500, size: 20),
           ],
+            ),
+          ),
         ),
       ),
     );

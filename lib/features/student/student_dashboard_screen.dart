@@ -16,6 +16,7 @@ import 'student_meal_plan_screen.dart';
 import 'student_weight_screen.dart';
 import 'student_check_in_screen.dart';
 import 'student_recipes_screen.dart';
+import '../../services/app_settings_service.dart';
 import 'student_benefits_screen.dart';
 import 'student_profile_screen.dart';
 import 'required_reading_screen.dart';
@@ -199,21 +200,24 @@ class _HomeContent extends ConsumerWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 32),
-
-                  // Recetario oficial card
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: _hPad),
-                    child: GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const StudentRecipesScreen(),
+                  // Recetario oficial card — shown only when the admin has
+                  // enabled it globally (recipes_enabled). Hidden otherwise.
+                  if (ref.watch(recipesEnabledProvider).valueOrNull ??
+                      false) ...[
+                    const SizedBox(height: 32),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: _hPad),
+                      child: GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const StudentRecipesScreen(),
+                          ),
                         ),
+                        child: const _RecetarioCard(),
                       ),
-                      child: const _RecetarioCard(),
                     ),
-                  ),
+                  ],
 
                   const SizedBox(height: 32),
 

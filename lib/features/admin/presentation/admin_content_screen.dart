@@ -7,6 +7,7 @@ import '../../../models/affiliated_brand_model.dart';
 import '../../../models/news_model.dart';
 import '../../../services/admin_service.dart';
 import '../../../services/affiliated_brand_service.dart';
+import '../../../services/app_settings_service.dart';
 import '../../../services/news_service.dart';
 import '../../shared/redesign_toast.dart';
 import '../widgets/admin_add_exercise_sheet.dart';
@@ -53,19 +54,24 @@ class _AdminContentViewState extends ConsumerState<AdminContentView> {
 
   @override
   Widget build(BuildContext context) {
+    // Recetas (index 3) has no "add" action yet — the recetario is not
+    // implemented, so this tab only exposes the global on/off switch.
     const addLabels = ['Noticia', 'Marca', 'Ejercicio'];
+    final showAdd = _index < addLabels.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AdminGradientHeader(
           title: 'Contenido',
-          trailing: AdminAddPillButton(label: addLabels[_index], onTap: _add),
+          trailing: showAdd
+              ? AdminAddPillButton(label: addLabels[_index], onTap: _add)
+              : null,
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
           child: AdminSegmentedPills(
-            labels: const ['Noticias', 'Marcas', 'Ejercicios'],
+            labels: const ['Noticias', 'Marcas', 'Ejercicios', 'Recetas'],
             activeIndex: _index,
             onChanged: (i) => setState(() => _index = i),
           ),
@@ -77,7 +83,97 @@ class _AdminContentViewState extends ConsumerState<AdminContentView> {
               _NewsList(),
               _BrandsList(),
               _ExercisesList(),
+              _RecetasSection(),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Recetas ────────────────────────────────────────────────────────────────
+/// Global recetario controls. The recipe book itself is not built yet, so for
+/// now this is just the master on/off switch (+ a "coming soon" note). Recipe
+/// management can slot in here once the feature exists.
+class _RecetasSection extends ConsumerWidget {
+  const _RecetasSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabledAsync = ref.watch(recipesEnabledProvider);
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(22, 4, 22, 130),
+      children: [
+        AdminCard(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mostrar recetario',
+                      style: RedesignType.bodySm.copyWith(
+                        color: RedesignColors.primario50,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Activa la tarjeta “Recetario oficial” en el inicio de '
+                      'los alumnos. Mantenela apagada mientras no esté lista.',
+                      style: RedesignType.label
+                          .copyWith(color: RedesignColors.primario300),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              enabledAsync.when(
+                loading: () => const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                error: (_, __) => const Icon(Icons.error_outline_rounded,
+                    color: RedesignColors.danger, size: 20),
+                data: (enabled) => Switch(
+                  value: enabled,
+                  activeThumbColor: RedesignColors.onActionPrimary,
+                  activeTrackColor: RedesignColors.actionPrimary,
+                  onChanged: (v) async {
+                    await ref
+                        .read(appSettingsServiceProvider)
+                        .setBool('recipes_enabled', v);
+                    ref.invalidate(recipesEnabledProvider);
+                    if (context.mounted) {
+                      showRedesignToast(
+                        context,
+                        title: v
+                            ? 'Recetario activado'
+                            : 'Recetario desactivado',
+                        subtitle: v
+                            ? 'Los alumnos ya pueden verlo.'
+                            : 'Oculto para los alumnos.',
+                      );
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 40),
+        Center(
+          child: Text(
+            'La gestión de recetas estará disponible próximamente.',
+            textAlign: TextAlign.center,
+            style:
+                RedesignType.label.copyWith(color: RedesignColors.primario300),
           ),
         ),
       ],

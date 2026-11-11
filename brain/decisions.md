@@ -35,7 +35,6 @@
 - Two new migrations to apply: `add_intake_form_schemas_table.sql`, `remove_onboarding_gate.sql`.
 - `student_onboarding_screen.dart` deleted; `AppRoutes.studentOnboarding` removed.
 - `flutter analyze` passes with zero errors (2 pre-existing info items in trainer_dashboard_screen.dart unrelated to this change).
->>>>>>> worktree-agent-ad0669970daf15049
 
 ## 2026-10-27 — Trainer Perfil flow: _ProfileView rebuild + MiSuscripcionScreen + ElegirPlanScreen
 

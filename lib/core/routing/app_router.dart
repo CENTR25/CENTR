@@ -10,7 +10,6 @@ import 'package:north_star/features/auth/presentation/student_register_screen.da
 import 'package:north_star/features/admin/presentation/admin_dashboard_screen.dart';
 import 'package:north_star/features/trainer/trainer_dashboard_screen.dart';
 import 'package:north_star/features/student/student_dashboard_screen.dart';
-import 'package:north_star/features/student/student_onboarding_screen.dart';
 import 'package:north_star/features/student/student_intake_screen.dart';
 import 'package:north_star/features/shared/widgets/loading_screen.dart';
 
@@ -36,7 +35,6 @@ class AppRoutes {
 
   // Student routes
   static const String studentDashboard = '/student';
-  static const String studentOnboarding = '/student/onboarding';
   static const String studentIntake = '/student/intake';
   static const String studentRoutine = '/student/routine';
   static const String studentProgress = '/student/progress';
@@ -184,10 +182,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const StudentDashboardScreen(),
       ),
       GoRoute(
-        path: AppRoutes.studentOnboarding,
-        builder: (context, state) => const StudentOnboardingScreen(),
-      ),
-      GoRoute(
         path: AppRoutes.studentIntake,
         builder: (context, state) => const StudentIntakeScreen(),
       ),
@@ -231,11 +225,13 @@ class GoRouterRefreshStream extends ChangeNotifier {
 }
 
 /// The required setup step a student must complete before entering the app:
-/// first the onboarding, then the intake questionnaire. Returns null when the
-/// user is not a student or has finished both (or is unresolved).
+/// the intake questionnaire. Returns null when the user is not a student or
+/// has already completed the intake (or is unresolved).
+///
+/// The height/weight onboarding screen has been removed — height and weight
+/// are now captured inside the intake form itself.
 String? _studentSetupRoute(UserModel? user) {
   if (user == null || user.role != UserRole.student) return null;
-  if (!user.hasCompletedOnboarding) return AppRoutes.studentOnboarding;
   if (!user.hasCompletedIntake) return AppRoutes.studentIntake;
   return null;
 }

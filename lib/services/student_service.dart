@@ -307,8 +307,8 @@ class StudentService {
   }
 
   /// Submit the one-time athlete intake questionnaire. Upserts the responses
-  /// (keyed by intake_form.dart field keys) and flips the profile gate so the
-  /// router lets the student into the app.
+  /// (keyed by intake_form.dart field keys), flips the profile gate, and
+  /// writes height/weight to profiles + body_progress if provided.
   Future<void> submitIntake(Map<String, dynamic> responses) async {
     final userId = currentUserId;
     if (userId == null) throw Exception('No user logged in');
@@ -327,6 +327,15 @@ class StudentService {
         .from('profiles')
         .update({'has_completed_intake': true})
         .eq('id', userId);
+
+    // Write height/weight captured in the intake form to profiles/body_progress.
+    final heightCm =
+        double.tryParse(responses['height_cm']?.toString() ?? '');
+    final weightKg =
+        double.tryParse(responses['weight_kg']?.toString() ?? '');
+    if (heightCm != null || weightKg != null) {
+      await logMetrics(weight: weightKg, height: heightCm);
+    }
   }
 
   /// The current student's intake responses (or null if not filled yet).

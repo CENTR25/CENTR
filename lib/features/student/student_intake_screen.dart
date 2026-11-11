@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../core/constants/intake_form.dart';
 import '../../services/auth_service.dart';
+import '../../services/intake_schema_service.dart';
 import '../../services/student_service.dart';
 import 'intake_audio_field.dart';
 
@@ -25,6 +26,10 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
   int _currentPage = 0;
   bool _isLoading = false;
 
+  /// Schema resolved from IntakeSchemaService; falls back to kIntakeSections
+  /// once loaded. Null while loading.
+  List<IntakeSection>? _sections;
+
   /// Answers keyed by IntakeField.key. String for text/single-choice,
   /// `List<String>` for multi-choice.
   final Map<String, dynamic> _responses = {};
@@ -36,6 +41,12 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
   /// Field keys whose "Otro" option is toggled open (input shown), even before
   /// any text is typed. Decouples the tap state from the stored free-text value.
   final Set<String> _otherOpen = {};
+
+  List<IntakeSection> get _activeSections => _sections ?? kIntakeSections;
+
+  List<IntakeField> get _activeFields => [
+        for (final s in _activeSections) ...s.fields,
+      ];
 
   @override
   void initState() {
@@ -49,6 +60,24 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
       if (user.email.trim().isNotEmpty) {
         _responses['email'] = user.email.trim();
       }
+    }
+    _loadSchema();
+  }
+
+  Future<void> _loadSchema() async {
+    try {
+      final user = ref.read(authProvider).user;
+      final trainerId = user?.trainerId;
+      final schemaDtos = await ref
+          .read(intakeSchemaServiceProvider)
+          .getSchemaForStudent(trainerId);
+      if (mounted) {
+        setState(() {
+          _sections = schemaDtos.map((s) => s.toIntakeSection()).toList();
+        });
+      }
+    } catch (_) {
+      // Fall through — _activeSections falls back to kIntakeSections.
     }
   }
 
@@ -83,7 +112,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
   }
 
   bool get _currentSectionValid {
-    final section = kIntakeSections[_currentPage];
+    final section = _activeSections[_currentPage];
     for (final field in section.fields) {
       if (field.required && !_isFieldAnswered(field)) return false;
     }
@@ -95,7 +124,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
       _showMissingWarning();
       return;
     }
-    if (_currentPage < kIntakeSections.length - 1) {
+    if (_currentPage < _activeSections.length - 1) {
       FocusScope.of(context).unfocus();
       _pageController.nextPage(
         duration: const Duration(milliseconds: 350),
@@ -132,7 +161,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
     try {
       // Flush any pending "other" free-text into the responses map.
       final cleaned = <String, dynamic>{};
-      for (final field in kIntakeFields) {
+      for (final field in _activeFields) {
         final value = _responses[field.key];
         if (value == null) continue;
         if (value is List) {
@@ -142,7 +171,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
         }
       }
       // Include any recorded voice-note URLs (stored under `<key>_audio`).
-      for (final field in kIntakeFields) {
+      for (final field in _activeFields) {
         if (!field.allowAudio) continue;
         final audio = _responses['${field.key}_audio'];
         if (audio is String && audio.isNotEmpty) {
@@ -167,7 +196,22 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLast = _currentPage == kIntakeSections.length - 1;
+    // Show a spinner while the schema is loading (should be very fast).
+    if (_sections == null) {
+      return Theme(
+        data: RedesignTheme.theme,
+        child: Scaffold(
+          backgroundColor: RedesignColors.background,
+          body: const Center(
+            child: CircularProgressIndicator(
+              color: RedesignColors.actionPrimary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final isLast = _currentPage == _activeSections.length - 1;
     return Theme(
       data: RedesignTheme.theme,
       child: Scaffold(
@@ -181,9 +225,9 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
                   controller: _pageController,
                   physics: const NeverScrollableScrollPhysics(),
                   onPageChanged: (p) => setState(() => _currentPage = p),
-                  itemCount: kIntakeSections.length,
+                  itemCount: _activeSections.length,
                   itemBuilder: (context, index) =>
-                      _buildSectionPage(kIntakeSections[index]),
+                      _buildSectionPage(_activeSections[index]),
                 ),
               ),
               _buildNav(isLast),
@@ -201,7 +245,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: List.generate(kIntakeSections.length, (i) {
+            children: List.generate(_activeSections.length, (i) {
               return Expanded(
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
@@ -219,7 +263,7 @@ class _StudentIntakeScreenState extends ConsumerState<StudentIntakeScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Paso ${_currentPage + 1} de ${kIntakeSections.length}',
+            'Paso ${_currentPage + 1} de ${_activeSections.length}',
             style: const TextStyle(color: RedesignColors.primario300, fontSize: 12),
           ),
         ],

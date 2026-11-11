@@ -8,6 +8,7 @@ import '../../shared/redesign_toast.dart';
 import '../widgets/admin_broadcast_sheet.dart';
 import '../widgets/admin_common.dart';
 import '../widgets/admin_invite_trainer_sheet.dart';
+import 'admin_intake_editor_screen.dart';
 import 'admin_profile_screen.dart';
 
 /// Admin Inicio — "Panel PRGS": header metrics, Invitar/Notificar actions and
@@ -102,6 +103,67 @@ class AdminHomeView extends ConsumerWidget {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 28),
+                  const AdminSectionLabel('Configuración'),
+                  const SizedBox(height: 12),
+                  AdminCard(
+                    child: InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AdminIntakeEditorScreen(),
+                        ),
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 16),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: RedesignColors.actionPrimary
+                                    .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.assignment_outlined,
+                                color: RedesignColors.actionPrimary,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Formulario de Atleta',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Editar el formulario de bienvenida',
+                                    style: TextStyle(
+                                      color: RedesignColors.primario400,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right_rounded,
+                                color: RedesignColors.primario400),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 28),
                   const AdminSectionLabel('Pendientes'),

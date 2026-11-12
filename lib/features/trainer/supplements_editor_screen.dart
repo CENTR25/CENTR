@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/theme_redesign.dart';
+import '../../services/supplement_catalog_service.dart';
 import '../../services/trainer_service.dart';
+import '../admin/presentation/admin_supplement_catalog_screen.dart';
 import '../shared/redesign_toast.dart';
 import 'student_detail_screen.dart';
 
@@ -27,29 +29,32 @@ class SupplementsListScreen extends ConsumerStatefulWidget {
 
 class _SupplementsListScreenState
     extends ConsumerState<SupplementsListScreen> {
-  // 0 = Diaria, 1 = Química
+  // 0 = Natural (DB key 'diaria'), 1 = Química
   int _categoryIndex = 0;
 
   String get _currentCategory =>
       _categoryIndex == 0 ? 'diaria' : 'quimica';
 
-  // Quick-add preset names (always use current category).
-  static const _quickNames = ['Omega 3', 'Multivitamínico', 'Cafeína'];
-
-  void _openEditor({Map<String, dynamic>? existing, String? prefillName}) {
+  void _openEditor(
+      {Map<String, dynamic>? existing, SupplementCatalogItem? prefill}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _SupplementEditorSheet(
-        athleteId: widget.athleteId,
-        category: _currentCategory,
-        existing: existing,
-        prefillName: prefillName,
-        onSaved: () {
-          ref.invalidate(athleteSupplementsProvider(widget.athleteId));
-          ref.invalidate(studentDetailProvider(widget.athleteId));
-        },
+      // The sheet route sits above this screen's Theme, so re-apply the
+      // redesign theme or inputs/buttons inherit the global violet one.
+      builder: (_) => Theme(
+        data: RedesignTheme.theme,
+        child: _SupplementEditorSheet(
+          athleteId: widget.athleteId,
+          category: _currentCategory,
+          existing: existing,
+          prefill: prefill,
+          onSaved: () {
+            ref.invalidate(athleteSupplementsProvider(widget.athleteId));
+            ref.invalidate(studentDetailProvider(widget.athleteId));
+          },
+        ),
       ),
     );
   }
@@ -104,7 +109,7 @@ class _SupplementsListScreenState
               child: Row(
                 children: [
                   _FilterPill(
-                    label: 'Diaria',
+                    label: 'Natural',
                     selected: _categoryIndex == 0,
                     onTap: () =>
                         setState(() => _categoryIndex = 0),
@@ -142,6 +147,14 @@ class _SupplementsListScreenState
                   final filtered = all
                       .where((s) => s['category'] == _currentCategory)
                       .toList();
+                  final catKey =
+                      _currentCategory == 'quimica' ? 'quimica' : 'natural';
+                  final quickItems = (ref
+                              .watch(activeSupplementCatalogProvider)
+                              .valueOrNull ??
+                          fallbackSupplementCatalog)
+                      .where((c) => c.category == catKey)
+                      .toList();
 
                   return ListView(
                     padding:
@@ -175,6 +188,11 @@ class _SupplementsListScreenState
                       // "+ Agregar suplemento"
                       OutlinedButton.icon(
                         onPressed: () => _openEditor(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: RedesignColors.actionPrimary,
+                          side: const BorderSide(
+                              color: RedesignColors.actionPrimary),
+                        ),
                         icon: const Icon(Icons.add_rounded, size: 18),
                         label: const Text('Agregar suplemento'),
                       ),
@@ -182,23 +200,51 @@ class _SupplementsListScreenState
                       const SizedBox(height: 20),
 
                       // Quick-add chips
-                      Text(
-                        'Agregar rápido',
-                        style: TextStyle(
-                          color: RedesignColors.primario300,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'Metropolis',
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Agregar rápido',
+                              style: TextStyle(
+                                color: RedesignColors.primario300,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'Metropolis',
+                              ),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const AdminSupplementCatalogScreen(
+                                          asAdmin: false),
+                                ),
+                              );
+                              ref.invalidate(activeSupplementCatalogProvider);
+                            },
+                            child: const Text(
+                              'Mi lista',
+                              style: TextStyle(
+                                color: RedesignColors.actionPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'Metropolis',
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: _quickNames.map((name) {
+                        children: quickItems.map((item) {
+                          final name = item.name;
                           return GestureDetector(
-                            onTap: () =>
-                                _openEditor(prefillName: name),
+                            onTap: () => _openEditor(prefill: item),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 14, vertical: 8),
@@ -282,9 +328,11 @@ class _SupplementCard extends StatelessWidget {
     final firstTiming = timingList.isNotEmpty
         ? _timingLabel(timingList.first.toString())
         : '';
+    final wd = weekdaysLabel(supplement['weekdays']);
     final summary = [
       if (dose.isNotEmpty || unit.isNotEmpty) '$dose$unit',
       if (firstTiming.isNotEmpty) firstTiming,
+      if (wd.isNotEmpty) wd,
     ].join(' · ');
 
     return GestureDetector(
@@ -361,14 +409,14 @@ class _SupplementEditorSheet extends ConsumerStatefulWidget {
   final String athleteId;
   final String category;
   final Map<String, dynamic>? existing;
-  final String? prefillName;
+  final SupplementCatalogItem? prefill;
   final VoidCallback onSaved;
 
   const _SupplementEditorSheet({
     required this.athleteId,
     required this.category,
     this.existing,
-    this.prefillName,
+    this.prefill,
     required this.onSaved,
   });
 
@@ -387,6 +435,7 @@ class _SupplementEditorSheetState
     ('antes_dormir', 'Antes de dormir'),
     ('pre_entreno', 'Pre entreno'),
   ];
+  static const _weekdayLetters = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
   static const _daysOptions = [
     ('todos', 'Todos los días'),
     ('entreno', 'Días de entreno'),
@@ -399,6 +448,7 @@ class _SupplementEditorSheetState
   late String? _unit;
   late Set<String> _timing;
   late String? _days;
+  late Set<int> _weekdays; // 1=Lunes..7=Domingo; empty => use _days
   bool _loading = false;
 
   bool get _isEditing => widget.existing != null;
@@ -408,18 +458,21 @@ class _SupplementEditorSheetState
     super.initState();
     final e = widget.existing;
     _nameCtrl = TextEditingController(
-      text: e?['name'] as String? ?? widget.prefillName ?? '',
+      text: e?['name'] as String? ?? widget.prefill?.name ?? '',
     );
-    _doseCtrl =
-        TextEditingController(text: e?['dose'] as String? ?? '');
-    _noteCtrl =
-        TextEditingController(text: e?['note'] as String? ?? '');
-    _unit = e?['unit'] as String?;
-    final rawTiming = e?['timing'] as List?;
+    _doseCtrl = TextEditingController(
+        text: e?['dose'] as String? ?? widget.prefill?.defaultDose ?? '');
+    _noteCtrl = TextEditingController(
+        text: e?['note'] as String? ?? widget.prefill?.note ?? '');
+    _unit = e != null ? e['unit'] as String? : widget.prefill?.defaultUnit;
+    final rawTiming = e != null
+        ? e['timing'] as List?
+        : widget.prefill?.defaultTiming;
     _timing = rawTiming != null
         ? Set<String>.from(rawTiming.map((t) => t.toString()))
         : {};
     _days = e?['days'] as String?;
+    _weekdays = parseWeekdays(e?['weekdays']);
   }
 
   @override
@@ -452,7 +505,8 @@ class _SupplementEditorSheetState
             : _doseCtrl.text.trim(),
         'unit': _unit,
         'timing': _timing.toList(),
-        'days': _days,
+        'days': _weekdays.isEmpty ? _days : null,
+        'weekdays': _weekdays.isEmpty ? null : (_weekdays.toList()..sort()),
         'note': _noteCtrl.text.trim().isEmpty
             ? null
             : _noteCtrl.text.trim(),
@@ -682,21 +736,48 @@ class _SupplementEditorSheetState
               ),
               const SizedBox(height: 18),
 
-              // ── Días (single-select) ─────────────────────────────
+              // ── Días (single-select, or specific weekdays) ───────
               _SheetLabel(label: 'Días'),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: _daysOptions.map((opt) {
-                  final selected = _days == opt.$1;
+                  final selected = _weekdays.isEmpty && _days == opt.$1;
                   return _SheetPill(
                     label: opt.$2,
                     selected: selected,
-                    onTap: () => setState(
-                        () => _days = selected ? null : opt.$1),
+                    onTap: () => setState(() {
+                      _weekdays.clear();
+                      _days = selected ? null : opt.$1;
+                    }),
                   );
                 }).toList(),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'O elegí días específicos',
+                style: TextStyle(
+                  color: RedesignColors.primario400,
+                  fontSize: 12,
+                  fontFamily: 'Metropolis',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (var d = 1; d <= 7; d++)
+                    _SheetPill(
+                      label: _weekdayLetters[d - 1],
+                      selected: _weekdays.contains(d),
+                      onTap: () => setState(() {
+                        if (!_weekdays.remove(d)) _weekdays.add(d);
+                        if (_weekdays.isNotEmpty) _days = null;
+                      }),
+                    ),
+                ],
               ),
               const SizedBox(height: 18),
 
@@ -897,4 +978,24 @@ class _FilterPill extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Weekday helpers (shared with the student view). 1=Lunes .. 7=Domingo.
+// ---------------------------------------------------------------------------
+
+Set<int> parseWeekdays(dynamic raw) {
+  if (raw is! List) return <int>{};
+  return raw
+      .map((e) => e is num ? e.toInt() : int.tryParse(e.toString()) ?? 0)
+      .where((d) => d >= 1 && d <= 7)
+      .toSet();
+}
+
+/// "Lun, Mié, Vie"; empty when no specific weekdays are set.
+String weekdaysLabel(dynamic raw) {
+  const names = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  final days = parseWeekdays(raw).toList()..sort();
+  if (days.length == 7) return 'Todos los días';
+  return days.map((d) => names[d - 1]).join(', ');
 }

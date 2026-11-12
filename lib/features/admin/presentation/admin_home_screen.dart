@@ -10,6 +10,7 @@ import '../widgets/admin_common.dart';
 import '../widgets/admin_invite_trainer_sheet.dart';
 import 'admin_intake_editor_screen.dart';
 import 'admin_profile_screen.dart';
+import 'admin_supplement_catalog_screen.dart';
 
 /// Admin Inicio — "Panel PRGS": header metrics, Invitar/Notificar actions and
 /// the Pendientes list. `onOpenEntrenadores` / `onOpenSuscripciones` switch the
@@ -165,6 +166,8 @@ class AdminHomeView extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  const AdminSupplementsEntry(),
                   const SizedBox(height: 28),
                   const AdminSectionLabel('Pendientes'),
                   const SizedBox(height: 12),

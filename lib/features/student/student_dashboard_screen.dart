@@ -1466,7 +1466,7 @@ class _SupplementInfoModal extends StatelessWidget {
                   if (hasStructured) ...[
                     if (diaria.isNotEmpty)
                       _group(
-                        title: 'Diaria',
+                        title: 'Natural',
                         icon: Icons.autorenew_rounded,
                         items: diaria,
                         bg: RedesignColors.secundario300,
@@ -1566,6 +1566,21 @@ class _SupplementInfoModal extends StatelessWidget {
     );
   }
 
+  // weekdays: smallint[] 1=Lunes..7=Domingo (null/empty => legacy `days`).
+  static String _weekdaysLabel(dynamic raw) {
+    if (raw is! List) return '';
+    const names = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    final days = raw
+        .map((e) => e is num ? e.toInt() : int.tryParse(e.toString()) ?? 0)
+        .where((d) => d >= 1 && d <= 7)
+        .toSet()
+        .toList()
+      ..sort();
+    if (days.isEmpty) return '';
+    if (days.length == 7) return 'Todos los días';
+    return days.map((d) => names[d - 1]).join(', ');
+  }
+
   Widget _suppItem(Map<String, dynamic> s) {
     final name = (s['name'] as String? ?? '').trim();
     final dose = (s['dose'] as String? ?? '').trim();
@@ -1577,8 +1592,12 @@ class _SupplementInfoModal extends StatelessWidget {
             .join(', ') ??
         '';
     final doseStr = [dose, unit].where((e) => e.isNotEmpty).join(' ');
+    final weekdaysStr = _weekdaysLabel(s['weekdays']);
     final meta = <String>[
-      if (_daysLabels[daysKey] != null) _daysLabels[daysKey]!,
+      if (weekdaysStr.isNotEmpty)
+        weekdaysStr
+      else if (_daysLabels[daysKey] != null)
+        _daysLabels[daysKey]!,
       if (timing.isNotEmpty) timing,
     ].join(' · ');
 

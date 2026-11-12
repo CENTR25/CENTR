@@ -1973,19 +1973,22 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
     } else {
       _useSameReps = true;
       _standardReps = repsTarget;
-      _individualReps = List.filled(_sets, repsTarget);
+      // Must be growable: _updateSets() grows it when sets are increased.
+      _individualReps = List.filled(_sets, repsTarget, growable: true);
     }
   }
 
   void _updateSets(int newSets) {
     setState(() {
+      final old = _individualReps;
+      // Always build a fresh list — `old` may be fixed-length, and addAll on
+      // it throws inside setState, which silently freezes the counter.
+      // New sets copy the last set's reps instead of a hardcoded '10'.
+      final fill = old.isNotEmpty ? old.last : _standardReps;
+      _individualReps = [
+        for (var i = 0; i < newSets; i++) i < old.length ? old[i] : fill,
+      ];
       _sets = newSets;
-      if (_individualReps.length < newSets) {
-        _individualReps.addAll(
-            List.filled(newSets - _individualReps.length, '10'));
-      } else {
-        _individualReps = _individualReps.sublist(0, newSets);
-      }
     });
   }
 

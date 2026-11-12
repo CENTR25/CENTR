@@ -185,13 +185,17 @@ class _PendientesTab extends ConsumerWidget {
             .toList();
 
         // Completados: every done task not already listed under "Hoy".
-        // (No completion timestamp exists on trainer_tasks, so the card shows
-        // the due date; tapping the check reopens the task.)
+        // Most recently completed first; tasks done before completed_at
+        // existed fall back to due/created date. Tapping the check reopens.
         final completed = tasks
             .where((t) => t.isDone && !todayTasks.contains(t))
             .toList()
-          ..sort((a, b) => (b.dueDate ?? b.createdAt ?? DateTime(2000))
-              .compareTo(a.dueDate ?? a.createdAt ?? DateTime(2000)));
+          ..sort((a, b) =>
+              (b.completedAt ?? b.dueDate ?? b.createdAt ?? DateTime(2000))
+                  .compareTo(a.completedAt ??
+                      a.dueDate ??
+                      a.createdAt ??
+                      DateTime(2000)));
         final showCompleted = ref.watch(showCompletedTasksProvider);
         final doneCount = tasks.where((t) => t.isDone).length;
 
@@ -392,10 +396,16 @@ class _TaskCard extends ConsumerWidget {
                         decorationColor: RedesignColors.primario400,
                       ),
                     ),
-                    if (done && task.dueDate != null) ...[
+                    if (done &&
+                        (task.dueDate != null || task.completedAt != null)) ...[
                       const SizedBox(height: 3),
                       Text(
-                        'Fecha: ${task.dueDate!.day}/${task.dueDate!.month}/${task.dueDate!.year}',
+                        [
+                          if (task.dueDate != null)
+                            'Límite: ${_dmy(task.dueDate!)}',
+                          if (task.completedAt != null)
+                            'Completada: ${_dmy(task.completedAt!)}',
+                        ].join('  ·  '),
                         style: RedesignType.label
                             .copyWith(color: RedesignColors.primario400),
                       ),
@@ -1509,3 +1519,5 @@ class _SlotSheetState extends ConsumerState<_SlotSheet> {
     ]);
   }
 }
+
+String _dmy(DateTime d) => '${d.day}/${d.month}/${d.year}';

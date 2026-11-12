@@ -10,6 +10,7 @@ class TrainerTask {
   final String? athleteId;
   final String? athleteName; // joined from athletes(name), read-only
   final DateTime? createdAt;
+  final DateTime? completedAt; // set by DB trigger when is_done flips true
 
   TrainerTask({
     required this.id,
@@ -21,6 +22,7 @@ class TrainerTask {
     this.athleteId,
     this.athleteName,
     this.createdAt,
+    this.completedAt,
   });
 
   /// True when not done and due today or earlier (the home-card surface).
@@ -57,6 +59,7 @@ class TrainerTask {
       athleteName:
           athlete is Map ? asStr(athlete['name']) : asStr(json['athlete_name']),
       createdAt: asDate(json['created_at']),
+      completedAt: asDate(json['completed_at'])?.toLocal(),
     );
   }
 
@@ -70,5 +73,9 @@ class TrainerTask {
         athleteId: athleteId,
         athleteName: athleteName,
         createdAt: createdAt,
+        // Optimistic: mirror the DB trigger until the refetch lands.
+        completedAt: isDone == null
+            ? completedAt
+            : (isDone ? (completedAt ?? DateTime.now()) : null),
       );
 }

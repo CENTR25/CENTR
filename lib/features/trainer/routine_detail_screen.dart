@@ -8,6 +8,7 @@ import '../../../models/exercise_model.dart';
 import '../../../services/exercise_media_service.dart';
 import '../../../services/storage_service.dart';
 import '../../../services/trainer_service.dart';
+import '../../services/muscle_group_service.dart';
 import '../../../widgets/exercise_gif_view.dart';
 import '../../../widgets/weekday_picker.dart';
 import '../shared/redesign_toast.dart';
@@ -261,24 +262,6 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
                                       ],
                                     ),
                                   ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            TextButton(
-                              onPressed: () =>
-                                  _showAddExercise(context, _currentDay),
-                              style: TextButton.styleFrom(
-                                foregroundColor: RedesignColors.actionPrimary,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 4),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              child: Text(
-                                'Agregar ejercicio',
-                                style: RedesignType.buttonSm.copyWith(
-                                  color: RedesignColors.actionPrimary,
                                 ),
                               ),
                             ),
@@ -787,7 +770,7 @@ class _RoutineInfoCard extends StatelessWidget {
               GestureDetector(
                 onTap: onEditTap,
                 child: Text(
-                  'Editar',
+                  'Editar Rutina',
                   style: RedesignType.buttonSm.copyWith(
                     color: RedesignColors.actionPrimary,
                     fontWeight: FontWeight.w600,
@@ -1674,6 +1657,17 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
       );
       return;
     }
+    if (_selectedWeekdays.length != _daysPerWeek) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_selectedWeekdays.length < _daysPerWeek
+              ? 'Faltan días por seleccionar'
+              : 'Seleccionaste más días de los que tiene la rutina'),
+          backgroundColor: RedesignColors.danger,
+        ),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     final nav = Navigator.of(context);
     final overlay = Overlay.of(context);
@@ -2050,7 +2044,9 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                 onTap: () =>
                     setState(() => _selectedMuscleGroup = null),
               ),
-              ...ExerciseCategory.routineFilters.map(
+              ...(ref.watch(muscleGroupNamesProvider).valueOrNull ??
+                      ExerciseCategory.routineFilters)
+                  .map(
                 (group) => Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: _Pill(

@@ -9,23 +9,14 @@ import '../../../core/utils/string_utils.dart';
 import '../../../services/trainer_service.dart';
 import '../../../services/storage_service.dart';
 import 'package:north_star/utils/exercise_category.dart';
+import '../../services/muscle_group_service.dart';
+import 'muscle_groups_editor_screen.dart';
 
 // ---------------------------------------------------------------------------
 // ExerciseLibraryScreen — PRGS redesign (navy/teal palette)
 // Figma screens: "Ejercicios (todos)", "Ejercicios (mis ejercicios)",
 //                "Nuevo ejercicio", "Detalle del ejercicio"
 // ---------------------------------------------------------------------------
-
-// Muscle-group filter chips shown in the list header.
-const List<String> _kMuscleChips = [
-  'Todos',
-  'Piernas',
-  'Pecho',
-  'Espalda',
-  'Hombros',
-  'Brazos',
-  'Core',
-];
 
 class ExerciseLibraryScreen extends ConsumerStatefulWidget {
   const ExerciseLibraryScreen({super.key});
@@ -98,12 +89,24 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
             ),
           ),
           const SizedBox(width: 14),
-          Text(
-            'Ejercicios',
-            style: RedesignType.bodyMd.copyWith(
-              color: RedesignColors.primario50,
-              fontWeight: FontWeight.w700,
+          Expanded(
+            child: Text(
+              'Ejercicios',
+              style: RedesignType.bodyMd.copyWith(
+                color: RedesignColors.primario50,
+                fontWeight: FontWeight.w700,
+              ),
             ),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const MuscleGroupsEditorScreen())),
+            style: TextButton.styleFrom(
+              foregroundColor: RedesignColors.actionPrimary,
+              minimumSize: const Size(0, 36),
+            ),
+            icon: const Icon(Icons.category_rounded, size: 18),
+            label: const Text('Grupos'),
           ),
         ],
       ),
@@ -174,15 +177,18 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
   // ── Horizontal muscle-group filter chips ─────────────────────────────────
 
   Widget _buildMuscleChips() {
+    final groups = ref.watch(muscleGroupNamesProvider).valueOrNull ??
+        const <String>[];
+    final chips = ['Todos', ...groups];
     return SizedBox(
       height: 36,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: _kMuscleChips.length,
+        itemCount: chips.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
-          final label = _kMuscleChips[i];
+          final label = chips[i];
           final active = (i == 0 && _selectedMuscleGroup == null) ||
               label == _selectedMuscleGroup;
           return _FilterChip(
@@ -1668,22 +1674,31 @@ class _FieldLabelOptional extends StatelessWidget {
 // Muscle group chip selector (wrap layout)
 // ---------------------------------------------------------------------------
 
-class _MuscleGroupChips extends StatelessWidget {
+class _MuscleGroupChips extends ConsumerWidget {
   final String selected;
   final ValueChanged<String> onSelect;
 
-  static const _groups = [
-    'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Core',
+  static const _fallback = [
+    'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Abdominales',
   ];
 
   const _MuscleGroupChips({required this.selected, required this.onSelect});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fromDb = ref.watch(muscleGroupNamesProvider).valueOrNull;
+    final groups = <String>[
+      ...(fromDb == null || fromDb.isEmpty ? _fallback : fromDb),
+    ];
+    // Keep an exercise's current (possibly deactivated/legacy) group visible.
+    if (selected.isNotEmpty &&
+        !groups.any((g) => g.toLowerCase() == selected.toLowerCase())) {
+      groups.add(selected);
+    }
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _groups.map((g) {
+      children: groups.map((g) {
         final active = selected == g;
         return GestureDetector(
           onTap: () => onSelect(g),

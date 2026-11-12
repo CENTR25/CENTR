@@ -10,10 +10,12 @@ import '../../../services/affiliated_brand_service.dart';
 import '../../../services/app_settings_service.dart';
 import '../../../services/news_service.dart';
 import '../../shared/redesign_toast.dart';
+import '../../trainer/banco_alimentos_screen.dart';
 import '../widgets/admin_add_exercise_sheet.dart';
 import '../widgets/admin_common.dart';
 import 'admin_brand_editor_screen.dart';
 import 'admin_news_editor_screen.dart';
+import '../../trainer/muscle_groups_editor_screen.dart';
 
 /// Admin Contenido — Noticias / Marcas / Ejercicios under one tab with
 /// segmented pills (Figma Third + Four Batch).
@@ -107,6 +109,35 @@ class _RecetasSection extends ConsumerWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(22, 4, 22, 130),
       children: [
+        // Alimentos: admin entry to the food bank (global foods + meals, CSV import).
+        AdminCard(
+          padding: const EdgeInsets.all(16),
+          child: InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BancoAlimentosScreen()),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.restaurant_rounded,
+                    color: RedesignColors.secundario300),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Alimentos (banco global, importar CSV)',
+                    style: RedesignType.bodySm.copyWith(
+                      color: RedesignColors.primario50,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded,
+                    color: RedesignColors.primario400),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         AdminCard(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -460,6 +491,25 @@ class _ExercisesListState extends ConsumerState<_ExercisesList> {
                 size: 20,
                 color: RedesignColors.primario300,
               ),
+            ),
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: TextButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        const MuscleGroupsEditorScreen(isAdmin: true)),
+              ),
+              style: TextButton.styleFrom(
+                  foregroundColor: RedesignColors.actionPrimary,
+                  minimumSize: const Size(0, 36)),
+              icon: const Icon(Icons.category_rounded, size: 18),
+              label: const Text('Grupos musculares'),
             ),
           ),
         ),

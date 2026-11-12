@@ -1090,6 +1090,9 @@ class TrainerService {
     String? objective,
     int? days,
     List<String>? mealTimes,
+    List<Map<String, String>>? mealSlots,
+    List<String>? dayLabels,
+    String? note,
     File? imageFile,
     String? imageUrl, // web-safe: pass a pre-uploaded URL instead of a File
     StorageService? storageService,
@@ -1113,6 +1116,9 @@ class TrainerService {
           if (objective != null) 'objective': objective,
           if (days != null) 'days': days,
           if (mealTimes != null) 'meal_times': mealTimes,
+          if (mealSlots != null) 'meal_slots': mealSlots,
+          if (dayLabels != null) 'day_labels': dayLabels,
+          if (note != null && note.isNotEmpty) 'note': note,
           if (finalImageUrl != null) 'image_url': finalImageUrl,
           'created_at': DateTime.now().toUtc().toIso8601String(),
         })
@@ -1128,6 +1134,33 @@ class TrainerService {
         .from('meal_plans')
         .update({'image_url': imageUrl})
         .eq('id', planId);
+  }
+
+  /// Edit a plan's full definition (title, objective, kcal, days, slots,
+  /// day labels, note, optional cover). Null label/slot lists clear the column.
+  Future<void> updateMealPlanDetails({
+    required String planId,
+    required String title,
+    String? objective,
+    int? targetCalories,
+    required int days,
+    required List<Map<String, String>> mealSlots,
+    List<String>? dayLabels,
+    String? note,
+    String? imageUrl,
+  }) async {
+    await _client.from('meal_plans').update({
+      'title': title,
+      'objective': objective,
+      'target_calories': targetCalories,
+      'days': days,
+      'meal_slots': mealSlots,
+      'meal_times': [for (final s in mealSlots) s['key']],
+      'day_labels': dayLabels,
+      'note': (note == null || note.trim().isEmpty) ? null : note.trim(),
+      if (imageUrl != null) 'image_url': imageUrl,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', planId);
   }
 
   /// Update a meal plan
@@ -1304,6 +1337,12 @@ class TrainerService {
           'target_calories': source['target_calories'],
           'target_macros': source['target_macros'],
           'image_url': source['image_url'],
+          'objective': source['objective'],
+          'days': source['days'],
+          'meal_times': source['meal_times'],
+          'meal_slots': source['meal_slots'],
+          'day_labels': source['day_labels'],
+          'note': source['note'],
           'is_template': false,
           'cloned_from': mealPlanId,
         })

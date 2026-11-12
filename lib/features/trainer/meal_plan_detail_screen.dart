@@ -8,6 +8,7 @@ import '../../services/trainer_service.dart';
 import '../../services/storage_service.dart';
 import '../shared/redesign_toast.dart';
 import 'banco_alimentos_screen.dart';
+import 'nuevo_plan_screen.dart';
 import 'student_detail_screen.dart' show studentDetailProvider;
 
 // ---------------------------------------------------------------------------
@@ -74,15 +75,16 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
   }
 
   Map<String, List<Map<String, dynamic>>> _groupByTime(
-      List items, int dayNum) {
+      Map<String, dynamic> plan, List items, int dayNum) {
+    final slots = mealSlotsOf(plan, items);
     final dayItems = items
         .where((i) => i['day_number'] == dayNum)
         .map((i) => Map<String, dynamic>.from(i as Map))
         .toList();
 
     dayItems.sort((a, b) {
-      final ao = kMealTimeOrder[a['time_of_day']] ?? 99;
-      final bo = kMealTimeOrder[b['time_of_day']] ?? 99;
+      final ao = mealSlotIndex(slots, a['time_of_day'] as String?);
+      final bo = mealSlotIndex(slots, b['time_of_day'] as String?);
       final oc = ao.compareTo(bo);
       if (oc != 0) return oc;
       final ai =
@@ -164,6 +166,31 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
     );
   }
 
+  Future<void> _editPlan(
+      BuildContext context, Map<String, dynamic> plan) async {
+    final allowed = await _checkEditGate(context, plan);
+    if (!allowed || !context.mounted) return;
+    // After personalizing, edit the COPY (fresh fetch, same shape).
+    var target = plan;
+    if (_activePlanId != plan['id']) {
+      final fresh =
+          await ref.read(trainerServiceProvider).getMealPlan(_activePlanId);
+      if (fresh == null || !context.mounted) return;
+      target = fresh;
+    }
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => NuevoPlanScreen(editPlan: target)),
+    );
+    if (saved == true) {
+      ref.invalidate(mealPlanDetailProvider(_activePlanId));
+      ref.invalidate(myMealPlansProvider);
+      if (context.mounted) {
+        showRedesignToast(context, title: '¡Plan actualizado!');
+      }
+    }
+  }
+
   // ── Sheet launchers ────────────────────────────────────────────────────────
 
   void _showAddMealSheet(
@@ -176,6 +203,7 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
         backgroundColor: Colors.transparent,
         builder: (_) => _NuevaComidaSheet(
           planId: _activePlanId,
+          slots: mealSlotsOf(plan, (plan['meal_plan_items'] as List?)),
           dayNumber: day,
           initialTime: time,
           onSaved: () {
@@ -197,6 +225,7 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
         backgroundColor: Colors.transparent,
         builder: (_) => _NuevaComidaSheet(
           planId: _activePlanId,
+          slots: mealSlotsOf(plan, (plan['meal_plan_items'] as List?)),
           dayNumber: (item['day_number'] as int?) ?? 1,
           initialTime:
               (item['time_of_day'] as String?) ?? 'breakfast',
@@ -252,6 +281,21 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           centerTitle: true,
+          actions: [
+            if (planAsync.valueOrNull != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: TextButton.icon(
+                  onPressed: () => _editPlan(context, planAsync.value!),
+                  style: TextButton.styleFrom(
+                    foregroundColor: RedesignColors.secundario300,
+                    minimumSize: const Size(0, 40),
+                  ),
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  label: const Text('Editar plan'),
+                ),
+              ),
+          ],
           title: planAsync.when(
             data: (plan) {
               final title = (plan?['title'] as String?) ?? widget.planName;
@@ -315,6 +359,7 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
             // whichever is larger; the "+" pill can extend it further.
             final maxDataDay = _distinctDays(items).last;
             final storedDays = (plan['days'] as int?) ?? 1;
+            final planNote = (plan['note'] as String?)?.trim();
             final baseDays = storedDays > maxDataDay ? storedDays : maxDataDay;
             final dayCount =
                 (_dayCountOverride ?? baseDays).clamp(baseDays, 999);
@@ -360,6 +405,41 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
                               'Copia personalizada. La plantilla no cambia.',
                               style: RedesignType.label.copyWith(
                                   color: RedesignColors.secundario300),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // ── Plan note ─────────────────────────────────────────────
+                if (planNote != null && planNote.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: RedesignColors.primario700,
+                        borderRadius:
+                            BorderRadius.circular(RedesignRadius.banner),
+                        border: Border.all(
+                          color: RedesignColors.secundario300
+                              .withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.info_outline_rounded,
+                              color: RedesignColors.secundario300, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              planNote,
+                              style: RedesignType.label.copyWith(
+                                  color: RedesignColors.primario50),
                             ),
                           ),
                         ],
@@ -433,7 +513,7 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
                               ),
                             ),
                             child: Text(
-                              'Día $day',
+                              dayLabelOf(plan, day),
                               style: RedesignType.buttonSm.copyWith(
                                 color: isSelected
                                     ? RedesignColors.secundario900
@@ -454,7 +534,7 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
                     plan: plan,
                     items: items,
                     currentDay: _currentDay,
-                    groupedByTime: _groupByTime(items, _currentDay),
+                    groupedByTime: _groupByTime(plan, items, _currentDay),
                     onAddMeal: (time) =>
                         _showAddMealSheet(context, plan, _currentDay, time),
                     onEditMeal: (item) =>
@@ -495,40 +575,12 @@ class _DayContent extends StatelessWidget {
     required this.onDeleteMeal,
   });
 
-  // The four canonical time slots used as a fallback when the plan has no
-  // meal_times set. These keys must match kMealTimeOrder / kMealTimeLabels.
-  static const _defaultSlots = [
-    'breakfast',
-    'lunch',
-    'afternoon_snack',
-    'dinner',
-  ];
-
-  /// Resolve which slots to render for this plan.
-  /// Uses plan['meal_times'] (List) when present and non-empty,
-  /// ordered by kMealTimeOrder so sections always appear top-to-bottom.
-  List<String> _resolveSlots() {
-    final raw = plan['meal_times'];
-    if (raw is List && raw.isNotEmpty) {
-      final keys = raw
-          .whereType<String>()
-          .where((k) => kMealTimeOrder.containsKey(k))
-          .toList();
-      if (keys.isNotEmpty) {
-        keys.sort((a, b) =>
-            (kMealTimeOrder[a] ?? 99).compareTo(kMealTimeOrder[b] ?? 99));
-        return keys;
-      }
-    }
-    return _defaultSlots;
-  }
-
   @override
   Widget build(BuildContext context) {
     final dayItems = items.where((i) => i['day_number'] == currentDay);
     final isEmpty  = dayItems.isEmpty;
-    final slots    = _resolveSlots();
-    final firstSlot = slots.isNotEmpty ? slots.first : 'breakfast';
+    final slots    = mealSlotsOf(plan, items);
+    final firstSlot = slots.first.key;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
@@ -567,28 +619,14 @@ class _DayContent extends StatelessWidget {
           ] else ...[
             for (final slot in slots) ...[
               _TimeSection(
-                timeOfDay: slot,
-                items: groupedByTime[slot] ?? [],
-                onAdd: () => onAddMeal(slot),
+                label: slot.label,
+                items: groupedByTime[slot.key] ?? [],
+                onAdd: () => onAddMeal(slot.key),
                 onEdit: onEditMeal,
                 onDelete: onDeleteMeal,
               ),
               const SizedBox(height: 16),
             ],
-            // Any items in slots not covered by the plan's meal_times list
-            // (e.g. legacy items, morning_snack, evening_snack, snack).
-            for (final entry in groupedByTime.entries)
-              if (!slots.contains(entry.key) &&
-                  entry.value.isNotEmpty) ...[
-                _TimeSection(
-                  timeOfDay: entry.key,
-                  items: entry.value,
-                  onAdd: () => onAddMeal(entry.key),
-                  onEdit: onEditMeal,
-                  onDelete: onDeleteMeal,
-                ),
-                const SizedBox(height: 16),
-              ],
           ],
         ],
       ),
@@ -601,14 +639,14 @@ class _DayContent extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _TimeSection extends StatelessWidget {
-  final String timeOfDay;
+  final String label;
   final List<Map<String, dynamic>> items;
   final VoidCallback onAdd;
   final void Function(Map<String, dynamic>) onEdit;
   final void Function(String) onDelete;
 
   const _TimeSection({
-    required this.timeOfDay,
+    required this.label,
     required this.items,
     required this.onAdd,
     required this.onEdit,
@@ -617,8 +655,6 @@ class _TimeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = kMealTimeLabels[timeOfDay] ?? timeOfDay;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1083,6 +1119,7 @@ class _ChoiceCard extends StatelessWidget {
 
 class _NuevaComidaSheet extends ConsumerStatefulWidget {
   final String planId;
+  final List<MealSlot> slots;
   final int dayNumber;
   final String initialTime;
   final Map<String, dynamic>? editItem; // non-null → EDIT mode
@@ -1090,6 +1127,7 @@ class _NuevaComidaSheet extends ConsumerStatefulWidget {
 
   const _NuevaComidaSheet({
     required this.planId,
+    required this.slots,
     required this.dayNumber,
     required this.initialTime,
     this.editItem,
@@ -1110,14 +1148,6 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
   String? _uploadedImageUrl;
   bool _isUploading = false;
   bool _isSaving = false;
-
-  // The 4 canonical slots shown as pills
-  static const _timeSlots = [
-    'breakfast',
-    'lunch',
-    'afternoon_snack',
-    'dinner',
-  ];
 
   @override
   void initState() {
@@ -1161,7 +1191,7 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
           (result['meal_description'] as String?) ?? '';
       _uploadedImageUrl = result['image_url'] as String?;
       final t = result['time_of_day'] as String?;
-      if (t != null && kMealTimeOrder.containsKey(t)) {
+      if (t != null && widget.slots.any((s) => s.key == t)) {
         _selectedTime = t;
       }
     });
@@ -1263,7 +1293,11 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.editItem != null;
-    final timeLabel = kMealTimeLabels[_selectedTime] ?? _selectedTime;
+    final timeLabel = widget.slots
+        .firstWhere((s) => s.key == _selectedTime,
+            orElse: () => MealSlot(_selectedTime,
+                kMealTimeLabels[_selectedTime] ?? 'Comida'))
+        .label;
 
     return Theme(
       data: RedesignTheme.theme,
@@ -1507,9 +1541,10 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 6,
-                  children: _timeSlots.map((slot) {
+                  children: widget.slots.map((slotObj) {
+                    final slot = slotObj.key;
                     final selected = _selectedTime == slot;
-                    final lbl = kMealTimeLabels[slot] ?? slot;
+                    final lbl = slotObj.label;
                     return GestureDetector(
                       onTap: () => setState(() => _selectedTime = slot),
                       child: AnimatedContainer(

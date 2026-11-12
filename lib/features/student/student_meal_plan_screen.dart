@@ -21,11 +21,18 @@ class StudentMealPlanScreen extends ConsumerStatefulWidget {
 
 class _StudentMealPlanScreenState
     extends ConsumerState<StudentMealPlanScreen> {
-  static const int _daysCount = 7;
+  // 1-based day. Null until the user taps a pill; then a sensible default per
+  // plan shape (see _defaultDay).
+  int? _selectedDay;
 
-  // 1-based day (Día N). Default to today — plan "Día 1..7" maps to Mon..Sun
-  // (Dart weekday: Mon=1..Sun=7).
-  int _selectedDay = DateTime.now().weekday.clamp(1, _daysCount);
+  /// 7 days = Mon..Sun, so default to today; a 2-day "Semana / Fin de semana"
+  /// plan defaults to the matching half; otherwise the first day.
+  int _defaultDay(int count) {
+    final wd = DateTime.now().weekday; // Mon=1..Sun=7
+    if (count == 7) return wd;
+    if (count == 2) return wd >= 6 ? 2 : 1;
+    return 1;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +70,9 @@ class _StudentMealPlanScreenState
   Widget _buildPlan(Map<String, dynamic>? plan) {
     final description = (plan?['description'] as String?)?.trim();
     final items = (plan?['meal_plan_items'] as List?) ?? const [];
+    final count = planDayCount(plan);
+    final selected = (_selectedDay ?? _defaultDay(count)).clamp(1, count);
+    final note = (plan?['note'] as String?)?.trim();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,10 +80,14 @@ class _StudentMealPlanScreenState
         _Header(badge: description),
         const SizedBox(height: 18),
         _DayPills(
-          count: _daysCount,
-          selected: _selectedDay,
+          labels: [for (var d = 1; d <= count; d++) dayLabelOf(plan, d)],
+          selected: selected,
           onSelect: (d) => setState(() => _selectedDay = d),
         ),
+        if (note != null && note.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _NoteCard(text: note),
+        ],
         const SizedBox(height: 14),
         const Divider(
           height: 1,
@@ -89,7 +103,8 @@ class _StudentMealPlanScreenState
                   label: 'No tenés un plan activo',
                 )
               : _DayView(
-                  dayNumber: _selectedDay,
+                  dayNumber: selected,
+                  plan: plan,
                   items: items,
                   targetCalories: (plan['target_calories'] as num?)?.toInt(),
                 ),
@@ -165,13 +180,53 @@ class _Header extends StatelessWidget {
 // Day pills (Día 1..N)
 // ---------------------------------------------------------------------------
 
+class _NoteCard extends StatelessWidget {
+  final String text;
+  const _NoteCard({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: RedesignColors.primario800,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: RedesignColors.primario700),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.info_outline_rounded,
+                size: 18, color: RedesignColors.secundario300),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  fontFamily: 'Metropolis',
+                  color: RedesignColors.primario100,
+                  fontSize: 14,
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DayPills extends StatelessWidget {
-  final int count;
+  final List<String> labels;
   final int selected;
   final ValueChanged<int> onSelect;
 
   const _DayPills({
-    required this.count,
+    required this.labels,
     required this.selected,
     required this.onSelect,
   });
@@ -183,7 +238,7 @@ class _DayPills extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 22),
-        itemCount: count,
+        itemCount: labels.length,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (_, i) {
           final day = i + 1;
@@ -205,7 +260,7 @@ class _DayPills extends StatelessWidget {
                 ),
               ),
               child: Text(
-                'Día $day',
+                labels[i],
                 style: TextStyle(
                   fontFamily: 'Metropolis',
                   color: isActive
@@ -229,11 +284,13 @@ class _DayPills extends StatelessWidget {
 
 class _DayView extends ConsumerStatefulWidget {
   final int dayNumber;
+  final Map<String, dynamic> plan;
   final List<dynamic> items;
   final int? targetCalories;
 
   const _DayView({
     required this.dayNumber,
+    required this.plan,
     required this.items,
     required this.targetCalories,
   });
@@ -243,28 +300,39 @@ class _DayView extends ConsumerStatefulWidget {
 }
 
 class _DayViewState extends ConsumerState<_DayView> {
-  // Optimistic pending toggles: maps meal_plan_item id → desired completion state.
-  // These override the provider value until the network round-trip completes.
+  // Optimistic toggles: meal_plan_item id -> desired state. An entry is kept
+  // until the server round-trip AND the completions refetch have landed, so a
+  // stale provider value can never repaint the old state in between (that gap
+  // was the "enabled -> disabled -> enabled" flicker). _seq guards overlapping
+  // taps on the same meal: only the latest op may clear its override.
   final Map<String, bool> _pending = {};
+  final Map<String, int> _seq = {};
 
   Future<void> _toggle(String id, Set<String> confirmedCompletions) async {
-    final currentlyDone =
-        _pending.containsKey(id) ? _pending[id]! : confirmedCompletions.contains(id);
-    // Apply optimistic state immediately.
-    setState(() => _pending[id] = !currentlyDone);
+    final currentlyDone = _pending.containsKey(id)
+        ? _pending[id]!
+        : confirmedCompletions.contains(id);
+    final target = !currentlyDone;
+    final seq = (_seq[id] ?? 0) + 1;
+    _seq[id] = seq;
+    setState(() => _pending[id] = target);
+    var failed = false;
     try {
-      await ref
-          .read(studentServiceProvider)
-          .toggleMealCompletion(id, !currentlyDone);
-      // Success: provider will eventually sync; clear pending override so we
-      // stay in sync with the server truth.
-      if (mounted) {
-        setState(() => _pending.remove(id));
-        ref.invalidate(todayMealCompletionsProvider);
-      }
+      await ref.read(studentServiceProvider).toggleMealCompletion(id, target);
+      // Refresh server truth and wait for it before dropping the override.
+      ref.invalidate(todayMealCompletionsProvider);
+      await ref.read(todayMealCompletionsProvider.future);
     } catch (_) {
-      // Revert on error.
-      if (mounted) setState(() => _pending.remove(id));
+      failed = true;
+    }
+    if (!mounted || _seq[id] != seq) return;
+    setState(() => _pending.remove(id));
+    if (failed) {
+      ref.invalidate(todayMealCompletionsProvider);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No se pudo guardar. Intentá de nuevo.'),
+        backgroundColor: RedesignColors.danger,
+      ));
     }
   }
 
@@ -305,9 +373,10 @@ class _DayViewState extends ConsumerState<_DayView> {
         : (total > 0 ? doneCount / total : 0.0);
 
     // Group by time-of-day, ordered by the canonical meal-time order.
+    final slots = mealSlotsOf(widget.plan, widget.items);
     final ordered = [...dayItems]..sort((a, b) {
-        final ao = kMealTimeOrder[a['time_of_day']] ?? 99;
-        final bo = kMealTimeOrder[b['time_of_day']] ?? 99;
+        final ao = mealSlotIndex(slots, a['time_of_day'] as String?);
+        final bo = mealSlotIndex(slots, b['time_of_day'] as String?);
         return ao.compareTo(bo);
       });
     final groups = <String, List<dynamic>>{};
@@ -329,7 +398,7 @@ class _DayViewState extends ConsumerState<_DayView> {
         const SizedBox(height: 24),
         for (final entry in groups.entries) ...[
           _GroupHeader(
-            label: kMealTimeLabels[entry.key] ?? 'Comida',
+            label: mealSlotLabel(widget.plan, entry.key),
             kcal: entry.value.fold<int>(0, (s, i) => s + kcalOf(i)),
           ),
           const SizedBox(height: 12),

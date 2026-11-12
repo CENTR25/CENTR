@@ -2091,8 +2091,9 @@ class _StudentsViewState extends ConsumerState<_StudentsView> {
 
                 studentsAsync.when(
                   data: (students) {
-                    if (students.isEmpty)
+                    if (students.isEmpty) {
                       return _EmptyStudents(onInvite: _openInvite);
+                    }
                     final filtered = _query.isEmpty
                         ? students
                         : students.where((s) {
@@ -2962,6 +2963,17 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
       );
       return;
     }
+    if (_selectedWeekdays.length != _daysPerWeek) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_selectedWeekdays.length < _daysPerWeek
+              ? 'Faltan días por seleccionar'
+              : 'Seleccionaste más días de los que tiene la rutina'),
+          backgroundColor: RedesignColors.danger,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -3182,8 +3194,9 @@ class _CreateRoutineSheetState extends ConsumerState<_CreateRoutineSheet> {
                       prefixIcon: Icon(Icons.fitness_center_rounded),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty)
+                      if (value == null || value.isEmpty) {
                         return 'Ingresa un nombre';
+                      }
                       return null;
                     },
                   ),
@@ -3400,6 +3413,17 @@ class _ProfileView extends ConsumerWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => const TrainerStatsScreen(),
+                    ),
+                  ),
+                ),
+                _ProfileMenuRow(
+                  icon: Icons.menu_book_rounded,
+                  title: 'Lectura obligatoria',
+                  subtitle: 'Ver y editar lo que leen tus alumnos',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const RequiredReadingEditorScreen(),
                     ),
                   ),
                 ),

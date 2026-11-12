@@ -141,6 +141,9 @@ class _SegmentedToggle extends StatelessWidget {
 // PENDIENTES TAB
 // ============================================================
 
+/// Whether the Pendientes tab lists every completed task ("Ver completados").
+final showCompletedTasksProvider = StateProvider<bool>((ref) => false);
+
 class _PendientesTab extends ConsumerWidget {
   final VoidCallback onAdd;
   const _PendientesTab({required this.onAdd});
@@ -181,6 +184,17 @@ class _PendientesTab extends ConsumerWidget {
                 !overdue.contains(t))
             .toList();
 
+        // Completados: every done task not already listed under "Hoy".
+        // (No completion timestamp exists on trainer_tasks, so the card shows
+        // the due date; tapping the check reopens the task.)
+        final completed = tasks
+            .where((t) => t.isDone && !todayTasks.contains(t))
+            .toList()
+          ..sort((a, b) => (b.dueDate ?? b.createdAt ?? DateTime(2000))
+              .compareTo(a.dueDate ?? a.createdAt ?? DateTime(2000)));
+        final showCompleted = ref.watch(showCompletedTasksProvider);
+        final doneCount = tasks.where((t) => t.isDone).length;
+
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
           children: [
@@ -194,6 +208,29 @@ class _PendientesTab extends ConsumerWidget {
             if (overdue.isEmpty && todayTasks.isEmpty && upcoming.isEmpty)
               _emptyState(Icons.checklist_rounded,
                   'Sin pendientes.\nTocá + para agregar uno.'),
+            if (doneCount > 0)
+              Align(
+                alignment: Alignment.center,
+                child: TextButton.icon(
+                  onPressed: () => ref
+                      .read(showCompletedTasksProvider.notifier)
+                      .state = !showCompleted,
+                  style: TextButton.styleFrom(
+                    foregroundColor: RedesignColors.actionPrimary,
+                    minimumSize: const Size(0, 44),
+                  ),
+                  icon: Icon(
+                      showCompleted
+                          ? Icons.visibility_off_outlined
+                          : Icons.check_circle_outline_rounded,
+                      size: 18),
+                  label: Text(showCompleted
+                      ? 'Ocultar completados'
+                      : 'Ver completados ($doneCount)'),
+                ),
+              ),
+            if (showCompleted)
+              _taskSection('Completados', completed, ref, context),
           ],
         );
       },
@@ -355,6 +392,14 @@ class _TaskCard extends ConsumerWidget {
                         decorationColor: RedesignColors.primario400,
                       ),
                     ),
+                    if (done && task.dueDate != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Fecha: ${task.dueDate!.day}/${task.dueDate!.month}/${task.dueDate!.year}',
+                        style: RedesignType.label
+                            .copyWith(color: RedesignColors.primario400),
+                      ),
+                    ],
                     if (task.athleteName != null) ...[
                       const SizedBox(height: 3),
                       Text(

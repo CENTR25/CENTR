@@ -63,12 +63,15 @@ class TrainerNovedadesScreen extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
+              style: TextButton.styleFrom(
+                  foregroundColor: RedesignColors.primario300),
               child: const Text('Cancelar'),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Eliminar',
-                  style: TextStyle(color: RedesignColors.danger)),
+              style: TextButton.styleFrom(
+                  foregroundColor: RedesignColors.danger),
+              child: const Text('Eliminar'),
             ),
           ],
         ),
@@ -114,8 +117,12 @@ class TrainerNovedadesScreen extends ConsumerWidget {
           onPressed: () => _openEditor(context, ref),
           backgroundColor: RedesignColors.actionPrimary,
           foregroundColor: RedesignColors.onActionPrimary,
+          // The redesign theme gives FABs a CircleBorder, which clips an
+          // extended (icon + label) FAB into a broken-looking circle.
+          shape: const StadiumBorder(),
+          extendedPadding: const EdgeInsets.symmetric(horizontal: 22),
           icon: const Icon(Icons.add_rounded),
-          label: const Text('Nueva novedad'),
+          label: Text('Nueva novedad', style: RedesignType.buttonSm),
         ),
         body: newsAsync.when(
           loading: () => const Center(
@@ -472,6 +479,8 @@ class _TrainerNewsEditorScreenState
                 Expanded(
                   child: OutlinedButton(
                     onPressed: _saving ? null : () => _save(publish: false),
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 54)),
                     child: const Text('Borrador'),
                   ),
                 ),
@@ -479,6 +488,8 @@ class _TrainerNewsEditorScreenState
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _saving ? null : () => _save(publish: true),
+                    style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(0, 54)),
                     child: _saving
                         ? const SizedBox(
                             width: 20,

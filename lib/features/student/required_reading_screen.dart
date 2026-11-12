@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/rich_text/mini_markdown.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../services/student_service.dart';
 
 /// Read-only view of the trainer's "Lectura Obligatoria" content.
@@ -18,47 +19,51 @@ class RequiredReadingScreen extends ConsumerWidget {
     final accepted =
         ref.watch(trainerRequiredReadingProvider).valueOrNull?.accepted ?? true;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Lectura Obligatoria'),
-        backgroundColor: AppColors.primary,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SelectableText(
-              content,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                height: 1.5,
-              ),
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        appBar: AppBar(
+          title: Text(
+            'Lectura Obligatoria',
+            style: RedesignType.bodySm.copyWith(
+              fontWeight: FontWeight.w600,
+              color: RedesignColors.primario50,
             ),
-            const SizedBox(height: 32),
-            if (!accepted) ...[
-              _AcceptButton(
-                onAccepted: () {
-                  ref.invalidate(trainerRequiredReadingProvider);
-                  if (context.mounted) Navigator.pop(context);
-                },
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.transparent,
+          foregroundColor: RedesignColors.primario50,
+          elevation: 0,
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              MiniMarkdownView(source: content),
+              const SizedBox(height: 32),
+              if (!accepted) ...[
+                _AcceptButton(
+                  onAccepted: () {
+                    ref.invalidate(trainerRequiredReadingProvider);
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                ),
+                const SizedBox(height: 16),
+              ],
+              Text(
+                'Podés volver a leer esta información cuando quieras tocando '
+                'tu avatar (arriba a la derecha) → Lectura Obligatoria.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 13,
+                  height: 1.4,
+                ),
               ),
-              const SizedBox(height: 16),
             ],
-            Text(
-              'Podés volver a leer esta información cuando quieras tocando '
-              'tu avatar (arriba a la derecha) → Lectura Obligatoria.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -80,7 +85,7 @@ class _AcceptButtonState extends ConsumerState<_AcceptButton> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 52,
+      height: 54,
       child: ElevatedButton.icon(
         onPressed: _saving
             ? null
@@ -107,7 +112,7 @@ class _AcceptButtonState extends ConsumerState<_AcceptButton> {
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.white,
+                  color: RedesignColors.onActionPrimary,
                 ),
               )
             : const Icon(Icons.check_circle_outline),
@@ -116,8 +121,8 @@ class _AcceptButtonState extends ConsumerState<_AcceptButton> {
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.success,
-          foregroundColor: Colors.white,
+          backgroundColor: RedesignColors.actionPrimary,
+          foregroundColor: RedesignColors.onActionPrimary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),

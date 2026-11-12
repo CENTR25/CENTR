@@ -310,7 +310,9 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         (name == null || name.trim().isEmpty) ? 'este alumno' : name;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Theme(
+        data: RedesignTheme.theme,
+        child: AlertDialog(
         backgroundColor: RedesignColors.primario700,
         title: const Text(
           'Eliminar alumno',
@@ -330,6 +332,8 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(
+                foregroundColor: RedesignColors.primario300),
             child: const Text('Cancelar'),
           ),
           TextButton(
@@ -339,7 +343,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
             child: const Text('Eliminar'),
           ),
         ],
-      ),
+      )),
     );
     if (confirmed != true || !mounted) return;
 
@@ -415,7 +419,9 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
       BuildContext context, String message) {
     return showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Theme(
+        data: RedesignTheme.theme,
+        child: AlertDialog(
         backgroundColor: RedesignColors.primario700,
         title: const Text(
           'Personalizar',
@@ -434,6 +440,8 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(
+                foregroundColor: RedesignColors.primario300),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
@@ -441,7 +449,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
             child: const Text('Crear copia'),
           ),
         ],
-      ),
+      )),
     );
   }
 
@@ -480,7 +488,9 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
     final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Theme(
+        data: RedesignTheme.theme,
+        child: AlertDialog(
         backgroundColor: RedesignColors.primario700,
         title: const Text(
           'Registrar Peso',
@@ -571,7 +581,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
             child: const Text('Guardar'),
           ),
         ],
-      ),
+      )),
     );
   }
 

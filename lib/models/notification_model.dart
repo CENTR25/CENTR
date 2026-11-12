@@ -9,6 +9,8 @@ enum NotificationType {
   subscriptionExpiring,
   streakAchievement,
   workoutCompleted,
+  checkInSubmitted,
+  weightLogged,
   broadcast,
   message,
   general;
@@ -27,6 +29,10 @@ enum NotificationType {
         return 'Logro de Racha';
       case NotificationType.workoutCompleted:
         return 'Entrenamiento Completado';
+      case NotificationType.checkInSubmitted:
+        return 'Nuevo Check-in';
+      case NotificationType.weightLogged:
+        return 'Peso Registrado';
       case NotificationType.broadcast:
         return 'Mensaje del Entrenador';
       case NotificationType.message:
@@ -50,6 +56,10 @@ enum NotificationType {
         return Icons.local_fire_department_rounded;
       case NotificationType.workoutCompleted:
         return Icons.fitness_center_rounded;
+      case NotificationType.checkInSubmitted:
+        return Icons.photo_camera_rounded;
+      case NotificationType.weightLogged:
+        return Icons.monitor_weight_rounded;
       case NotificationType.broadcast:
         return Icons.campaign_rounded;
       case NotificationType.message:
@@ -73,6 +83,10 @@ enum NotificationType {
         return AppColors.accent;
       case NotificationType.workoutCompleted:
         return AppColors.primary;
+      case NotificationType.checkInSubmitted:
+        return AppColors.info;
+      case NotificationType.weightLogged:
+        return AppColors.accent;
       case NotificationType.broadcast:
         return AppColors.primaryLight;
       case NotificationType.message:
@@ -123,7 +137,9 @@ class NotificationModel {
   // dropping underscores + casing so each maps to the right enum (and icon).
   static NotificationType _parseType(String? raw) {
     if (raw == null) return NotificationType.general;
-    final normalized = raw.replaceAll('_', '').toLowerCase();
+    var normalized = raw.replaceAll('_', '').toLowerCase();
+    // Legacy alias from an older check-in insert path.
+    if (normalized == 'checkinreceived') normalized = 'checkinsubmitted';
     return NotificationType.values.firstWhere(
       (t) => t.name.toLowerCase() == normalized,
       orElse: () => NotificationType.general,

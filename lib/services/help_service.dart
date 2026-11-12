@@ -87,7 +87,7 @@ class HelpService {
   }) async {
     try {
       final updates = <String, dynamic>{
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       };
       if (question != null) updates['question'] = question;
       if (answer != null) updates['answer'] = answer;

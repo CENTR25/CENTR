@@ -45,7 +45,7 @@ class SupabaseService {
 
   /// Record first login and notify admin
   Future<void> recordFirstLogin(String userId) async {
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
 
     // Update user's first login time
     await _client
@@ -105,7 +105,7 @@ class SupabaseService {
   Future<void> updateLastLogin(String userId) async {
     await _client
         .from('profiles')
-        .update({'last_login_at': DateTime.now().toIso8601String()})
+        .update({'last_login_at': DateTime.now().toUtc().toIso8601String()})
         .eq('id', userId);
   }
 
@@ -203,7 +203,6 @@ class SupabaseService {
       'message': message,
       'data': data,
       'is_read': false,
-      'created_at': DateTime.now().toIso8601String(),
     });
   }
 
@@ -270,8 +269,9 @@ class SupabaseService {
           'role': role,
           'trainer_id': trainerId,
           'status': 'pending',
-          'created_at': DateTime.now().toIso8601String(),
+          'created_at': DateTime.now().toUtc().toIso8601String(),
           'expires_at': DateTime.now()
+              .toUtc()
               .add(const Duration(days: 7))
               .toIso8601String(),
         })

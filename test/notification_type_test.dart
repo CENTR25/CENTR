@@ -20,8 +20,13 @@ void main() {
     expect(_make('workoutCompleted').type, NotificationType.workoutCompleted);
   });
 
+  test('check-in and weight get their own types (legacy alias included)', () {
+    expect(_make('checkInSubmitted').type, NotificationType.checkInSubmitted);
+    expect(_make('checkInReceived').type, NotificationType.checkInSubmitted);
+    expect(_make('weightLogged').type, NotificationType.weightLogged);
+  });
+
   test('unknown type falls back to general', () {
-    expect(_make('checkInReceived').type, NotificationType.general);
     expect(_make('totally_unknown').type, NotificationType.general);
   });
 }

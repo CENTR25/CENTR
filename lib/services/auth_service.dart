@@ -125,7 +125,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           }),
           'role': 'student', // Default role
           'is_active': true,
-          'created_at': DateTime.now().toIso8601String(),
+          'created_at': DateTime.now().toUtc().toIso8601String(),
         });
 
         final newProfile = await _supabaseService.getProfile(userId);

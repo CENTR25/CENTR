@@ -107,7 +107,7 @@ class AffiliatedBrandService {
   }) async {
     try {
       final updates = <String, dynamic>{
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       };
 
       // Nullable text fields are always written so admins can clear them;

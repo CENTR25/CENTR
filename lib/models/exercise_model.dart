@@ -142,7 +142,7 @@ class ExerciseModel {
       isPublic: (map['is_public'] as bool?) ?? true,
       source: asStr(map['source']) ?? 'trainer',
       createdAt: map['created_at'] != null
-          ? DateTime.tryParse(map['created_at'].toString())
+          ? DateTime.tryParse(map['created_at'].toString())?.toLocal()
           : null,
     );
   }

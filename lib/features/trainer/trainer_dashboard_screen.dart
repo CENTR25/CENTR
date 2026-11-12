@@ -83,7 +83,11 @@ class _TrainerDashboardScreenState
         body: PageView(
           controller: _pageController,
           physics: const NeverScrollableScrollPhysics(),
-          children: const [_HomeView(), _StudentsView(), _PlanesView()],
+          children: [
+            _HomeView(onOpenStudents: () => _goTo(1)),
+            const _StudentsView(),
+            const _PlanesView(),
+          ],
         ),
         bottomNavigationBar: TrainerBottomNav(
           active: _tabs[_currentIndex],
@@ -98,7 +102,9 @@ class _TrainerDashboardScreenState
 
 // ==================== HOME VIEW ====================
 class _HomeView extends ConsumerStatefulWidget {
-  const _HomeView();
+  final VoidCallback onOpenStudents;
+
+  const _HomeView({required this.onOpenStudents});
 
   @override
   ConsumerState<_HomeView> createState() => _HomeViewState();
@@ -142,15 +148,8 @@ class _HomeViewState extends ConsumerState<_HomeView> {
     final statsAsync = ref.watch(trainerStatsProvider);
     final studentsAsync = ref.watch(myStudentsProvider);
 
-    // "Por revisar" = students with a pending check-in (never, or > 7 days ago).
-    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
     final pendingReview = studentsAsync.maybeWhen(
-      data: (students) => students.where((s) {
-        final raw = s['last_check_in_at'] as String?;
-        if (raw == null) return true;
-        final last = DateTime.tryParse(raw);
-        return last == null || last.isBefore(sevenDaysAgo);
-      }).length,
+      data: (students) => students.where(_isPendingReview).length,
       orElse: () => null,
     );
 
@@ -249,6 +248,13 @@ class _HomeViewState extends ConsumerState<_HomeView> {
                   porRevisar: pendingReview,
                   alumnos: statsAsync.valueOrNull?['total_students'] as int?,
                   activos: statsAsync.valueOrNull?['active_students'] as int?,
+                  onPorRevisarTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const _PendingReviewScreen(),
+                    ),
+                  ),
+                  onAlumnosTap: widget.onOpenStudents,
                 ),
                 const SizedBox(height: 22),
 
@@ -299,12 +305,17 @@ class _HomeViewState extends ConsumerState<_HomeView> {
                 const _FirstStepsChecklist(),
 
                 // Novedades — recent student activity (check-ins, workouts,
-                // new active students). Full list + broadcast composer live
-                // behind the bell; this surfaces the latest few on home.
+                // weights, new active students). Latest few here; "Ver todas"
+                // opens the full list. The bell is only the broadcast composer.
                 if (user?.id != null)
                   _HomeNovedadesFeed(
                     userId: user!.id,
-                    onSeeAll: () => _openNotifications(context),
+                    onSeeAll: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => _AllNovedadesScreen(userId: user.id),
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -533,11 +544,15 @@ class _StatStrip extends StatelessWidget {
   final int? porRevisar;
   final int? alumnos;
   final int? activos;
+  final VoidCallback onPorRevisarTap;
+  final VoidCallback onAlumnosTap;
 
   const _StatStrip({
     required this.porRevisar,
     required this.alumnos,
     required this.activos,
+    required this.onPorRevisarTap,
+    required this.onAlumnosTap,
   });
 
   @override
@@ -553,15 +568,26 @@ class _StatStrip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(child: _cell(porRevisar, 'Por revisar')),
+          Expanded(
+            child: _tappable(_cell(porRevisar, 'Por revisar'), onPorRevisarTap),
+          ),
           _divider(),
-          Expanded(child: _cell(alumnos, 'Alumnos')),
+          Expanded(child: _tappable(_cell(alumnos, 'Alumnos'), onAlumnosTap)),
           _divider(),
           Expanded(child: _cell(activos, 'Activos hoy')),
         ],
       ),
     );
   }
+
+  Widget _tappable(Widget child, VoidCallback onTap) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(16),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: child,
+    ),
+  );
 
   Widget _divider() => Container(
     width: 1,
@@ -1433,7 +1459,6 @@ class _BroadcastNotificationSheetState
 
   @override
   Widget build(BuildContext context) {
-    final userId = ref.watch(currentUserProvider)?.id;
     return _RedesignSheet(
       children: [
         Form(
@@ -1596,50 +1621,6 @@ class _BroadcastNotificationSheetState
                 ),
               ),
 
-              const SizedBox(height: 26),
-              Text(
-                'Novedades',
-                style: RedesignType.bodySm.copyWith(
-                  color: RedesignColors.primario50,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (userId != null)
-                Consumer(
-                  builder: (context, ref, _) {
-                    final notifsAsync = ref.watch(
-                      notificationsProvider(userId),
-                    );
-                    return notifsAsync.when(
-                      data: (notifs) {
-                        if (notifs.isEmpty) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Text(
-                              'No hay novedades recientes',
-                              style: RedesignType.label.copyWith(
-                                color: RedesignColors.primario400,
-                              ),
-                            ),
-                          );
-                        }
-                        final recent = notifs.take(8).toList();
-                        return Column(
-                          children: [
-                            for (final n in recent) _NovedadRow(notif: n),
-                          ],
-                        );
-                      },
-                      loading: () => const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                      error: (_, __) => const SizedBox.shrink(),
-                    );
-                  },
-                ),
             ],
           ),
         ),
@@ -1720,31 +1701,60 @@ class _NovedadRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final (icon, tint) = _novedadStyle(notif.type);
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 46,
-            child: Text(
-              _relTime(notif.createdAt),
-              style: RedesignType.label.copyWith(
-                color: RedesignColors.primario400,
-              ),
+          // Type chip so check-in / entrenamiento / peso read apart at a glance.
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
             ),
+            child: Icon(icon, size: 18, color: tint),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  notif.title,
-                  style: RedesignType.bodySm.copyWith(
-                    color: RedesignColors.primario50,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        notif.title,
+                        style: RedesignType.bodySm.copyWith(
+                          color: RedesignColors.primario50,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        _relTime(notif.createdAt),
+                        style: RedesignType.label.copyWith(
+                          color: RedesignColors.primario400,
+                        ),
+                      ),
+                    ),
+                    if (!notif.isRead)
+                      Container(
+                        margin: const EdgeInsets.only(top: 6, left: 8),
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: RedesignColors.actionPrimary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                  ],
                 ),
                 if (notif.message.trim().isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -1758,16 +1768,6 @@ class _NovedadRow extends ConsumerWidget {
               ],
             ),
           ),
-          if (!notif.isRead)
-            Container(
-              margin: const EdgeInsets.only(top: 6, left: 8),
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: RedesignColors.actionPrimary,
-                shape: BoxShape.circle,
-              ),
-            ),
         ],
       ),
     );
@@ -1779,6 +1779,177 @@ class _NovedadRow extends ConsumerWidget {
       child: row,
     );
   }
+}
+
+/// Icon + redesign tint per notification type (the model's own colors are
+/// the legacy violet AppColors palette).
+(IconData, Color) _novedadStyle(NotificationType type) {
+  switch (type) {
+    case NotificationType.workoutCompleted:
+      return (Icons.fitness_center_rounded, RedesignColors.secundario400);
+    case NotificationType.checkInSubmitted:
+      return (Icons.photo_camera_rounded, RedesignColors.advertencia400);
+    case NotificationType.weightLogged:
+      return (Icons.monitor_weight_rounded, RedesignColors.exito500);
+    case NotificationType.firstLogin:
+    case NotificationType.newStudent:
+      return (Icons.person_add_alt_1_rounded, RedesignColors.secundario200);
+    case NotificationType.message:
+      return (Icons.chat_bubble_rounded, RedesignColors.secundario200);
+    case NotificationType.broadcast:
+      return (Icons.campaign_rounded, RedesignColors.primario300);
+    case NotificationType.subscriptionExpiring:
+    case NotificationType.paymentReceived:
+      return (Icons.event_rounded, RedesignColors.peligro300);
+    case NotificationType.streakAchievement:
+      return (Icons.local_fire_department_rounded, RedesignColors.advertencia400);
+    case NotificationType.general:
+      return (Icons.notifications_rounded, RedesignColors.primario300);
+  }
+}
+
+/// "Por revisar" = student with a pending check-in (never, or > 7 days ago).
+/// Shared by the home stat count and the list it opens so they can't drift.
+bool _isPendingReview(Map<String, dynamic> s) {
+  final last = _lastCheckIn(s);
+  return last == null ||
+      last.isBefore(DateTime.now().subtract(const Duration(days: 7)));
+}
+
+DateTime? _lastCheckIn(Map<String, dynamic> s) {
+  final raw = s['last_check_in_at'] as String?;
+  return raw == null ? null : DateTime.tryParse(raw)?.toLocal();
+}
+
+/// Full Novedades list behind home "Ver todas ›".
+class _AllNovedadesScreen extends ConsumerWidget {
+  final String userId;
+
+  const _AllNovedadesScreen({required this.userId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifsAsync = ref.watch(notificationsProvider(userId));
+    return _SimpleListScaffold(
+      title: 'Novedades',
+      body: notifsAsync.when(
+        data: (notifs) => notifs.isEmpty
+            ? const _EmptyListText('No hay novedades recientes')
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 40),
+                children: [for (final n in notifs) _NovedadRow(notif: n)],
+              ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => _EmptyListText('Error: $e'),
+      ),
+    );
+  }
+}
+
+/// Students behind the home "Por revisar" stat: oldest / never check-in first.
+class _PendingReviewScreen extends ConsumerWidget {
+  const _PendingReviewScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final studentsAsync = ref.watch(myStudentsProvider);
+    return _SimpleListScaffold(
+      title: 'Por revisar',
+      body: studentsAsync.when(
+        data: (students) {
+          final pending = students.where(_isPendingReview).toList()
+            ..sort((a, b) {
+              final la = _lastCheckIn(a);
+              final lb = _lastCheckIn(b);
+              if (la == null && lb == null) return 0;
+              if (la == null) return -1;
+              if (lb == null) return 1;
+              return la.compareTo(lb);
+            });
+          if (pending.isEmpty) {
+            return const _EmptyListText('¡Todos los check-ins al día!');
+          }
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 40),
+            children: [
+              Text(
+                'Alumnos sin check-in en los últimos 7 días',
+                style: RedesignType.label.copyWith(
+                  color: RedesignColors.primario400,
+                ),
+              ),
+              const SizedBox(height: 12),
+              for (final s in pending) ...[
+                _StudentRow(student: s),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 10),
+                  child: Text(
+                    _lastCheckIn(s) == null
+                        ? 'Sin check-in'
+                        : 'Último check-in: ${_lastCheckIn(s)!.day}/${_lastCheckIn(s)!.month}',
+                    style: RedesignType.label.copyWith(
+                      color: RedesignColors.advertencia400,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => _EmptyListText('Error: $e'),
+      ),
+    );
+  }
+}
+
+class _SimpleListScaffold extends StatelessWidget {
+  final String title;
+  final Widget body;
+
+  const _SimpleListScaffold({required this.title, required this.body});
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        appBar: AppBar(
+          backgroundColor: RedesignColors.background,
+          elevation: 0,
+          centerTitle: true,
+          title: Text(
+            title,
+            style: RedesignType.bodyMd.copyWith(
+              color: RedesignColors.primario50,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          iconTheme: const IconThemeData(color: RedesignColors.primario50),
+        ),
+        body: SafeArea(top: false, child: body),
+      ),
+    );
+  }
+}
+
+class _EmptyListText extends StatelessWidget {
+  final String text;
+
+  const _EmptyListText(this.text);
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: RedesignType.bodySm.copyWith(color: RedesignColors.primario300),
+      ),
+    ),
+  );
 }
 
 /// Compact relative timestamp for the Novedades feed: HH:mm today, "Ayer"

@@ -42,12 +42,9 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
   String? _error;
 
   List<Map<String, dynamic>> _exercises = [];
-  Map<String, dynamic>? _prevSetLogs;
-  Map<String, dynamic>? _prevRepsLogs;
-  // Day of the previous session; used to safely fall back to legacy
-  // position-keyed set_logs (pre-exercise_id migration) only when it's the
-  // same routine day, where the exercise order — and thus the index — matches.
-  int? _prevDayNumber;
+  // Recent completed sessions of this routine, newest first. The "anterior:"
+  // hint uses, per exercise, the newest one that actually logged it.
+  List<Map<String, dynamic>> _prevSessions = [];
 
   // controllers[exerciseIndex][setNumber] -> (weight, reps)
   final Map<int, Map<int, TextEditingController>> _weightCtrls = {};
@@ -133,10 +130,9 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
                   widget.session?['created_at'] ??
                   DateTime.now().toUtc().toIso8601String())
               as String;
-      final prev = await service.getPreviousSession(
+      final prevSessions = await service.getRecentSessions(
         athleteId: widget.athleteId,
         routineId: widget.routineId,
-        dayNumber: widget.dayNumber,
         beforeStartedAt: startedAt,
         excludeSessionId: widget.session?['id'] as String?,
       );
@@ -178,9 +174,7 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
 
       setState(() {
         _exercises = exercises;
-        _prevSetLogs = prev?['set_logs'] as Map<String, dynamic>?;
-        _prevRepsLogs = prev?['reps_logs'] as Map<String, dynamic>?;
-        _prevDayNumber = prev?['day_number'] as int?;
+        _prevSessions = prevSessions;
         _loading = false;
       });
     } catch (e) {
@@ -264,17 +258,27 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
   }
 
   String _prevLabel(String exerciseId, int exIndex, int setNumber) {
-    // Primary: look up by stable exercise_id (post-migration sessions).
-    var setMap = _prevSetLogs?[exerciseId] as Map<String, dynamic>?;
-    var repMap = _prevRepsLogs?[exerciseId] as Map<String, dynamic>?;
-    // Fallback: legacy sessions keyed by positional index. Only trust the
-    // position when the previous session is the SAME routine day, where the
+    Map<String, dynamic>? setMap;
+    Map<String, dynamic>? repMap;
+    // Newest session that logged this exercise. Primary key is the stable
+    // exercise_id (post-migration sessions). Fallback: legacy sessions keyed
+    // by positional index — only trusted on the SAME routine day, where the
     // exercise order (order_index) — and thus the index — still lines up.
-    // A numeric key can never collide with a UUID key, so this is safe for
-    // new sessions; the same-day guard prevents cross-day false matches.
-    if (setMap == null && repMap == null && _prevDayNumber == widget.dayNumber) {
-      setMap = _prevSetLogs?['$exIndex'] as Map<String, dynamic>?;
-      repMap = _prevRepsLogs?['$exIndex'] as Map<String, dynamic>?;
+    // A numeric key can never collide with a UUID key.
+    for (final s in _prevSessions) {
+      final sl = s['set_logs'] as Map<String, dynamic>?;
+      final rl = s['reps_logs'] as Map<String, dynamic>?;
+      setMap = sl?[exerciseId] as Map<String, dynamic>?;
+      repMap = rl?[exerciseId] as Map<String, dynamic>?;
+      if ((setMap == null && repMap == null) &&
+          s['day_number'] == widget.dayNumber) {
+        setMap = sl?['$exIndex'] as Map<String, dynamic>?;
+        repMap = rl?['$exIndex'] as Map<String, dynamic>?;
+      }
+      // An empty map (exercise touched, nothing logged) keeps searching older.
+      if ((setMap?.isNotEmpty ?? false) || (repMap?.isNotEmpty ?? false)) break;
+      setMap = null;
+      repMap = null;
     }
     final w = setMap?['$setNumber'];
     final r = repMap?['$setNumber'];

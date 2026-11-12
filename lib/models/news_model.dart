@@ -40,9 +40,9 @@ class NewsArticle {
       imageUrl: json['image_url'] as String?,
       accentColor: json['accent_color'] as String? ?? '#9C27B0',
       iconName: json['icon_name'] as String? ?? 'newspaper',
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'] as String)
+          ? DateTime.parse(json['updated_at'] as String).toLocal()
           : null,
       isPublished: json['is_published'] as bool? ?? true,
       displayOrder: json['display_order'] as int? ?? 0,

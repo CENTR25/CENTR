@@ -132,7 +132,7 @@ class TrainerService {
     await _client.from('trainer_notification_prefs').upsert({
       'user_id': userId,
       key: value,
-      'updated_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
     });
   }
 
@@ -369,8 +369,8 @@ class TrainerService {
         .from('athlete_supplements')
         .select()
         .eq('athlete_id', athleteId)
-        .order('category')
-        .order('order_index');
+        .order('category', ascending: true)
+        .order('order_index', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }
 
@@ -421,7 +421,7 @@ class TrainerService {
       query = query.ilike('name', '%${search.trim()}%');
     }
 
-    final response = await query.order('name');
+    final response = await query.order('name', ascending: true);
     final exercises = List<Map<String, dynamic>>.from(response);
 
     // Merge trainer's own media overlay rows so the exercise library
@@ -570,7 +570,7 @@ class TrainerService {
           'created_by_trainer': trainerId,
           'is_public': false,
           'source': 'trainer',
-          'created_at': DateTime.now().toIso8601String(),
+          'created_at': DateTime.now().toUtc().toIso8601String(),
         })
         .select()
         .single();
@@ -717,7 +717,7 @@ class TrainerService {
       'routine_id': routineId,
       'day_number': dayNumber,
       'title': trimmed,
-      'updated_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
     }, onConflict: 'routine_id,day_number');
   }
 
@@ -761,7 +761,7 @@ class TrainerService {
       'level': level,
       'week_days': weekDays,
       'days_per_week': daysPerWeek,
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
       if (finalImageUrl != null) 'image_url': finalImageUrl,
     };
 
@@ -971,7 +971,7 @@ class TrainerService {
       'level': sourceRoutine['level'],
       'days_per_week': sourceRoutine['days_per_week'],
       'week_days': sourceRoutine['week_days'],
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
       'image_url': sourceRoutine['image_url'],
       // Ensure it's not linked to any specific athlete implicitly (schema doesn't have an owner field other than trainer_id)
     };
@@ -1114,7 +1114,7 @@ class TrainerService {
           if (days != null) 'days': days,
           if (mealTimes != null) 'meal_times': mealTimes,
           if (finalImageUrl != null) 'image_url': finalImageUrl,
-          'created_at': DateTime.now().toIso8601String(),
+          'created_at': DateTime.now().toUtc().toIso8601String(),
         })
         .select()
         .single();
@@ -1143,7 +1143,7 @@ class TrainerService {
       'title': title,
       'description': description,
       'target_calories': targetCalories,
-      'updated_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
 
     if (imageFile != null) {
@@ -1235,7 +1235,7 @@ class TrainerService {
         .from('subscription_plans')
         .select()
         .eq('is_active', true)
-        .order('price');
+        .order('price', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }
 
@@ -1461,7 +1461,7 @@ class TrainerService {
         .select('athlete_id, started_at')
         .inFilter('athlete_id', athleteIds)
         .eq('is_completed', true)
-        .gte('started_at', prevStart.toIso8601String());
+        .gte('started_at', prevStart.toUtc().toIso8601String());
 
     final currentCompleted = <String, int>{};
     final prevCompleted = <String, int>{};
@@ -1589,7 +1589,8 @@ class TrainerService {
         .select('routine_id, day_number, started_at, created_at, set_logs')
         .eq('athlete_id', athleteId)
         .eq('is_completed', true)
-        .order('started_at');
+        // postgrest defaults to DESC — everything below assumes chronological.
+        .order('started_at', ascending: true);
     final rows = List<Map<String, dynamic>>.from(sessions);
 
     // (routine_id|day_number) -> ordered exercise names
@@ -1719,16 +1720,16 @@ class TrainerService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// The athlete's previous completed session for the same routine (any day),
-  /// so the trainer can compare the "anterior:" hint per exercise_id.
-  /// Day filter intentionally removed — set_logs are keyed by exercise_id so
-  /// history is correct regardless of which day an exercise appeared on.
-  Future<Map<String, dynamic>?> getPreviousSession({
+  /// The athlete's recent completed sessions for the same routine (any day),
+  /// newest first, so the "anterior:" hint can fall back per exercise_id to
+  /// the latest session that actually logged that exercise (the single latest
+  /// session may be a different day that doesn't include it).
+  Future<List<Map<String, dynamic>>> getRecentSessions({
     required String athleteId,
     required String routineId,
-    required int dayNumber,
     required String beforeStartedAt,
     String? excludeSessionId,
+    int limit = 20,
   }) async {
     var query = _client
         .from('workout_sessions')
@@ -1742,9 +1743,8 @@ class TrainerService {
     }
     final response = await query
         .order('started_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    return response;
+        .limit(limit);
+    return List<Map<String, dynamic>>.from(response);
   }
 
   /// Trainer override of a session's recorded weights/reps.
@@ -1857,7 +1857,7 @@ class TrainerService {
       'description': description,
       'questions': questions,
       'is_active': isActive,
-      'updated_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
 
     // Check if form already exists
@@ -1873,7 +1873,7 @@ class TrainerService {
           .update(data)
           .eq('id', existing['id']);
     } else {
-      data['created_at'] = DateTime.now().toIso8601String();
+      data['created_at'] = DateTime.now().toUtc().toIso8601String();
       await _client.from('check_in_forms').insert(data);
     }
   }
@@ -1884,7 +1884,7 @@ class TrainerService {
         .from('check_in_forms')
         .update({
           'is_active': isActive,
-          'updated_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', formId);
   }
@@ -1913,7 +1913,7 @@ class TrainerService {
         .from('athletes')
         .select('id, name, next_renewal_date, last_fee_notified_at, monthly_fee')
         .eq('trainer_id', trainerId)
-        .order('name');
+        .order('name', ascending: true);
 
     // 2. Payments recorded in the current calendar month for this trainer.
     final now = DateTime.now();
@@ -2033,7 +2033,7 @@ class TrainerService {
         .not('next_renewal_date', 'is', null)
         .gte('next_renewal_date', todayStr)
         .lte('next_renewal_date', limitStr)
-        .order('next_renewal_date');
+        .order('next_renewal_date', ascending: true);
 
     return List<Map<String, dynamic>>.from(response);
   }
@@ -2118,9 +2118,9 @@ class TrainerService {
     final response = await _client
         .from('trainer_tasks')
         .select('*, athletes(name)')
-        .order('is_done')
-        .order('due_date', nullsFirst: false)
-        .order('created_at');
+        .order('is_done', ascending: true)
+        .order('due_date', ascending: true, nullsFirst: false)
+        .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(response)
         .map(TrainerTask.fromJson)
         .toList();
@@ -2177,8 +2177,8 @@ class TrainerService {
         .from('athlete_training_schedule')
         .select('*, athletes!inner(name, trainer_id)')
         .eq('athletes.trainer_id', trainerId)
-        .order('day_of_week')
-        .order('start_time');
+        .order('day_of_week', ascending: true)
+        .order('start_time', ascending: true);
     return List<Map<String, dynamic>>.from(response)
         .map(AthleteScheduleSlot.fromJson)
         .toList();

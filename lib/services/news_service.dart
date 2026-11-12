@@ -88,7 +88,7 @@ class NewsService {
         'is_published': isPublished,
         'display_order': displayOrder,
         'audience': audience,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': DateTime.now().toUtc().toIso8601String(),
         if (trainerId != null) 'trainer_id': trainerId,
       }).select().single();
 
@@ -112,7 +112,7 @@ class NewsService {
   }) async {
     try {
       final updates = <String, dynamic>{
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       };
 
       if (title != null) updates['title'] = title;

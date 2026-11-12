@@ -1,4 +1,5 @@
 import 'package:fl_chart/fl_chart.dart';
+import '../../core/utils/string_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/theme_redesign.dart';
@@ -435,6 +436,10 @@ class _SessionRow extends StatelessWidget {
 
   static const _weekdays = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
 
+  // Start–end range so the row lines up with the "completed" notification.
+  static String _hm(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) {
     final routineName = log['routines']?['title'] ?? 'Rutina';
@@ -489,7 +494,7 @@ class _SessionRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${date.hour}:${date.minute.toString().padLeft(2, '0')} · $setsCompleted series · ${(durationSeconds / 60).round()} min',
+                    '${_hm(date)}${durationSeconds > 0 ? '–${_hm(date.add(Duration(seconds: durationSeconds)))}' : ''} · $setsCompleted series · ${(durationSeconds / 60).round()} min',
                     style: RedesignType.label.copyWith(
                       color: RedesignColors.primario400,
                     ),
@@ -570,17 +575,23 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
           );
         }
 
-        // Order exercises by most recently trained.
+        // Dropdown lists exercises alphabetically (accent/case-insensitive)…
         final names = exercises.keys.toList()
-          ..sort((a, b) {
-            final la = (exercises[a] as List).last['date'] as String? ?? '';
-            final lb = (exercises[b] as List).last['date'] as String? ?? '';
-            return lb.compareTo(la);
-          });
+          ..sort((a, b) => foldSearch(a).compareTo(foldSearch(b)));
+        // …but defaults to the most recently trained one.
+        String? mostRecent;
+        var mostRecentDate = '';
+        for (final n in names) {
+          final d = (exercises[n] as List).last['date'] as String? ?? '';
+          if (mostRecent == null || d.compareTo(mostRecentDate) > 0) {
+            mostRecent = n;
+            mostRecentDate = d;
+          }
+        }
         final selected = _selectedExercise != null &&
                 exercises.containsKey(_selectedExercise)
             ? _selectedExercise!
-            : (names.isNotEmpty ? names.first : null);
+            : mostRecent;
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
@@ -878,6 +889,15 @@ class _ProgressDashboardState extends ConsumerState<_ProgressDashboard> {
         children: [
           Row(
             children: [
+              // Label what the number is: best set of the latest session
+              // ("Todas") or the isolated serie's weight.
+              Text(
+                activeSet != null ? 'Serie $activeSet · ' : 'Mejor serie · ',
+                style: RedesignType.label.copyWith(
+                  color: RedesignColors.primario300,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               Text(
                 '${lastMax.toString().replaceAll('.0', '')} kg',
                 style: RedesignType.bodyMd.copyWith(

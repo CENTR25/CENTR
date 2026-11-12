@@ -17,7 +17,7 @@ class MessagingService {
         .from('messages')
         .stream(primaryKey: ['id'])
         .eq('athlete_id', athleteId)
-        .order('created_at')
+        .order('created_at', ascending: true)
         .map((rows) => rows.map((r) => Message.fromJson(r)).toList());
   }
 

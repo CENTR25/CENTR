@@ -134,7 +134,7 @@ class UserModel {
   }
 
   static DateTime _parseDate(Object? value) {
-    return DateTime.tryParse(value?.toString() ?? '') ?? DateTime.now();
+    return DateTime.tryParse(value?.toString() ?? '')?.toLocal() ?? DateTime.now();
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {

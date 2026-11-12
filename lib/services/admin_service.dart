@@ -48,7 +48,7 @@ class AdminService {
       'email': email,
       'role': 'trainer',
       'is_active': true,
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
     });
 
     // 3. Create trainer record (name/photo live on trainers, not profiles)
@@ -57,7 +57,7 @@ class AdminService {
       'name': name,
       'specialty': specialty,
       'profile_photo': photoUrl,
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
     }).select().single();
 
     // 4. Generate invitation token
@@ -173,7 +173,7 @@ class AdminService {
         .from('exercises')
         .select(_exerciseColumns)
         .isFilter('created_by_trainer', null)
-        .order('name');
+        .order('name', ascending: true);
 
     return List<Map<String, dynamic>>.from(response);
   }
@@ -199,7 +199,7 @@ class AdminService {
           'is_public': true,
           'is_hidden': false,
           'source': 'global',
-          'created_at': DateTime.now().toIso8601String(),
+          'created_at': DateTime.now().toUtc().toIso8601String(),
         })
         .select(_exerciseColumns)
         .single();
@@ -254,7 +254,7 @@ class AdminService {
     await _client.from('invitation_tokens').insert({
       'user_id': userId,
       'token': token,
-      'expires_at': DateTime.now().add(const Duration(days: 7)).toIso8601String(),
+      'expires_at': DateTime.now().toUtc().add(const Duration(days: 7)).toIso8601String(),
       'is_used': false,
     });
 
@@ -308,7 +308,7 @@ class AdminService {
         .from('subscription_plans')
         .select()
         .eq('is_active', true)
-        .order('price');
+        .order('price', ascending: true);
 
     return List<Map<String, dynamic>>.from(response);
   }
@@ -352,10 +352,10 @@ class AdminService {
     await _client.from('trainer_subscriptions').insert({
       'trainer_id': trainerId,
       'plan_id': planId,
-      'starts_at': starts.toIso8601String(),
-      'ends_at': ends.toIso8601String(),
+      'starts_at': starts.toUtc().toIso8601String(),
+      'ends_at': ends.toUtc().toIso8601String(),
       'is_active': true,
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
     });
   }
 
@@ -388,7 +388,7 @@ class AdminService {
 
   /// Active-trainer count per plan (for the Suscripciones list cards).
   Future<Map<String, int>> getPlanTrainerCounts() async {
-    final nowIso = DateTime.now().toIso8601String();
+    final nowIso = DateTime.now().toUtc().toIso8601String();
     final subs = await _client
         .from('trainer_subscriptions')
         .select('plan_id')
@@ -405,14 +405,14 @@ class AdminService {
   /// Trainers currently on [planId] (active, unexpired) with alumnos count +
   /// renewal date, for the plan detail screen.
   Future<List<Map<String, dynamic>>> getTrainersByPlan(String planId) async {
-    final nowIso = DateTime.now().toIso8601String();
+    final nowIso = DateTime.now().toUtc().toIso8601String();
     final subs = await _client
         .from('trainer_subscriptions')
         .select('trainer_id, ends_at, trainers(id, name, profile_photo)')
         .eq('plan_id', planId)
         .eq('is_active', true)
         .gt('ends_at', nowIso)
-        .order('ends_at');
+        .order('ends_at', ascending: true);
     final counts = await _alumnosCountByTrainer();
     final seen = <String>{};
     final out = <Map<String, dynamic>>[];
@@ -433,7 +433,7 @@ class AdminService {
 
   /// Get trainers with expired subscriptions
   Future<List<Map<String, dynamic>>> getExpiredSubscriptions() async {
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     
     final response = await _client
         .from('trainer_subscriptions')
@@ -493,7 +493,7 @@ class AdminService {
         .select('id')
         .eq('trainer_id', trainerId);
 
-    final nowIso = DateTime.now().toIso8601String();
+    final nowIso = DateTime.now().toUtc().toIso8601String();
     final subs = await _client
         .from('trainer_subscriptions')
         .select(
@@ -538,15 +538,15 @@ class AdminService {
           'id, ends_at, trainer_id, trainers(name), subscription_plans(name)',
         )
         .eq('is_active', true)
-        .gt('ends_at', now.toIso8601String())
-        .lt('ends_at', until.toIso8601String())
-        .order('ends_at');
+        .gt('ends_at', now.toUtc().toIso8601String())
+        .lt('ends_at', until.toUtc().toIso8601String())
+        .order('ends_at', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }
 
   /// Pending (unused, unexpired) trainer invitations enriched with name/email.
   Future<List<Map<String, dynamic>>> getPendingInvitations() async {
-    final nowIso = DateTime.now().toIso8601String();
+    final nowIso = DateTime.now().toUtc().toIso8601String();
     final rows = List<Map<String, dynamic>>.from(
       await _client
           .from('invitation_tokens')
@@ -597,7 +597,7 @@ class AdminService {
 
   /// Latest active, unexpired subscription per trainer (one query).
   Future<Map<String, Map<String, dynamic>>> _activeSubByTrainer() async {
-    final nowIso = DateTime.now().toIso8601String();
+    final nowIso = DateTime.now().toUtc().toIso8601String();
     final subs = await _client
         .from('trainer_subscriptions')
         .select(

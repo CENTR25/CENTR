@@ -44,7 +44,7 @@ class TrainerModel {
       bio: json['bio'] as String?,
       subscription: subscription,
       currentStudentCount: json['current_student_count'] as int? ?? 0,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
     );
   }
   

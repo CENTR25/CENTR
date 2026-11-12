@@ -315,7 +315,7 @@ class StudentService {
     final athleteId = await _getAthleteId();
     if (athleteId == null) throw Exception('No se encontró el perfil de atleta');
 
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     await _client.from('athlete_intake').upsert({
       'athlete_id': athleteId,
       'responses': responses,
@@ -521,7 +521,7 @@ class StudentService {
       'photo_url': photoUrl,
       'photo_urls': [photoUrl],
       'comment': comment,
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
     });
 
     // Update athletes.last_check_in_at
@@ -529,7 +529,7 @@ class StudentService {
     if (athleteId != null) {
       await _client
           .from('athletes')
-          .update({'last_check_in_at': DateTime.now().toIso8601String()})
+          .update({'last_check_in_at': DateTime.now().toUtc().toIso8601String()})
           .eq('id', athleteId);
       await _updateStreak(athleteId);
       await _notifyTrainerCheckIn(athleteId);
@@ -556,7 +556,7 @@ class StudentService {
     }
 
     final athleteId = await _getAthleteId();
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
 
     // Insert check-in with all photos
     final checkInRow = await _client
@@ -605,7 +605,7 @@ class StudentService {
     if (photoUrls.isEmpty) throw Exception('Se requiere al menos una foto');
 
     final athleteId = await _getAthleteId();
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
 
     final checkInRow = await _client
         .from('check_ins')
@@ -703,7 +703,7 @@ class StudentService {
     if (response == null) return null;
     final created = response['created_at'] as String?;
     if (created == null) return null;
-    return DateTime.tryParse(created);
+    return DateTime.tryParse(created)?.toLocal();
   }
 
   /// Compute pending check-in status: due date + is pending
@@ -800,7 +800,7 @@ class StudentService {
       'current_count': newStreak,
       'best_count': newStreak > bestCount ? newStreak : bestCount,
       'last_activity_date': todayStr,
-      'updated_at': now.toIso8601String(),
+      'updated_at': now.toUtc().toIso8601String(),
     }, onConflict: 'athlete_id,type');
 
     debugPrint(
@@ -886,7 +886,6 @@ class StudentService {
             '$studentName completó su entrenamiento${durationMinutes > 0 ? ' en $durationMinutes min' : ''}',
         'data': {'student_id': studentUserId, 'athlete_id': athleteId},
         'is_read': false,
-        'created_at': DateTime.now().toIso8601String(),
       });
 
       debugPrint('📬 Trainer notified of workout completion');
@@ -935,7 +934,6 @@ class StudentService {
         'message': buildMessage(studentName),
         'data': {'student_id': studentUserId, 'athlete_id': athleteId},
         'is_read': false,
-        'created_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {
       debugPrint('⚠️ Error notifying trainer of activity: $e');
@@ -1136,8 +1134,8 @@ class StudentService {
         .from('athlete_supplements')
         .select()
         .eq('athlete_id', athleteId)
-        .order('category')
-        .order('order_index');
+        .order('category', ascending: true)
+        .order('order_index', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }
 
@@ -1259,7 +1257,7 @@ class StudentService {
       'step_count': steps,
       'goal': goal,
       'source': 'manual',
-      'synced_at': DateTime.now().toIso8601String(),
+      'synced_at': DateTime.now().toUtc().toIso8601String(),
     }, onConflict: 'athlete_id, date');
 
     debugPrint('👟 Daily steps updated: $steps / $goal');

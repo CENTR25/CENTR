@@ -28,7 +28,7 @@ class HelpArticle {
     String? asStr(Object? v) =>
         v == null ? null : (v is String ? v : v.toString());
     DateTime? asDate(Object? v) =>
-        v == null ? null : DateTime.tryParse(v.toString());
+        v == null ? null : DateTime.tryParse(v.toString())?.toLocal();
 
     return HelpArticle(
       id: json['id']?.toString() ?? '',

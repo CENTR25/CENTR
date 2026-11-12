@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../widgets/check_in_photo.dart';
 import '../../services/student_service.dart';
 import '../trainer/check_in_comparison_screen.dart' show CheckInGridSheet;
@@ -8,15 +8,15 @@ import '../trainer/check_in_comparison_screen.dart' show CheckInGridSheet;
 class StudentCheckInHistoryScreen extends ConsumerWidget {
   const StudentCheckInHistoryScreen({super.key});
 
-  void _openGrid(
-    BuildContext context,
-    List<Map<String, dynamic>> checkIns,
-  ) {
+  void _openGrid(BuildContext context, List<Map<String, dynamic>> checkIns) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => CheckInGridSheet(checkIns: checkIns),
+      builder: (_) => Theme(
+        data: RedesignTheme.theme,
+        child: CheckInGridSheet(checkIns: checkIns),
+      ),
     );
   }
 
@@ -26,11 +26,10 @@ class StudentCheckInHistoryScreen extends ConsumerWidget {
 
     // Resolve loaded check-ins for the AppBar action (null while loading).
     final loadedCheckIns = historyAsync.valueOrNull;
-    final hasPhotos =
-        loadedCheckIns != null && loadedCheckIns.isNotEmpty;
+    final hasPhotos = loadedCheckIns != null && loadedCheckIns.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: RedesignColors.background,
       appBar: AppBar(
         title: const Text('Mis Check-ins'),
         backgroundColor: Colors.transparent,
@@ -54,7 +53,7 @@ class StudentCheckInHistoryScreen extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: RedesignColors.primario700,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.05),
@@ -70,7 +69,7 @@ class StudentCheckInHistoryScreen extends ConsumerWidget {
                   Text(
                     'Aún no tienes check-ins',
                     style: TextStyle(
-                      color: AppColors.textLight,
+                      color: RedesignColors.primario300,
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
@@ -79,7 +78,7 @@ class StudentCheckInHistoryScreen extends ConsumerWidget {
                   Text(
                     'Tus fotos de progreso aparecerán aquí',
                     style: TextStyle(
-                      color: AppColors.textLight.withValues(alpha: 0.5),
+                      color: RedesignColors.primario300.withValues(alpha: 0.5),
                       fontSize: 13,
                     ),
                   ),
@@ -96,11 +95,13 @@ class StudentCheckInHistoryScreen extends ConsumerWidget {
             },
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: RedesignColors.actionPrimary),
+        ),
         error: (e, _) => Center(
           child: Text(
             'Error al cargar: $e',
-            style: const TextStyle(color: AppColors.error),
+            style: const TextStyle(color: RedesignColors.danger),
           ),
         ),
       ),
@@ -136,7 +137,7 @@ class _CheckInCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: RedesignColors.primario700,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
@@ -161,13 +162,19 @@ class _CheckInCard extends StatelessWidget {
                 ),
                 if (photoUrls.isNotEmpty)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.15),
+                      color: RedesignColors.actionPrimary.withValues(
+                        alpha: 0.15,
+                      ),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.3),
+                        color: RedesignColors.actionPrimary.withValues(
+                          alpha: 0.3,
+                        ),
                       ),
                     ),
                     child: Row(
@@ -175,13 +182,13 @@ class _CheckInCard extends StatelessWidget {
                         const Icon(
                           Icons.photo_rounded,
                           size: 12,
-                          color: AppColors.primaryLight,
+                          color: RedesignColors.actionPrimary,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           '${photoUrls.length} foto${photoUrls.length == 1 ? '' : 's'}',
                           style: const TextStyle(
-                            color: AppColors.primaryLight,
+                            color: RedesignColors.actionPrimary,
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
@@ -197,7 +204,7 @@ class _CheckInCard extends StatelessWidget {
               Text(
                 comment,
                 style: TextStyle(
-                  color: AppColors.textLight,
+                  color: RedesignColors.primario300,
                   fontSize: 13,
                 ),
                 maxLines: 3,
@@ -222,13 +229,10 @@ class _CheckInCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
-                          color: AppColors.surfaceVariant,
+                          color: RedesignColors.primario800,
                         ),
                         clipBehavior: Clip.antiAlias,
-                        child: CheckInPhoto(
-                          url: photoUrls[i],
-                          cacheWidth: 300,
-                        ),
+                        child: CheckInPhoto(url: photoUrls[i], cacheWidth: 300),
                       ),
                     );
                   },
@@ -249,9 +253,12 @@ class _CheckInCard extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CheckInPhotoViewerScreen(
-          urls: urls,
-          initialIndex: initialIndex,
+        builder: (_) => Theme(
+          data: RedesignTheme.theme,
+          child: CheckInPhotoViewerScreen(
+            urls: urls,
+            initialIndex: initialIndex,
+          ),
         ),
       ),
     );
@@ -275,8 +282,7 @@ class CheckInPhotoViewerScreen extends StatefulWidget {
       _CheckInPhotoViewerScreenState();
 }
 
-class _CheckInPhotoViewerScreenState
-    extends State<CheckInPhotoViewerScreen> {
+class _CheckInPhotoViewerScreenState extends State<CheckInPhotoViewerScreen> {
   late final PageController _controller;
   late int _current;
 

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../core/theme/app_theme.dart';
+import '../core/theme/theme_redesign.dart';
 
 /// Renders a check-in photo with [Image.network] instead of CachedNetworkImage.
 ///
@@ -36,7 +36,7 @@ class CheckInPhoto extends StatelessWidget {
         return const Center(
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: AppColors.primary,
+            color: RedesignColors.actionPrimary,
           ),
         );
       },

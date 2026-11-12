@@ -34,7 +34,14 @@ class _BenefitsContentState extends ConsumerState<BenefitsContent> {
     final url = value.startsWith('http') ? value : 'https://$value';
     final uri = Uri.tryParse(url);
     if (uri == null) return;
-    final ok = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+    // Web: explicit '_blank' forces a NEW browsing context. With the default
+    // (empty) target, an installed iOS PWA can navigate its own window to the
+    // brand site, and going back reboots the Flutter app (white screen).
+    final ok = await launchUrl(
+      uri,
+      mode: LaunchMode.inAppBrowserView,
+      webOnlyWindowName: '_blank',
+    );
     if (!ok && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se pudo abrir el enlace')),
@@ -62,7 +69,8 @@ class _BenefitsContentState extends ConsumerState<BenefitsContent> {
           children: [
             // ── CTA banner ────────────────────────────────────────────────
             _CtaBanner(
-              onTap: () => _openUrl(context, AppConstants.prgsBrandsWhatsappUrl),
+              onTap: () =>
+                  _openUrl(context, AppConstants.prgsBrandsWhatsappUrl),
             ),
             const SizedBox(height: 20),
 
@@ -107,27 +115,35 @@ class _BenefitsContentState extends ConsumerState<BenefitsContent> {
                   );
                 }
                 if (widget.grid) {
-                  return GridView.count(
-                    crossAxisCount: 2,
+                  return GridView(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.78,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      // Fixed height (not aspect ratio) so the action buttons
+                      // always fit on any screen width.
+                      mainAxisExtent: 272,
+                    ),
                     children: filtered
-                        .map((b) => _BrandGridCard(
-                              brand: b,
-                              onOpenUrl: (url) => _openUrl(context, url),
-                            ))
+                        .map(
+                          (b) => _BrandGridCard(
+                            brand: b,
+                            onOpenUrl: (url) => _openUrl(context, url),
+                          ),
+                        )
                         .toList(),
                   );
                 }
                 return Column(
                   children: filtered
-                      .map((b) => _BrandCard(
-                            brand: b,
-                            onOpenUrl: (url) => _openUrl(context, url),
-                          ))
+                      .map(
+                        (b) => _BrandCard(
+                          brand: b,
+                          onOpenUrl: (url) => _openUrl(context, url),
+                        ),
+                      )
                       .toList(),
                 );
               },
@@ -179,14 +195,9 @@ class _FilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         decoration: BoxDecoration(
-          color: selected
-              ? RedesignColors.actionPrimary
-              : Colors.transparent,
+          color: selected ? RedesignColors.actionPrimary : Colors.transparent,
           borderRadius: BorderRadius.circular(RedesignRadius.buttonSm),
-          border: Border.all(
-            color: RedesignColors.actionPrimary,
-            width: 1.2,
-          ),
+          border: Border.all(color: RedesignColors.actionPrimary, width: 1.2),
         ),
         child: Text(
           label,
@@ -241,8 +252,8 @@ class _BrandCard extends StatelessWidget {
     final headlineText = brand.discountLabel?.isNotEmpty == true
         ? brand.discountLabel!
         : (brand.benefitDescription?.isNotEmpty == true
-            ? brand.benefitDescription!
-            : brand.name);
+              ? brand.benefitDescription!
+              : brand.name);
 
     return Container(
       width: double.infinity,
@@ -359,7 +370,9 @@ class _BrandCard extends StatelessWidget {
                     minimumSize: const Size(double.infinity, 48),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(RedesignRadius.buttonLg),
+                      borderRadius: BorderRadius.circular(
+                        RedesignRadius.buttonLg,
+                      ),
                     ),
                     textStyle: const TextStyle(
                       fontFamily: 'Metropolis',
@@ -384,7 +397,9 @@ class _BrandCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     side: const BorderSide(color: Colors.white38, width: 1),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(RedesignRadius.buttonLg),
+                      borderRadius: BorderRadius.circular(
+                        RedesignRadius.buttonLg,
+                      ),
                     ),
                     textStyle: const TextStyle(
                       fontFamily: 'Metropolis',
@@ -417,8 +432,8 @@ class _BrandGridCard extends StatelessWidget {
     final headlineText = brand.discountLabel?.isNotEmpty == true
         ? brand.discountLabel!
         : (brand.benefitDescription?.isNotEmpty == true
-            ? brand.benefitDescription!
-            : brand.name);
+              ? brand.benefitDescription!
+              : brand.name);
     // Primary tap target: website first, then Instagram.
     final primaryUrl = brand.hasWebsite
         ? brand.websiteUrl
@@ -476,6 +491,105 @@ class _BrandGridCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+            if (brand.hasWebsite || brand.hasInstagram) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  if (brand.hasWebsite)
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => onOpenUrl(brand.websiteUrl),
+                        icon: const Icon(Icons.storefront_rounded, size: 15),
+                        label: const Text(
+                          'Ver tienda',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: RedesignColors.actionPrimary,
+                          foregroundColor: RedesignColors.onActionPrimary,
+                          elevation: 0,
+                          minimumSize: const Size(0, 36),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              RedesignRadius.buttonSm,
+                            ),
+                          ),
+                          textStyle: const TextStyle(
+                            fontFamily: 'Metropolis',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (brand.hasWebsite && brand.hasInstagram)
+                    const SizedBox(width: 8),
+                  if (brand.hasInstagram)
+                    brand.hasWebsite
+                        ? SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: OutlinedButton(
+                              onPressed: () =>
+                                  onOpenUrl(brand.instagramDisplayUrl),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 36),
+                                padding: EdgeInsets.zero,
+                                side: const BorderSide(
+                                  color: Colors.white38,
+                                  width: 1,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    RedesignRadius.buttonSm,
+                                  ),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt_outlined,
+                                size: 18,
+                                semanticLabel: 'Instagram',
+                              ),
+                            ),
+                          )
+                        : Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () =>
+                                  onOpenUrl(brand.instagramDisplayUrl),
+                              icon: const Icon(
+                                Icons.camera_alt_outlined,
+                                size: 15,
+                              ),
+                              label: const Text('Instagram'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 36),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                side: const BorderSide(
+                                  color: Colors.white38,
+                                  width: 1,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    RedesignRadius.buttonSm,
+                                  ),
+                                ),
+                                textStyle: const TextStyle(
+                                  fontFamily: 'Metropolis',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

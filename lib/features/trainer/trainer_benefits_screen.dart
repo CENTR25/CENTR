@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_redesign.dart';
 import '../../widgets/benefits_content.dart';
 
 /// Trainer-facing view of the affiliated-brand benefits (same content students
@@ -9,14 +9,17 @@ class TrainerBenefitsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Beneficios'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        appBar: AppBar(
+          title: const Text('Beneficios'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+        body: const BenefitsContent(),
       ),
-      body: const BenefitsContent(),
     );
   }
 }

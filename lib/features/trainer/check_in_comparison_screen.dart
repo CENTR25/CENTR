@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../widgets/check_in_photo.dart';
 
@@ -70,11 +69,18 @@ class _CheckInComparisonScreenState extends State<CheckInComparisonScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Theme(
+      data: RedesignTheme.theme,
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: RedesignColors.primario950,
       appBar: AppBar(
         title: const Text('Comparar check-ins'),
-        backgroundColor: AppColors.primary,
+        backgroundColor: RedesignColors.actionPrimary,
         elevation: 0,
       ),
       body: LayoutBuilder(
@@ -147,7 +153,7 @@ class _ComparisonColumn extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: RedesignColors.primario700,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
@@ -155,7 +161,7 @@ class _ComparisonColumn extends StatelessWidget {
             child: DropdownButton<int>(
               value: selectedIndex,
               isExpanded: true,
-              dropdownColor: AppColors.surface,
+              dropdownColor: RedesignColors.primario700,
               style: const TextStyle(color: Colors.white, fontSize: 15),
               icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
               items: [
@@ -177,12 +183,12 @@ class _ComparisonColumn extends StatelessWidget {
             height: 200,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: RedesignColors.primario700,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               'Sin fotos en este check-in',
-              style: TextStyle(color: AppColors.textLight),
+              style: TextStyle(color: RedesignColors.primario50),
             ),
           )
         else
@@ -203,7 +209,7 @@ class _ComparisonColumn extends StatelessWidget {
                             height: 200,
                             child: Center(
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: AppColors.primary),
+                                  strokeWidth: 2, color: RedesignColors.actionPrimary),
                             ),
                           ),
                     errorBuilder: (_, __, ___) => const SizedBox(

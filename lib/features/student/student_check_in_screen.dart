@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../services/student_service.dart';
 import '../../services/storage_service.dart';
@@ -136,7 +135,7 @@ class _StudentCheckInScreenState extends ConsumerState<StudentCheckInScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: AppColors.error,
+            backgroundColor: RedesignColors.danger,
           ),
         );
       }

@@ -5,6 +5,7 @@ import 'package:north_star/services/auth_service.dart';
 import 'package:north_star/models/user_model.dart';
 import 'package:north_star/features/auth/presentation/login_screen.dart';
 import 'package:north_star/features/auth/presentation/forgot_password_screen.dart';
+import 'package:north_star/features/auth/presentation/reset_password_screen.dart';
 import 'package:north_star/features/auth/presentation/first_login_screen.dart';
 import 'package:north_star/features/auth/presentation/student_register_screen.dart';
 import 'package:north_star/features/admin/presentation/admin_dashboard_screen.dart';
@@ -19,6 +20,7 @@ class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
+  static const String resetPassword = '/reset-password';
   static const String firstLogin = '/first-login';
 
   // Admin routes
@@ -73,8 +75,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           state.matchedLocation == AppRoutes.login ||
           state.matchedLocation == AppRoutes.register ||
           state.matchedLocation == AppRoutes.forgotPassword ||
+          state.matchedLocation == AppRoutes.resetPassword ||
           state.matchedLocation == AppRoutes.firstLogin;
       final isSplash = state.matchedLocation == AppRoutes.splash;
+      final isResetRoute = state.matchedLocation == AppRoutes.resetPassword;
+      // A fresh recovery-email link (/reset-password?token_hash=…): reachable
+      // signed out, and signed in as someone else (verifying it switches the
+      // session to the account being recovered).
+      final hasRecoveryToken = isResetRoute &&
+          (state.uri.queryParameters['token_hash']?.isNotEmpty ?? false);
 
       // While auth is resolving (initial load, sign-in, or Supabase background
       // token refresh) stay on the current route. On first launch the initial
@@ -102,6 +111,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
         return AppRoutes.login;
       }
+
+      // Session opened from a verified password-recovery link: pin it to the
+      // bare reset screen until a new password is set. Also strips the spent
+      // token_hash from the URL.
+      if (authNotifier.isPasswordRecovery) {
+        return isResetRoute && state.uri.queryParameters.isEmpty
+            ? null
+            : AppRoutes.resetPassword;
+      }
+
+      if (hasRecoveryToken) return null;
 
       // Authenticated - redirect to role-based dashboard if on auth/splash pages
       if (isLoginRoute || isSplash) {
@@ -147,12 +167,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.register,
         builder: (context, state) {
           final trainerId = state.uri.queryParameters['trainer'];
-          return StudentRegisterScreen(trainerId: trainerId);
+          final email = state.uri.queryParameters['email'];
+          return StudentRegisterScreen(
+            trainerId: trainerId,
+            initialEmail: email,
+          );
         },
       ),
       GoRoute(
         path: AppRoutes.forgotPassword,
         builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.resetPassword,
+        builder: (context, state) => ResetPasswordScreen(
+          tokenHash: state.uri.queryParameters['token_hash'],
+          type: state.uri.queryParameters['type'],
+        ),
       ),
 
       // First login (invitation)

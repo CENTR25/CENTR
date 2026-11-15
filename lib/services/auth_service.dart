@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/constants/app_constants.dart';
 import '../models/user_model.dart';
 import 'supabase_service.dart';
 import 'workout_draft_service.dart';
@@ -37,6 +39,45 @@ class AuthState {
   }
 }
 
+/// "A password-recovery link was verified but no new password set yet."
+///
+/// Static (not per-[AuthNotifier]) because verifying the link swaps the
+/// session user, which re-keys the root ProviderScope and builds a brand-new
+/// AuthNotifier; and persisted (SharedPreferences = localStorage on web) so a
+/// reload mid-flow can't escape the reset screen into the app with the
+/// password-less recovery session. [load] must run before `runApp` so the
+/// router's synchronous redirect can read [pending].
+class PasswordRecoveryFlag {
+  static const _key = 'pw_recovery_pending';
+  static bool _pending = false;
+  static bool get pending => _pending;
+
+  static Future<void> load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _pending = prefs.getBool(_key) ?? false;
+    } catch (e) {
+      debugPrint('PasswordRecoveryFlag.load: $e');
+    }
+  }
+
+  /// Updates the in-memory value synchronously, then persists it.
+  static Future<void> set(bool value) async {
+    if (_pending == value) return;
+    _pending = value;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (value) {
+        await prefs.setBool(_key, true);
+      } else {
+        await prefs.remove(_key);
+      }
+    } catch (e) {
+      debugPrint('PasswordRecoveryFlag.set: $e');
+    }
+  }
+}
+
 /// Auth notifier
 class AuthNotifier extends StateNotifier<AuthState> {
   final SupabaseClient _client;
@@ -45,6 +86,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier(this._client, this._supabaseService) : super(const AuthState()) {
     _initialize();
   }
+
+  /// True after a password-recovery link was verified and no new password has
+  /// been set yet. The router pins such a session to the reset-password screen
+  /// so the recovery link can't be used as a password-less login into the app.
+  bool get isPasswordRecovery => PasswordRecoveryFlag.pending;
 
   void _initialize() {
     // Listen to auth state changes.
@@ -55,6 +101,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     // background session renewal and on iOS swipe-back navigation.
     _client.auth.onAuthStateChange.listen((data) async {
       final session = data.session;
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        PasswordRecoveryFlag.set(true);
+      }
       if (session != null) {
         final alreadyAuthenticated =
             state.status == AuthStatus.authenticated && state.user != null;
@@ -63,8 +112,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         if (alreadyAuthenticated && isTokenRefresh) return;
         await _loadUserProfile(session.user.id);
       } else {
+        PasswordRecoveryFlag.set(false);
         state = const AuthState(status: AuthStatus.unauthenticated);
       }
+    }, onError: (Object e) {
+      // e.g. an invalid auth callback in the URL is pushed on this stream as
+      // an AuthException; without a handler it surfaces as an uncaught error.
+      debugPrint('Auth stream error: $e');
     });
 
     // Check for existing session
@@ -72,6 +126,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (session != null) {
       _loadUserProfile(session.user.id);
     } else {
+      // No session: a leftover recovery flag (e.g. session expired) is moot.
+      PasswordRecoveryFlag.set(false);
       state = const AuthState(status: AuthStatus.unauthenticated);
     }
   }
@@ -259,6 +315,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (e) {
       debugPrint('signOut: ignoring error clearing drafts: $e');
     }
+    await PasswordRecoveryFlag.set(false);
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 
@@ -298,14 +355,78 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Reset password
-  Future<bool> resetPassword(String email) async {
+  /// Send the password-recovery email.
+  ///
+  /// The email template links to `/reset-password?token_hash=…&type=recovery`
+  /// on the web app (on mobile too: the native apps have no deep-link scheme,
+  /// so the reset is done in the browser and the user then signs in on the
+  /// app with the new password). `redirectTo` is pinned to the production URL
+  /// so preview `*.pages.dev` origins never end up in the email.
+  ///
+  /// Returns a user-facing error ONLY for a network failure (the request never
+  /// reached Supabase). Every server response — success, unknown email, 429 /
+  /// per-address rate limit, SMTP error — is reported as success so the UI
+  /// never reveals whether an email is registered.
+  Future<String?> resetPassword(String email) async {
     try {
-      await _client.auth.resetPasswordForEmail(email);
+      await _client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: AppConstants.resetPasswordUrl,
+      );
+    } on AuthRetryableFetchException catch (e) {
+      debugPrint('resetPassword: ${e.statusCode} ${e.message}');
+      // statusCode == null: fetch itself failed (offline / DNS / CORS).
+      if (e.statusCode == null) {
+        return 'No se pudo conectar. Revisá tu conexión e intentá de nuevo.';
+      }
+    } catch (e) {
+      debugPrint('resetPassword: $e');
+    }
+    return null;
+  }
+
+  /// Verify a recovery link's `token_hash` (a client-side POST, so email link
+  /// scanners that prefetch the GET link can't consume it). On success the
+  /// client holds a recovery session and the recovery flag is set; returns
+  /// false for an invalid / expired / already-used link.
+  Future<bool> verifyRecoveryToken(String tokenHash) async {
+    // Set the flag BEFORE the session appears: verifyOTP emits the auth events
+    // (which re-key the app and re-run the router) before it returns.
+    await PasswordRecoveryFlag.set(true);
+    try {
+      await _client.auth.verifyOTP(
+        tokenHash: tokenHash,
+        type: OtpType.recovery,
+      );
       return true;
     } catch (e) {
+      debugPrint('verifyRecoveryToken: $e');
+      await PasswordRecoveryFlag.set(false);
       return false;
     }
+  }
+
+  /// Set the new password for a session opened from a recovery link.
+  /// Returns `null` on success or a Spanish error message.
+  Future<String?> completePasswordRecovery(String newPassword) async {
+    try {
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
+    } on AuthException catch (e) {
+      if (e.message.contains('different from the old password')) {
+        return 'La nueva contraseña debe ser distinta de la anterior.';
+      }
+      if (e.message.contains('Password should be')) {
+        return 'La contraseña debe tener al menos 6 caracteres.';
+      }
+      return _getAuthErrorMessage(e);
+    } catch (_) {
+      return 'No se pudo actualizar la contraseña. Intenta de nuevo.';
+    }
+    await PasswordRecoveryFlag.set(false);
+    // Emit a new state so the router re-runs its redirect and leaves the
+    // reset screen for the user's dashboard.
+    state = state.copyWith();
+    return null;
   }
 
   /// Clear error

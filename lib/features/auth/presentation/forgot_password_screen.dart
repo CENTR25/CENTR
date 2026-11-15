@@ -20,6 +20,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _emailController = TextEditingController();
   bool _isLoading = false;
   bool _sent = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -29,13 +30,22 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   Future<void> _handleSend() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
-      await ref
+      final error = await ref
           .read(authProvider.notifier)
           .resetPassword(_emailController.text.trim());
-      // Always show success — do not leak whether the email exists.
-      if (mounted) setState(() => _sent = true);
+      // `error` is set only for a network failure; every server response
+      // (incl. 429 rate limit) shows success so we never leak which emails exist.
+      if (mounted) {
+        setState(() {
+          _error = error;
+          _sent = error == null;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _sent = true);
     } finally {
@@ -107,6 +117,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               return null;
             },
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: RedesignType.label.copyWith(color: RedesignColors.peligro300),
+            ),
+          ],
           const SizedBox(height: 18),
           SizedBox(
             height: RedesignSpacing.inputHeight,

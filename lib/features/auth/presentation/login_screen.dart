@@ -39,8 +39,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     try {
-      // NOTE: backend authenticates by EMAIL (signInWithEmail). The field is
-      // labelled "Nombre" per the Figma design — see the Nombre-vs-email flag.
       await ref.read(authProvider.notifier).signInWithEmail(
             _emailController.text.trim(),
             _passwordController.text,
@@ -120,11 +118,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               children: [
                                 RedesignTextField(
                                   controller: _emailController,
-                                  hint: 'Nombre',
+                                  hint: 'Correo electrónico',
+                                  keyboardType: TextInputType.emailAddress,
+                                  autofillHints: const [AutofillHints.email],
                                   textInputAction: TextInputAction.next,
                                   validator: (value) =>
                                       (value == null || value.trim().isEmpty)
-                                          ? 'Ingresá tu nombre'
+                                          ? 'Ingresá tu correo electrónico'
                                           : null,
                                 ),
                                 const SizedBox(height: 16),
@@ -132,6 +132,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   controller: _passwordController,
                                   hint: 'Contraseña',
                                   obscureText: _obscurePassword,
+                                  autofillHints: const [AutofillHints.password],
                                   textInputAction: TextInputAction.done,
                                   onFieldSubmitted: (_) => _handleLogin(),
                                   suffixIcon: GestureDetector(

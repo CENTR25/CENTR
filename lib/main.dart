@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,6 +8,7 @@ import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_provider.dart';
 import 'core/routing/app_router.dart';
+import 'services/auth_service.dart' show PasswordRecoveryFlag;
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'core/swipe_back_handler_stub.dart'
     if (dart.library.html) 'core/swipe_back_handler_web.dart';
@@ -21,6 +23,9 @@ void main() async {
     url: SupabaseConfig.url,
     anonKey: SupabaseConfig.anonKey,
   );
+  // Before runApp: the router's (synchronous) redirect reads this flag to pin
+  // a half-finished password recovery to /reset-password across reloads.
+  await PasswordRecoveryFlag.load();
   
   runApp(const AuthScopedApp());
 }
@@ -61,6 +66,10 @@ class _AuthScopedAppState extends State<AuthScopedApp> {
       if (nextKey != _scopeKey && mounted) {
         setState(() => _scopeKey = nextKey);
       }
+    }, onError: (Object e) {
+      // Auth stream errors (e.g. a bad auth callback in the URL) are also
+      // surfaced to AuthNotifier's listener; just keep them visible here.
+      if (kDebugMode) debugPrint('AuthScopedApp auth stream error: $e');
     });
   }
 

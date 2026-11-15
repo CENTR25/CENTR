@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/routing/app_router.dart';
+import '../../../core/theme/theme_redesign.dart';
 import '../../../services/supabase_service.dart';
+import '../../shared/redesign_toast.dart';
+import 'widgets/prgs_brand.dart';
+import 'widgets/redesign_text_field.dart';
 
 /// Student self-registration screen, opened via the trainer's invite link.
 ///
-/// URL format: /register?trainer={trainer_id}
+/// URL format: /register?trainer={trainer_id}[&email={invited_email}]
 ///
 /// Security contract (enforced here):
 /// - role is ALWAYS hardcoded to 'student' — never taken from the URL.
@@ -20,7 +23,11 @@ class StudentRegisterScreen extends ConsumerStatefulWidget {
   /// The trainer's `trainers.id` value extracted from the invite URL query param.
   final String? trainerId;
 
-  const StudentRegisterScreen({super.key, this.trainerId});
+  /// Optional invited email from the link (`&email=`), used only to prefill
+  /// the email field. The trainer id is NEVER put in any text field.
+  final String? initialEmail;
+
+  const StudentRegisterScreen({super.key, this.trainerId, this.initialEmail});
 
   @override
   ConsumerState<StudentRegisterScreen> createState() =>
@@ -38,6 +45,13 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final email = widget.initialEmail?.trim();
+    if (email != null && email.contains('@')) _emailController.text = email;
+  }
 
   @override
   void dispose() {
@@ -90,15 +104,7 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
 
       // Navigate — auth state listener in AuthNotifier will handle the rest.
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '¡Cuenta creada! Revisa tu email para confirmar tu dirección.',
-            ),
-            backgroundColor: AppColors.success,
-            duration: Duration(seconds: 4),
-          ),
-        );
+        showRedesignToast(context, title: '¡Cuenta creada!');
         context.go(AppRoutes.login);
       }
     } on AuthException catch (e) {
@@ -133,286 +139,227 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Logo / icon
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.primary, AppColors.accent],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha:0.4),
-                        blurRadius: 24,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.fitness_center_rounded,
-                    color: Colors.white,
-                    size: 48,
-                  ),
-                ),
-                const SizedBox(height: 28),
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Scaffold(
+        backgroundColor: RedesignColors.background,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Form(
+                    key: _formKey,
+                    child: AutofillGroup(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 48),
 
-                const Text(
-                  'Crear cuenta',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: -0.5,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.trainerId != null
-                      ? 'Tu entrenador te invitó a Progress'
-                      : 'Regístrate en Progress',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textLight,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 36),
+                          // ── Brand lockup (same as login) ──────────────────
+                          const Center(child: PrgsLogoLockup()),
 
-                // Error banner
-                if (_error != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha:0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.error.withValues(alpha:0.4),
-                      ),
-                    ),
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(
-                        color: AppColors.error,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                          const SizedBox(height: 41),
 
-                // Form
-                Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      _buildField(
-                        controller: _nameController,
-                        label: 'Nombre completo',
-                        icon: Icons.person_outline,
-                        textInputAction: TextInputAction.next,
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Ingresa tu nombre';
-                          }
-                          if (v.trim().length < 2) {
-                            return 'Mínimo 2 caracteres';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      _buildField(
-                        controller: _emailController,
-                        label: 'Correo electrónico',
-                        icon: Icons.email_outlined,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Ingresa tu correo';
-                          }
-                          if (!v.contains('@')) {
-                            return 'Correo no válido';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      _buildPasswordField(
-                        controller: _passwordController,
-                        label: 'Contraseña',
-                        obscure: _obscurePassword,
-                        onToggle: () =>
-                            setState(() => _obscurePassword = !_obscurePassword),
-                        textInputAction: TextInputAction.next,
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Ingresa una contraseña';
-                          if (v.length < 6) return 'Mínimo 6 caracteres';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      _buildPasswordField(
-                        controller: _confirmPasswordController,
-                        label: 'Confirmar contraseña',
-                        obscure: _obscureConfirm,
-                        onToggle: () =>
-                            setState(() => _obscureConfirm = !_obscureConfirm),
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => _register(),
-                        validator: (v) {
-                          if (v != _passwordController.text) {
-                            return 'Las contraseñas no coinciden';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Register button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _register,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                          // ── Title block ──────────────────────────────────
+                          Text(
+                            'Crear cuenta',
+                            textAlign: TextAlign.center,
+                            style: RedesignType.headingMd.copyWith(
+                              color: RedesignColors.primario50,
+                              fontWeight: FontWeight.w700,
                             ),
-                            elevation: 0,
                           ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Crear cuenta',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
+                          const SizedBox(height: 6),
+                          Text(
+                            widget.trainerId != null
+                                ? 'Tu entrenador te invitó a Progress'
+                                : 'Regístrate en Progress',
+                            textAlign: TextAlign.center,
+                            style: RedesignType.bodySm.copyWith(
+                              color: RedesignColors.primario300,
+                            ),
+                          ),
+
+                          const SizedBox(height: 36),
+
+                          // ── Form ─────────────────────────────────────────
+                          RedesignTextField(
+                            controller: _nameController,
+                            hint: 'Nombre completo',
+                            keyboardType: TextInputType.name,
+                            autofillHints: const [AutofillHints.name],
+                            textInputAction: TextInputAction.next,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Ingresa tu nombre';
+                              }
+                              if (v.trim().length < 2) {
+                                return 'Mínimo 2 caracteres';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          RedesignTextField(
+                            controller: _emailController,
+                            hint: 'Correo electrónico',
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
+                            textInputAction: TextInputAction.next,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Ingresa tu correo';
+                              }
+                              if (!v.contains('@')) {
+                                return 'Correo no válido';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          RedesignTextField(
+                            controller: _passwordController,
+                            hint: 'Contraseña',
+                            obscureText: _obscurePassword,
+                            autofillHints: const [AutofillHints.newPassword],
+                            textInputAction: TextInputAction.next,
+                            suffixIcon: _eye(
+                              _obscurePassword,
+                              () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return 'Ingresa una contraseña';
+                              }
+                              if (v.length < 6) return 'Mínimo 6 caracteres';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          RedesignTextField(
+                            controller: _confirmPasswordController,
+                            hint: 'Confirmar contraseña',
+                            obscureText: _obscureConfirm,
+                            autofillHints: const [AutofillHints.newPassword],
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: (_) => _register(),
+                            suffixIcon: _eye(
+                              _obscureConfirm,
+                              () => setState(
+                                () => _obscureConfirm = !_obscureConfirm,
+                              ),
+                            ),
+                            validator: (v) {
+                              if (v != _passwordController.text) {
+                                return 'Las contraseñas no coinciden';
+                              }
+                              return null;
+                            },
+                          ),
+
+                          // Inline error (same treatment as login)
+                          if (_error != null) ...[
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.info_outline_rounded,
+                                  size: 15,
+                                  color: RedesignColors.peligro300,
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    _error!,
+                                    style: RedesignType.label.copyWith(
+                                      color: RedesignColors.peligro300,
+                                    ),
                                   ),
                                 ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
+                              ],
+                            ),
+                          ],
 
-                      // Back to login
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '¿Ya tienes cuenta?',
-                            style: TextStyle(
-                              color: AppColors.textLight,
-                              fontSize: 13,
+                          const SizedBox(height: 36),
+
+                          SizedBox(
+                            height: RedesignSpacing.inputHeight,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _register,
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          RedesignColors.onActionPrimary,
+                                        ),
+                                      ),
+                                    )
+                                  : Text(
+                                      'Crear cuenta',
+                                      style: RedesignType.buttonLg.copyWith(
+                                        color: RedesignColors.onActionPrimary,
+                                      ),
+                                    ),
                             ),
                           ),
-                          TextButton(
-                            onPressed: () => context.go(AppRoutes.login),
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.primaryLight,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                          const SizedBox(height: 14),
+
+                          // Back to login
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '¿Ya tienes cuenta?',
+                                style: RedesignType.bodySm.copyWith(
+                                  color: RedesignColors.primario300,
+                                ),
                               ),
-                            ),
-                            child: const Text(
-                              'Iniciar sesión',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                              TextButton(
+                                onPressed: () => context.go(AppRoutes.login),
+                                style: TextButton.styleFrom(
+                                  foregroundColor:
+                                      RedesignColors.actionPrimary,
+                                  textStyle: RedesignType.buttonSm,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                ),
+                                child: const Text('Iniciar sesión'),
                               ),
-                            ),
+                            ],
                           ),
+                          const SizedBox(height: 32),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
     );
   }
 
-  Widget _buildField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    TextInputAction? textInputAction,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      onFieldSubmitted: textInputAction == TextInputAction.next
-          ? (_) => FocusScope.of(context).nextFocus()
-          : null,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: AppColors.textLight, size: 20),
-      ),
-      validator: validator,
-    );
-  }
-
-  Widget _buildPasswordField({
-    required TextEditingController controller,
-    required String label,
-    required bool obscure,
-    required VoidCallback onToggle,
-    TextInputAction? textInputAction,
-    void Function(String)? onSubmitted,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      obscureText: obscure,
-      textInputAction: textInputAction,
-      onFieldSubmitted: onSubmitted ??
-          (textInputAction == TextInputAction.next
-              ? (_) => FocusScope.of(context).nextFocus()
-              : null),
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: const Icon(Icons.lock_outline, color: AppColors.textLight, size: 20),
-        suffixIcon: IconButton(
-          icon: Icon(
-            obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-            color: AppColors.textLight,
-            size: 20,
-          ),
-          onPressed: onToggle,
+  Widget _eye(bool obscured, VoidCallback onTap) => GestureDetector(
+        onTap: onTap,
+        child: Icon(
+          obscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+          color: RedesignColors.primario400,
+          size: 20,
         ),
-      ),
-      validator: validator,
-    );
-  }
+      );
 }

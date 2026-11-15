@@ -16,6 +16,7 @@ class RedesignTextField extends StatelessWidget {
     this.suffixIcon,
     this.onFieldSubmitted,
     this.validator,
+    this.autofillHints,
   });
 
   final TextEditingController controller;
@@ -28,6 +29,10 @@ class RedesignTextField extends StatelessWidget {
   final ValueChanged<String>? onFieldSubmitted;
   final FormFieldValidator<String>? validator;
 
+  /// Explicit autofill type. Set it on auth forms: on web, an unhinted field
+  /// is emitted as `autocomplete="on"` and the browser guesses what to fill.
+  final Iterable<String>? autofillHints;
+
   @override
   Widget build(BuildContext context) {
     return TextFormField(
@@ -37,6 +42,7 @@ class RedesignTextField extends StatelessWidget {
       obscureText: obscureText,
       onFieldSubmitted: onFieldSubmitted,
       validator: validator,
+      autofillHints: autofillHints ?? const <String>[],
       style: RedesignType.bodySm.copyWith(color: RedesignColors.primario50),
       decoration: InputDecoration(
         hintText: hint,

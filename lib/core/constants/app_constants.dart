@@ -19,6 +19,10 @@ class AppConstants {
   // Base URL for trainer first-login links (invitation token flow).
   static const String firstLoginBaseUrl = 'https://prgs.pages.dev/first-login';
 
+  /// Where password-recovery email links land (must be in the Supabase Auth
+  /// "Redirect URLs" allow-list; otherwise Supabase falls back to the Site URL).
+  static const String resetPasswordUrl = 'https://prgs.pages.dev/reset-password';
+
   // WhatsApp CTA for brands/marketing inquiries.
   // TODO: set real PRGS WhatsApp number.
   static const String prgsBrandsWhatsappUrl = 'https://wa.me/000000000';

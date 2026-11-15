@@ -443,6 +443,22 @@ class FoodService {
     await _client.from('foods').delete().eq('id', id);
   }
 
+  /// Bulk delete in chunks (keeps the URL short). RLS limits it to own rows
+  /// (or globals for admin). Returns how many rows were actually deleted.
+  Future<int> deleteFoods(List<String> ids) async {
+    var deleted = 0;
+    const chunk = 100;
+    for (var i = 0; i < ids.length; i += chunk) {
+      final res = await _client
+          .from('foods')
+          .delete()
+          .inFilter('id', ids.sublist(i, math.min(i + chunk, ids.length)))
+          .select('id');
+      deleted += (res as List).length;
+    }
+    return deleted;
+  }
+
   /// Batch insert in chunks. Returns (inserted, failed).
   Future<({int inserted, int failed})> importFoods(
       List<Map<String, dynamic>> rows, FoodAccess a) async {

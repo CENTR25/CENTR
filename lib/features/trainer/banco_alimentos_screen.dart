@@ -32,12 +32,82 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
   String _search = '';
   String? _category;
 
+  // Multi-select (bulk delete) mode on the Ingredientes tab.
+  bool _selecting = false;
+  final Set<String> _selected = {};
+  bool _deleting = false;
+
   @override
   void initState() {
     super.initState();
     _tabs.addListener(() {
-      if (!_tabs.indexIsChanging) setState(() {});
+      if (!_tabs.indexIsChanging) {
+        setState(() {
+          _selecting = false;
+          _selected.clear();
+        });
+      }
     });
+  }
+
+  void _exitSelection() => setState(() {
+        _selecting = false;
+        _selected.clear();
+      });
+
+  /// Rows visible under the current search/category that the user may delete.
+  List<String> _deletableVisibleIds(FoodAccess access) {
+    final foods = ref.read(foodsProvider).valueOrNull ?? const [];
+    return _filterFoods(foods)
+        .where(access.canEdit)
+        .map((f) => f['id'] as String)
+        .toList();
+  }
+
+  Future<void> _deleteSelected() async {
+    final n = _selected.length;
+    if (n == 0) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: RedesignColors.primario900,
+        title: Text('Eliminar $n alimento${n == 1 ? '' : 's'}',
+            style: const TextStyle(color: RedesignColors.primario50)),
+        content: const Text('Esta acción no se puede deshacer.',
+            style: TextStyle(color: RedesignColors.primario300)),
+        actions: [
+          TextButton(
+              style: TextButton.styleFrom(
+                  foregroundColor: RedesignColors.primario300),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          TextButton(
+              style: TextButton.styleFrom(
+                  foregroundColor: RedesignColors.peligro400),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Eliminar')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _deleting = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final deleted =
+          await ref.read(foodServiceProvider).deleteFoods(_selected.toList());
+      if (!mounted) return;
+      _exitSelection();
+      _refresh();
+      messenger.showSnackBar(SnackBar(
+          content: Text(deleted == n
+              ? '$deleted alimento${deleted == 1 ? '' : 's'} eliminado${deleted == 1 ? '' : 's'}.'
+              : 'Se eliminaron $deleted de $n alimentos.')));
+    } catch (_) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text('No se pudieron eliminar los alimentos.')));
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
   }
 
   @override
@@ -109,15 +179,24 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: RedesignColors.primario50, size: 20),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: _selecting
+              ? IconButton(
+                  tooltip: 'Cancelar selección',
+                  icon: const Icon(Icons.close_rounded,
+                      color: RedesignColors.primario50),
+                  onPressed: _exitSelection,
+                )
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: RedesignColors.primario50, size: 20),
+                  onPressed: () => Navigator.pop(context),
+                ),
           centerTitle: true,
-          title: const Text(
-            'Banco de alimentos',
-            style: TextStyle(
+          title: Text(
+            _selecting
+                ? '${_selected.length} seleccionado${_selected.length == 1 ? '' : 's'}'
+                : 'Banco de alimentos',
+            style: const TextStyle(
               color: RedesignColors.primario50,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -125,7 +204,52 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
             ),
           ),
           actions: [
-            if (access != null && access.canWrite && foodsTab)
+            if (_selecting && access != null) ...[
+              Builder(builder: (_) {
+                final visible = _deletableVisibleIds(access);
+                final allOn = visible.isNotEmpty &&
+                    visible.every(_selected.contains);
+                return IconButton(
+                  tooltip: allOn ? 'Quitar selección' : 'Seleccionar todos',
+                  icon: Icon(
+                      allOn
+                          ? Icons.deselect_rounded
+                          : Icons.select_all_rounded,
+                      color: RedesignColors.primario50),
+                  onPressed: () => setState(() {
+                    allOn
+                        ? _selected.removeAll(visible)
+                        : _selected.addAll(visible);
+                  }),
+                );
+              }),
+              _deleting
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 14),
+                      child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: RedesignColors.peligro400)),
+                    )
+                  : IconButton(
+                      tooltip: 'Eliminar seleccionados',
+                      icon: Icon(Icons.delete_rounded,
+                          color: _selected.isEmpty
+                              ? RedesignColors.primario400
+                              : RedesignColors.peligro400),
+                      onPressed: _selected.isEmpty ? null : _deleteSelected,
+                    ),
+            ],
+            if (!_selecting && access != null && access.canWrite && foodsTab)
+              IconButton(
+                tooltip: 'Seleccionar varios',
+                icon: const Icon(Icons.checklist_rounded,
+                    color: RedesignColors.primario50),
+                onPressed: () => setState(() => _selecting = true),
+              ),
+            if (!_selecting && access != null && access.canWrite && foodsTab)
               IconButton(
                 tooltip: 'Importar CSV',
                 icon: const Icon(Icons.upload_file_rounded,
@@ -152,7 +276,7 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
             tabs: const [Tab(text: 'Ingredientes'), Tab(text: 'Comidas')],
           ),
         ),
-        floatingActionButton: (access != null && access.canWrite)
+        floatingActionButton: (access != null && access.canWrite && !_selecting)
             ? FloatingActionButton(
                 backgroundColor: RedesignColors.actionPrimary,
                 foregroundColor: RedesignColors.onActionPrimary,
@@ -262,8 +386,16 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (context, i) {
                 final f = filtered[i];
+                final id = f['id'] as String;
                 return _FoodRow(
                   food: f,
+                  selecting: _selecting,
+                  selected: _selected.contains(id),
+                  onToggle: (_selecting && access != null && access.canEdit(f))
+                      ? () => setState(() => _selected.contains(id)
+                          ? _selected.remove(id)
+                          : _selected.add(id))
+                      : null,
                   onAdd: () => _pickFood(f),
                   onEdit: (access != null && access.canWrite)
                       ? () async {
@@ -454,7 +586,19 @@ class _FoodRow extends StatefulWidget {
   final Map<String, dynamic> food;
   final VoidCallback onAdd;
   final VoidCallback? onEdit;
-  const _FoodRow({required this.food, required this.onAdd, this.onEdit});
+  final bool selecting;
+  final bool selected;
+
+  /// Null in selection mode means the row isn't deletable by this user.
+  final VoidCallback? onToggle;
+  const _FoodRow({
+    required this.food,
+    required this.onAdd,
+    this.onEdit,
+    this.selecting = false,
+    this.selected = false,
+    this.onToggle,
+  });
 
   @override
   State<_FoodRow> createState() => _FoodRowState();
@@ -479,9 +623,24 @@ class _FoodRowState extends State<_FoodRow> {
       child: Column(
         children: [
           InkWell(
-            onTap: () => setState(() => _open = !_open),
+            onTap: widget.selecting
+                ? widget.onToggle
+                : () => setState(() => _open = !_open),
             child: Row(
               children: [
+                if (widget.selecting) ...[
+                  Icon(
+                    widget.onToggle == null
+                        ? Icons.lock_outline_rounded
+                        : widget.selected
+                            ? Icons.check_box_rounded
+                            : Icons.check_box_outline_blank_rounded,
+                    color: widget.selected
+                        ? RedesignColors.actionPrimary
+                        : RedesignColors.primario400,
+                  ),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,17 +660,19 @@ class _FoodRowState extends State<_FoodRow> {
                     ],
                   ),
                 ),
-                Icon(
-                    _open
-                        ? Icons.expand_less_rounded
-                        : Icons.expand_more_rounded,
-                    color: RedesignColors.primario400),
-                const SizedBox(width: 6),
-                _AddButton(onTap: widget.onAdd),
+                if (!widget.selecting) ...[
+                  Icon(
+                      _open
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                      color: RedesignColors.primario400),
+                  const SizedBox(width: 6),
+                  _AddButton(onTap: widget.onAdd),
+                ],
               ],
             ),
           ),
-          if (_open) ...[
+          if (_open && !widget.selecting) ...[
             const SizedBox(height: 10),
             Row(children: [
               _Macro('Prot.', '${_fmt(f['protein'])} g'),

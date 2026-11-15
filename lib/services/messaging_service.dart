@@ -135,19 +135,19 @@ class MessagingService {
 
     if (byAthlete.isEmpty) return [];
 
-    // Attach athlete name + avatar.
+    // Attach athlete name + avatar. The avatar lives on athletes.avatar_url
+    // (profiles has no avatar_url column — embedding it made PostgREST 400
+    // and broke the whole inbox).
     final athleteRows = await _client
         .from('athletes')
-        .select('id, name, avatar_url, profiles(avatar_url)')
+        .select('id, name, avatar_url')
         .inFilter('id', byAthlete.keys.toList());
     for (final a in List<Map<String, dynamic>>.from(athleteRows)) {
       final aid = a['id'] as String?;
       final conv = aid != null ? byAthlete[aid] : null;
       if (conv == null) continue;
-      final profile = a['profiles'] as Map<String, dynamic>?;
       conv['name'] = (a['name'] ?? 'Alumno').toString();
-      conv['avatar_url'] =
-          (a['avatar_url'] as String?) ?? (profile?['avatar_url'] as String?);
+      conv['avatar_url'] = a['avatar_url'] as String?;
     }
 
     final list = byAthlete.values.toList()

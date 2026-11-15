@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -72,7 +73,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             senderRole: widget.viewerRole,
             body: text,
           );
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('chat: send failed: $e');
+      }
       if (mounted) {
         _inputCtrl.text = text; // restore on failure
         ScaffoldMessenger.of(context).showSnackBar(
@@ -125,10 +129,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   child: CircularProgressIndicator(
                       color: RedesignColors.actionPrimary),
                 ),
-                error: (_, __) => const Center(
-                  child: Text('No se pudo cargar la conversación',
-                      style: TextStyle(color: RedesignColors.primario300)),
-                ),
+                error: (e, st) {
+                  if (kDebugMode) {
+                    debugPrint('chat: load conversation failed: $e\n$st');
+                  }
+                  return Center(
+                    child: Text(
+                      kDebugMode
+                          ? 'No se pudo cargar la conversación\n$e'
+                          : 'No se pudo cargar la conversación',
+                      textAlign: TextAlign.center,
+                      style:
+                          const TextStyle(color: RedesignColors.primario300),
+                    ),
+                  );
+                },
                 data: (messages) {
                   if (messages.isEmpty) {
                     return Center(

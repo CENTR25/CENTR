@@ -98,12 +98,16 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
               ),
             ),
           ),
-          TextButton.icon(
+          OutlinedButton.icon(
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => const MuscleGroupsEditorScreen())),
-            style: TextButton.styleFrom(
+            style: OutlinedButton.styleFrom(
               foregroundColor: RedesignColors.actionPrimary,
+              side: const BorderSide(
+                  color: RedesignColors.actionPrimary, width: 1),
               minimumSize: const Size(0, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: const StadiumBorder(),
             ),
             icon: const Icon(Icons.category_rounded, size: 18),
             label: const Text('Grupos'),

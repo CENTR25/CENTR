@@ -105,6 +105,9 @@ class _MuscleGroupsEditorScreenState
         floatingActionButton: FloatingActionButton.extended(
           backgroundColor: RedesignColors.actionPrimary,
           foregroundColor: RedesignColors.primario900,
+          // Theme FAB shape is a CircleBorder (round nav FAB); an extended FAB
+          // with a label would be clipped into an oval, so force a pill.
+          shape: const StadiumBorder(),
           onPressed: _busy
               ? null
               : () async {

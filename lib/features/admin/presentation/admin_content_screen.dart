@@ -498,16 +498,20 @@ class _ExercisesListState extends ConsumerState<_ExercisesList> {
           alignment: Alignment.centerLeft,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: TextButton.icon(
+            child: OutlinedButton.icon(
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
                     builder: (_) =>
                         const MuscleGroupsEditorScreen(isAdmin: true)),
               ),
-              style: TextButton.styleFrom(
+              style: OutlinedButton.styleFrom(
                   foregroundColor: RedesignColors.actionPrimary,
-                  minimumSize: const Size(0, 36)),
+                  side: const BorderSide(
+                      color: RedesignColors.actionPrimary, width: 1),
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: const StadiumBorder()),
               icon: const Icon(Icons.category_rounded, size: 18),
               label: const Text('Grupos musculares'),
             ),

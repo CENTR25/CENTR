@@ -1313,6 +1313,9 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
   String _pickedImageExt = 'jpg';
   bool _isSaving = false;
   bool _isDeleting = false;
+  // Inline error: a SnackBar on the parent Scaffold renders BEHIND the modal
+  // sheet, so weekday validation messages are shown inside the sheet.
+  String? _weekdayError;
 
   static const _levelOptions = [
     ('Principiante', 'beginner'),
@@ -1406,6 +1409,7 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
           value: _daysPerWeek,
           onChanged: (v) => setState(() {
             _daysPerWeek = v;
+            _weekdayError = null;
             // Keep the day picker consistent: if the new frequency is lower
             // than the number of days already selected, drop the extra days
             // (keep the earliest weekdays).
@@ -1429,24 +1433,42 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
           selected: _selectedWeekdays,
           onToggle: (weekday) {
             if (_selectedWeekdays.contains(weekday)) {
-              setState(() => _selectedWeekdays.remove(weekday));
+              setState(() {
+          _selectedWeekdays.remove(weekday);
+          _weekdayError = null;
+        });
             } else if (_selectedWeekdays.length >= _daysPerWeek) {
               // Can't pick more days than the chosen weekly frequency.
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Ya elegiste $_daysPerWeek ${_daysPerWeek == 1 ? 'día' : 'días'}. '
-                    'Aumentá "Días por semana" para elegir más.',
-                  ),
-                  backgroundColor: RedesignColors.danger,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              setState(() => _weekdayError =
+            'Ya elegiste $_daysPerWeek ${_daysPerWeek == 1 ? 'día' : 'días'}. '
+                    'Aumentá "Días por semana" para elegir más.');
             } else {
-              setState(() => _selectedWeekdays.add(weekday));
+              setState(() {
+          _selectedWeekdays.add(weekday);
+          _weekdayError = null;
+        });
             }
           },
         ),
+          if (_weekdayError != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.error_outline_rounded,
+                    size: 16, color: RedesignColors.danger),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _weekdayError!,
+                    style: RedesignType.bodySm.copyWith(
+                        color: RedesignColors.danger,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ],
         const SizedBox(height: 20),
 
         // Nivel
@@ -1649,23 +1671,13 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
   Future<void> _save() async {
     if (_titleController.text.trim().isEmpty) return;
     if (_selectedWeekdays.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Selecciona al menos un día de entrenamiento.'),
-          backgroundColor: RedesignColors.danger,
-        ),
-      );
+      setState(() => _weekdayError = 'Selecciona al menos un día de entrenamiento.');
       return;
     }
     if (_selectedWeekdays.length != _daysPerWeek) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_selectedWeekdays.length < _daysPerWeek
+      setState(() => _weekdayError = _selectedWeekdays.length < _daysPerWeek
               ? 'Faltan días por seleccionar'
-              : 'Seleccionaste más días de los que tiene la rutina'),
-          backgroundColor: RedesignColors.danger,
-        ),
-      );
+              : 'Seleccionaste más días de los que tiene la rutina');
       return;
     }
     setState(() => _isSaving = true);

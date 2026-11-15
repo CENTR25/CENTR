@@ -77,6 +77,7 @@ class NewsService {
     int displayOrder = 0,
     String? trainerId,
     String audience = 'all',
+    String? linkUrl,
   }) async {
     try {
       final response = await _client.from('news_articles').insert({
@@ -88,6 +89,7 @@ class NewsService {
         'is_published': isPublished,
         'display_order': displayOrder,
         'audience': audience,
+        'link_url': linkUrl,
         'created_at': DateTime.now().toUtc().toIso8601String(),
         if (trainerId != null) 'trainer_id': trainerId,
       }).select().single();
@@ -99,7 +101,8 @@ class NewsService {
     }
   }
 
-  /// Update an existing news article
+  /// Update an existing news article.
+  /// [linkUrl]: null = leave unchanged, '' = clear the link.
   Future<bool> updateNews(String id, {
     String? title,
     String? content,
@@ -109,6 +112,7 @@ class NewsService {
     bool? isPublished,
     int? displayOrder,
     String? audience,
+    String? linkUrl,
   }) async {
     try {
       final updates = <String, dynamic>{
@@ -123,6 +127,9 @@ class NewsService {
       if (isPublished != null) updates['is_published'] = isPublished;
       if (displayOrder != null) updates['display_order'] = displayOrder;
       if (audience != null) updates['audience'] = audience;
+      if (linkUrl != null) {
+        updates['link_url'] = linkUrl.isEmpty ? null : linkUrl;
+      }
 
       await _client.from('news_articles').update(updates).eq('id', id);
       return true;

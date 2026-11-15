@@ -12,7 +12,8 @@ import '../../shared/redesign_toast.dart';
 import '../widgets/admin_common.dart';
 
 /// Create / edit a news article (Figma Third Batch "Nueva noticia").
-/// Cover image, título, contenido, "Visible para" audience, draft/publish.
+/// Cover image, título, contenido, optional link, "Visible para" audience,
+/// draft/publish.
 class AdminNewsEditorScreen extends ConsumerStatefulWidget {
   final NewsArticle? article;
 
@@ -27,6 +28,7 @@ class _AdminNewsEditorScreenState
     extends ConsumerState<AdminNewsEditorScreen> {
   late final TextEditingController _titleCtrl;
   late final TextEditingController _contentCtrl;
+  late final TextEditingController _linkCtrl;
   String _audience = 'all';
   String? _coverUrl;
   Uint8List? _coverPreview;
@@ -41,6 +43,7 @@ class _AdminNewsEditorScreenState
     final a = widget.article;
     _titleCtrl = TextEditingController(text: a?.title ?? '');
     _contentCtrl = TextEditingController(text: a?.content ?? '');
+    _linkCtrl = TextEditingController(text: a?.linkUrl ?? '');
     _audience = a?.audience ?? 'all';
     _coverUrl = a?.imageUrl;
   }
@@ -49,6 +52,7 @@ class _AdminNewsEditorScreenState
   void dispose() {
     _titleCtrl.dispose();
     _contentCtrl.dispose();
+    _linkCtrl.dispose();
     super.dispose();
   }
 
@@ -81,11 +85,35 @@ class _AdminNewsEditorScreenState
     }
   }
 
+  /// Normalizes the optional link: '' when empty, `https://` prefixed when
+  /// no scheme was typed, null when it doesn't look like a web URL.
+  static String? _normalizeLink(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return '';
+    final url = RegExp(r'^https?://', caseSensitive: false).hasMatch(value)
+        ? value
+        : 'https://$value';
+    final uri = Uri.tryParse(url);
+    final ok = uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.contains('.') &&
+        !url.contains(' ');
+    return ok ? url : null;
+  }
+
   Future<void> _save({required bool publish}) async {
     if (_titleCtrl.text.trim().isEmpty || _contentCtrl.text.trim().isEmpty) {
       showRedesignToast(context,
           title: 'Faltan datos',
           subtitle: 'Completá título y contenido.',
+          icon: Icons.error_outline_rounded);
+      return;
+    }
+    final link = _normalizeLink(_linkCtrl.text);
+    if (link == null) {
+      showRedesignToast(context,
+          title: 'Link inválido',
+          subtitle: 'Revisá el enlace (ej: https://instagram.com/marca).',
           icon: Icons.error_outline_rounded);
       return;
     }
@@ -100,6 +128,7 @@ class _AdminNewsEditorScreenState
           imageUrl: _coverUrl,
           isPublished: publish,
           audience: _audience,
+          linkUrl: link,
         );
       } else {
         await svc.createNews(
@@ -108,9 +137,11 @@ class _AdminNewsEditorScreenState
           imageUrl: _coverUrl,
           isPublished: publish,
           audience: _audience,
+          linkUrl: link.isEmpty ? null : link,
         );
       }
       ref.invalidate(allNewsProvider);
+      ref.invalidate(studentNewsProvider);
       if (!mounted) return;
       final nav = Navigator.of(context);
       nav.pop();
@@ -177,6 +208,19 @@ class _AdminNewsEditorScreenState
                 hintText: 'Escribí la noticia',
                 alignLabelWithHint: true,
               ),
+            ),
+            const SizedBox(height: 18),
+            _label('Link (opcional)'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _linkCtrl,
+              keyboardType: TextInputType.url,
+              autocorrect: false,
+              textInputAction: TextInputAction.done,
+              style: RedesignType.bodySm
+                  .copyWith(color: RedesignColors.primario50),
+              decoration: const InputDecoration(
+                  hintText: 'https://instagram.com/marca'),
             ),
             const SizedBox(height: 18),
             _label('Visible para'),

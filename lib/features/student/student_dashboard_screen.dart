@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../services/auth_service.dart';
 import '../../services/student_service.dart';
@@ -1227,7 +1228,8 @@ class _NewsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => _showArticle(context),
+      onTap: () =>
+          article.hasLink ? _openLink(context) : _showArticle(context),
       child: SizedBox(
         width: 185,
         child: ClipRRect(
@@ -1293,6 +1295,34 @@ class _NewsCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Opens the article's external link (same mode as the Beneficios brands).
+  /// Web: '_blank' forces a new browsing context so an installed iOS PWA
+  /// doesn't navigate its own window away (white screen on back).
+  Future<void> _openLink(BuildContext context) async {
+    final value = article.linkUrl!.trim();
+    final url = RegExp(r'^https?://', caseSensitive: false).hasMatch(value)
+        ? value
+        : 'https://$value';
+    final uri = Uri.tryParse(url);
+    var ok = false;
+    if (uri != null) {
+      try {
+        ok = await launchUrl(
+          uri,
+          mode: LaunchMode.inAppBrowserView,
+          webOnlyWindowName: '_blank',
+        );
+      } catch (_) {
+        ok = false; // e.g. PlatformException: no handler for the URL
+      }
+    }
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo abrir el enlace')),
+      );
+    }
   }
 
   void _showArticle(BuildContext context) {

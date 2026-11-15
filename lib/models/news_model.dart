@@ -17,6 +17,12 @@ class NewsArticle {
   /// Target audience: 'all' | 'trainers' | 'students'.
   final String audience;
 
+  /// Optional external link (e.g. a brand's Instagram). When set, tapping the
+  /// news card opens it instead of the in-app detail sheet.
+  final String? linkUrl;
+
+  bool get hasLink => linkUrl != null && linkUrl!.trim().isNotEmpty;
+
   NewsArticle({
     required this.id,
     required this.title,
@@ -30,6 +36,7 @@ class NewsArticle {
     this.displayOrder = 0,
     this.trainerId,
     this.audience = 'all',
+    this.linkUrl,
   });
 
   factory NewsArticle.fromJson(Map<String, dynamic> json) {
@@ -48,6 +55,7 @@ class NewsArticle {
       displayOrder: json['display_order'] as int? ?? 0,
       trainerId: json['trainer_id'] as String?,
       audience: json['audience'] as String? ?? 'all',
+      linkUrl: json['link_url'] as String?,
     );
   }
 
@@ -65,6 +73,7 @@ class NewsArticle {
       'display_order': displayOrder,
       'trainer_id': trainerId,
       'audience': audience,
+      'link_url': linkUrl,
     };
   }
 
@@ -81,6 +90,7 @@ class NewsArticle {
     int? displayOrder,
     String? trainerId,
     String? audience,
+    String? linkUrl,
   }) {
     return NewsArticle(
       id: id ?? this.id,
@@ -95,6 +105,7 @@ class NewsArticle {
       displayOrder: displayOrder ?? this.displayOrder,
       trainerId: trainerId ?? this.trainerId,
       audience: audience ?? this.audience,
+      linkUrl: linkUrl ?? this.linkUrl,
     );
   }
 }

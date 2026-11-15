@@ -1149,6 +1149,16 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
   bool _isUploading = false;
   bool _isSaving = false;
 
+  // Foods that make up THIS option (one meal_plan_items row). Each pick from
+  // the Banco appends a line; they're persisted inside the row's `macros`
+  // jsonb as {p, c, f, items: [...], notes} so the option can be re-edited.
+  // Line shape: {name, qty, kcal:int, p, c, f}.
+  final List<Map<String, dynamic>> _foods = [];
+  // Name / calories auto-follow the food list until the trainer types their
+  // own (an emptied field goes back to auto).
+  bool _nameTouched = false;
+  bool _kcalTouched = false;
+
   @override
   void initState() {
     super.initState();
@@ -1159,11 +1169,23 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
     if (item != null) {
       _nameController.text = (item['meal_title'] as String?) ?? '';
       _calController.text =
-          (item['calories'] as int?)?.toString() ?? '';
-      _descController.text = (item['meal_description'] as String?) ?? '';
+          (item['calories'] as num?)?.round().toString() ?? '';
       _uploadedImageUrl = item['image_url'] as String?;
       final t = item['time_of_day'] as String?;
       if (t != null) _selectedTime = t;
+      final macros = item['macros'];
+      final saved = macros is Map ? macros['items'] : null;
+      if (saved is List && saved.isNotEmpty) {
+        for (final f in saved) {
+          if (f is Map) _foods.add(Map<String, dynamic>.from(f));
+        }
+        _descController.text = (macros['notes'] ?? '').toString();
+        _nameTouched = _nameController.text.trim() != _autoName();
+        _kcalTouched = _calController.text.trim() != _sumKcal.toString();
+      } else {
+        _descController.text = (item['meal_description'] as String?) ?? '';
+        _nameTouched = true;
+      }
     }
   }
 
@@ -1175,7 +1197,35 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
     super.dispose();
   }
 
-  // ── Prefill from Banco de alimentos ────────────────────────────────────────
+  // ── Food list helpers ──────────────────────────────────────────────────────
+
+  static double _n(dynamic v) =>
+      v is num ? v.toDouble() : double.tryParse('${v ?? ''}') ?? 0;
+
+  static double _r1(double v) => (v * 10).roundToDouble() / 10;
+
+  static String _fmt(double v) =>
+      v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
+
+  String _autoName() =>
+      _foods.map((f) => (f['name'] ?? '').toString()).join(' + ');
+
+  int get _sumKcal => _foods.fold<int>(0, (s, f) => s + _n(f['kcal']).round());
+  double _sumMacro(String k) =>
+      _r1(_foods.fold<double>(0, (s, f) => s + _n(f[k])));
+
+  /// Re-derive name (unless typed by hand) and calories from the food list.
+  void _syncFromFoods() {
+    if (_foods.isEmpty) return;
+    if (!_nameTouched || _nameController.text.trim().isEmpty) {
+      _nameController.text = _autoName();
+    }
+    if (!_kcalTouched || _calController.text.trim().isEmpty) {
+      _calController.text = _sumKcal.toString();
+    }
+  }
+
+  // ── Add a food from Banco de alimentos ─────────────────────────────────────
 
   Future<void> _openBanco() async {
     final result = await Navigator.push<Map<String, dynamic>>(
@@ -1184,15 +1234,49 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
     );
     if (result == null || !mounted) return;
     setState(() {
-      _nameController.text = (result['meal_title'] as String?) ?? '';
-      _calController.text =
-          (result['calories'] as int?)?.toString() ?? '';
-      _descController.text =
-          (result['meal_description'] as String?) ?? '';
-      _uploadedImageUrl = result['image_url'] as String?;
+      final wasEmpty = _foods.isEmpty;
+      // Legacy single-food option being extended: keep what it had as the
+      // first line so adding "Pan" to "Huevo" doesn't drop the huevo. The
+      // trainer's title stays as-is and the legacy description stays in
+      // Indicaciones (notes) rather than being crammed into the line's qty.
+      final legacyTitle = _nameController.text.trim();
+      if (wasEmpty && widget.editItem != null && legacyTitle.isNotEmpty) {
+        final m = widget.editItem!['macros'];
+        _foods.add({
+          'name': legacyTitle,
+          'qty': '',
+          'kcal': int.tryParse(_calController.text.trim()) ?? 0,
+          'p': m is Map ? _n(m['p']) : 0,
+          'c': m is Map ? _n(m['c']) : 0,
+          'f': m is Map ? _n(m['f']) : 0,
+        });
+      }
+      final macros = result['macros'];
+      _foods.add({
+        'name': (result['meal_title'] ?? 'Alimento').toString(),
+        'qty': (result['meal_description'] ?? '').toString().trim(),
+        'kcal': _n(result['calories']).round(),
+        'p': macros is Map ? _n(macros['p']) : 0,
+        'c': macros is Map ? _n(macros['c']) : 0,
+        'f': macros is Map ? _n(macros['f']) : 0,
+      });
+      _uploadedImageUrl ??= result['image_url'] as String?;
       final t = result['time_of_day'] as String?;
-      if (t != null && widget.slots.any((s) => s.key == t)) {
+      if (wasEmpty && t != null && widget.slots.any((s) => s.key == t)) {
         _selectedTime = t;
+      }
+      _syncFromFoods();
+    });
+  }
+
+  void _removeFood(int i) {
+    setState(() {
+      _foods.removeAt(i);
+      if (_foods.isEmpty) {
+        if (!_nameTouched) _nameController.clear();
+        if (!_kcalTouched) _calController.clear();
+      } else {
+        _syncFromFoods();
       }
     });
   }
@@ -1227,7 +1311,8 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
   // ── Save ───────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
-    final name = _nameController.text.trim();
+    var name = _nameController.text.trim();
+    if (name.isEmpty && _foods.isNotEmpty) name = _autoName();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1243,15 +1328,38 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
     try {
       final service = ref.read(trainerServiceProvider);
       final kcal = int.tryParse(_calController.text.trim());
-      final desc = _descController.text.trim();
+      final notes = _descController.text.trim();
+
+      // Multi-food option: one line per food in the description (what the
+      // student sees) + structured items/macros for re-editing.
+      String? desc = notes.isEmpty ? null : notes;
+      Map<String, dynamic>? macros;
+      if (_foods.isNotEmpty) {
+        final lines = [
+          for (final f in _foods)
+            '• ${f['name']}${(f['qty'] ?? '').toString().isEmpty ? '' : ' — ${f['qty']}'}',
+        ];
+        desc = [...lines, if (notes.isNotEmpty) notes].join('\n');
+        macros = {
+          'p': _sumMacro('p'),
+          'c': _sumMacro('c'),
+          'f': _sumMacro('f'),
+          'items': _foods,
+          if (notes.isNotEmpty) 'notes': notes,
+        };
+      }
 
       if (widget.editItem != null) {
         // EDIT mode
+        final prevMacros = widget.editItem!['macros'];
         await service.updateMealPlanItem(widget.editItem!['id'] as String, {
           'meal_title': name,
           'calories': kcal,
-          'meal_description': desc.isEmpty ? null : desc,
+          'meal_description': desc,
           'time_of_day': _selectedTime,
+          // Food list emptied → drop stale items so the option is manual.
+          if (macros != null || (prevMacros is Map && prevMacros['items'] != null))
+            'macros': macros,
           if (_uploadedImageUrl != null) 'image_url': _uploadedImageUrl,
         });
       } else {
@@ -1261,8 +1369,9 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
           dayNumber: widget.dayNumber,
           timeOfDay: _selectedTime,
           name: name,
-          description: desc.isEmpty ? null : desc,
+          description: desc,
           calories: kcal,
+          macros: macros,
           imageUrl: _uploadedImageUrl,
         );
       }
@@ -1375,71 +1484,93 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
                 const SizedBox(height: 18),
 
                 // ── Banco de alimentos CTA ──────────────────────────────
-                if (!isEdit) ...[
-                  GestureDetector(
-                    onTap: _openBanco,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
+                // Each pick appends a food to THIS option (not a new option).
+                GestureDetector(
+                  onTap: _openBanco,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: RedesignColors.secundario300
+                          .withValues(alpha: 0.12),
+                      borderRadius:
+                          BorderRadius.circular(RedesignRadius.card),
+                      border: Border.all(
                         color: RedesignColors.secundario300
-                            .withValues(alpha: 0.12),
-                        borderRadius:
-                            BorderRadius.circular(RedesignRadius.card),
-                        border: Border.all(
-                          color: RedesignColors.secundario300
-                              .withValues(alpha: 0.4),
-                          width: 0.8,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.storefront_rounded,
-                              color: RedesignColors.secundario300,
-                              size: 22),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Elegir del banco de alimentos',
-                              style: RedesignType.bodySm.copyWith(
-                                color: RedesignColors.secundario300,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right_rounded,
-                              color: RedesignColors.secundario300,
-                              size: 20),
-                        ],
+                            .withValues(alpha: 0.4),
+                        width: 0.8,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Divider ──────────────────────────────────────────
-                  Row(
-                    children: [
-                      const Expanded(
-                          child: Divider(
-                              color: RedesignColors.primario600,
-                              height: 1)),
-                      Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'Cargá de manera manual',
-                          style: RedesignType.label.copyWith(
-                              color: RedesignColors.primario400),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.storefront_rounded,
+                            color: RedesignColors.secundario300,
+                            size: 22),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _foods.isEmpty
+                                ? 'Elegir del banco de alimentos'
+                                : 'Agregar otro alimento a esta opción',
+                            style: RedesignType.bodySm.copyWith(
+                              color: RedesignColors.secundario300,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
-                      const Expanded(
-                          child: Divider(
-                              color: RedesignColors.primario600,
-                              height: 1)),
-                    ],
+                        const Icon(Icons.chevron_right_rounded,
+                            color: RedesignColors.secundario300,
+                            size: 20),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                ),
+                if (_foods.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _FoodListCard(
+                    foods: _foods,
+                    totalKcal: _sumKcal,
+                    totalP: _sumMacro('p'),
+                    totalC: _sumMacro('c'),
+                    totalF: _sumMacro('f'),
+                    fmt: _fmt,
+                    onRemove: _removeFood,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Seguí sumando alimentos a esta opción. Para una opción '
+                    'distinta, guardá y tocá "Agregar" de nuevo.',
+                    style: RedesignType.label
+                        .copyWith(color: RedesignColors.primario400),
+                  ),
                 ],
+                const SizedBox(height: 16),
+
+                // ── Divider ──────────────────────────────────────────
+                Row(
+                  children: [
+                    const Expanded(
+                        child: Divider(
+                            color: RedesignColors.primario600,
+                            height: 1)),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        _foods.isEmpty
+                            ? 'Cargá de manera manual'
+                            : 'Detalle de la opción',
+                        style: RedesignType.label.copyWith(
+                            color: RedesignColors.primario400),
+                      ),
+                    ),
+                    const Expanded(
+                        child: Divider(
+                            color: RedesignColors.primario600,
+                            height: 1)),
+                  ],
+                ),
+                const SizedBox(height: 16),
 
                 // ── Foto (izq) + Nombre/Calorías (der) ──────────────────
                 Row(
@@ -1508,6 +1639,7 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
                         children: [
                           TextField(
                             controller: _nameController,
+                            onChanged: (_) => _nameTouched = true,
                             style: RedesignType.bodySm.copyWith(
                                 color: RedesignColors.primario50),
                             decoration: const InputDecoration(
@@ -1517,6 +1649,7 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
                           const SizedBox(height: 10),
                           TextField(
                             controller: _calController,
+                            onChanged: (_) => _kcalTouched = true,
                             keyboardType: TextInputType.number,
                             style: RedesignType.bodySm.copyWith(
                                 color: RedesignColors.primario50),
@@ -1586,8 +1719,10 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
                   maxLines: 3,
                   style: RedesignType.bodySm
                       .copyWith(color: RedesignColors.primario50),
-                  decoration: const InputDecoration(
-                    hintText: 'Ingredientes / indicaciones',
+                  decoration: InputDecoration(
+                    hintText: _foods.isEmpty
+                        ? 'Ingredientes / indicaciones'
+                        : 'Indicaciones (opcional)',
                     prefixIcon: Padding(
                       padding: EdgeInsets.only(bottom: 40),
                       child: Icon(Icons.notes_rounded,
@@ -1614,7 +1749,9 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
                           )
                         : Text(isEdit
                             ? 'Guardar cambios'
-                            : '+ Agregar a $timeLabel'),
+                            : _foods.length > 1
+                                ? 'Guardar opción en $timeLabel'
+                                : '+ Agregar a $timeLabel'),
                   ),
                 ),
               ],
@@ -1626,6 +1763,94 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
   }
 }
 
+
+
+/// Food lines that make up one meal option + summed kcal/macros.
+class _FoodListCard extends StatelessWidget {
+  final List<Map<String, dynamic>> foods;
+  final int totalKcal;
+  final double totalP;
+  final double totalC;
+  final double totalF;
+  final String Function(double) fmt;
+  final void Function(int index) onRemove;
+
+  const _FoodListCard({
+    required this.foods,
+    required this.totalKcal,
+    required this.totalP,
+    required this.totalC,
+    required this.totalF,
+    required this.fmt,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 6, 6, 12),
+      decoration: BoxDecoration(
+        color: RedesignColors.primario700,
+        borderRadius: BorderRadius.circular(RedesignRadius.card),
+        border: Border.all(
+          color: RedesignColors.secundario300.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (int i = 0; i < foods.length; i++)
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${foods[i]['name'] ?? ''}',
+                        style: RedesignType.bodySm.copyWith(
+                          color: RedesignColors.primario50,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        [
+                          if ('${foods[i]['qty'] ?? ''}'.isNotEmpty)
+                            '${foods[i]['qty']}',
+                          '${foods[i]['kcal'] ?? 0} kcal',
+                        ].join(' · '),
+                        style: RedesignType.label
+                            .copyWith(color: RedesignColors.primario300),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => onRemove(i),
+                  tooltip: 'Quitar',
+                  icon: const Icon(Icons.close_rounded,
+                      color: RedesignColors.primario300, size: 20),
+                ),
+              ],
+            ),
+          const Divider(height: 14, color: RedesignColors.primario600),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Text(
+              'Total: $totalKcal kcal · P ${fmt(totalP)} g · '
+              'C ${fmt(totalC)} g · G ${fmt(totalF)} g',
+              style: RedesignType.label.copyWith(
+                color: RedesignColors.secundario300,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// Dashed rounded-rect border — meal photo "Añadir fotos" box (Figma).
 class _DashedRRectPainter extends CustomPainter {

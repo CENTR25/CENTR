@@ -11,6 +11,9 @@ import '../../../services/storage_service.dart';
 import 'package:north_star/utils/exercise_category.dart';
 import '../../services/muscle_group_service.dart';
 import 'muscle_groups_editor_screen.dart';
+import '../../services/exercise_import.dart' show exerciseNameKey;
+import '../../services/supabase_service.dart';
+import '../shared/exercise_import_sheet.dart';
 
 // ---------------------------------------------------------------------------
 // ExerciseLibraryScreen — PRGS redesign (navy/teal palette)
@@ -32,6 +35,70 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
   String? _selectedMuscleGroup; // null means "Todos"
   String _searchQuery = '';
   bool _filterNoVideo = false; // toggled by "Ver" pill in banner
+  bool _selecting = false;
+  final Set<String> _selected = {};
+  bool _deleting = false;
+
+  void _exitSelection() => setState(() {
+        _selecting = false;
+        _selected.clear();
+      });
+
+  Future<void> _deleteSelected() async {
+    setState(() => _deleting = true);
+    final r = await confirmDeleteOrHideExercises(
+      context,
+      ids: _selected.toList(),
+      run: ref.read(trainerServiceProvider).deleteExercises,
+    );
+    if (!mounted) return;
+    setState(() => _deleting = false);
+    if (r != null) {
+      _exitSelection();
+      ref.invalidate(exercisesProvider);
+    }
+  }
+
+  /// Own exercises (already excludes hidden rows — see getExercises).
+  List<Map<String, dynamic>> _ownExercises() {
+    final me = ref.read(myTrainerIdProvider).valueOrNull;
+    if (me == null) return const [];
+    return (ref.read(exercisesProvider).valueOrNull ?? const [])
+        .where((e) => e['created_by_trainer'] == me)
+        .toList();
+  }
+
+  Future<void> _import() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final me = await ref.read(myTrainerIdProvider.future);
+    if (!mounted) return;
+    if (me == null) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text('No se encontró tu perfil de entrenador.')));
+      return;
+    }
+    final ok = await ExerciseImportSheet.show(
+      context,
+      client: ref.read(supabaseClientProvider),
+      ownerTrainerId: me,
+      existingNameKeys: {
+        for (final e in _ownExercises()) exerciseNameKey(e['name']?.toString()),
+      },
+    );
+    if (ok) ref.invalidate(exercisesProvider);
+  }
+
+  Future<void> _imageBank() async {
+    await ref.read(myTrainerIdProvider.future);
+    if (!mounted) return;
+    final ok = await ExerciseImageBankSheet.show(
+      context,
+      client: ref.read(supabaseClientProvider),
+      exercises: _ownExercises(),
+      isAdmin: false,
+    );
+    if (ok) ref.invalidate(exercisesProvider);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +121,11 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
                 _buildMuscleChips(),
                 const SizedBox(height: 16),
               ],
-              _buildCreateButton(context),
+              if (!_selecting) ...[
+                _buildCreateButton(context),
+                const SizedBox(height: 8),
+                _buildToolsRow(),
+              ],
               const SizedBox(height: 4),
               Expanded(
                 child: _ExerciseList(
@@ -64,6 +135,16 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
                   filterNoVideo: _filterNoVideo,
                   onFilterNoVideo: (val) =>
                       setState(() => _filterNoVideo = val),
+                  selecting: _selecting,
+                  selected: _selected,
+                  deleting: _deleting,
+                  onToggle: (id) => setState(() => _selected.contains(id)
+                      ? _selected.remove(id)
+                      : _selected.add(id)),
+                  onSetAll: (ids, on) => setState(() =>
+                      on ? _selected.addAll(ids) : _selected.removeAll(ids)),
+                  onCancel: _exitSelection,
+                  onDelete: _deleteSelected,
                 ),
               ),
             ],
@@ -235,6 +316,40 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
     );
   }
 
+  // ── Importar CSV / Banco de imágenes / Seleccionar ────────────────────────
+
+  Widget _buildToolsRow() {
+    Widget tool(String label, IconData icon, VoidCallback onTap) =>
+        OutlinedButton.icon(
+          onPressed: onTap,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: RedesignColors.actionPrimary,
+            side: const BorderSide(
+                color: RedesignColors.actionPrimary, width: 1),
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            shape: const StadiumBorder(),
+          ),
+          icon: Icon(icon, size: 18),
+          label: Text(label),
+        );
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        children: [
+          tool('Importar CSV', Icons.upload_file_rounded, _import),
+          const SizedBox(width: 8),
+          tool('Banco de imágenes', Icons.photo_library_rounded, _imageBank),
+          const SizedBox(width: 8),
+          tool('Seleccionar', Icons.checklist_rounded,
+              () => setState(() => _selecting = true)),
+        ],
+      ),
+    );
+  }
+
   void _showCreateExercise(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -347,6 +462,13 @@ class _ExerciseList extends ConsumerWidget {
   final String searchQuery;
   final bool filterNoVideo;
   final ValueChanged<bool> onFilterNoVideo;
+  final bool selecting;
+  final Set<String> selected;
+  final bool deleting;
+  final ValueChanged<String> onToggle;
+  final void Function(List<String> ids, bool on) onSetAll;
+  final VoidCallback onCancel;
+  final VoidCallback onDelete;
 
   const _ExerciseList({
     this.muscleGroup,
@@ -354,11 +476,71 @@ class _ExerciseList extends ConsumerWidget {
     this.searchQuery = '',
     required this.filterNoVideo,
     required this.onFilterNoVideo,
+    required this.selecting,
+    required this.selected,
+    required this.deleting,
+    required this.onToggle,
+    required this.onSetAll,
+    required this.onCancel,
+    required this.onDelete,
   });
+
+  Widget _selectionBar(List<String> ownIds) {
+    final allOn = ownIds.isNotEmpty && ownIds.every(selected.contains);
+    final n = selected.length;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Cancelar selección',
+            icon: const Icon(Icons.close_rounded,
+                color: RedesignColors.primario50),
+            onPressed: onCancel,
+          ),
+          Expanded(
+            child: Text(
+              '$n seleccionado${n == 1 ? '' : 's'}',
+              style: RedesignType.bodySm.copyWith(
+                  color: RedesignColors.primario50,
+                  fontWeight: FontWeight.w600),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: ownIds.isEmpty ? null : () => onSetAll(ownIds, !allOn),
+            style: TextButton.styleFrom(
+                foregroundColor: RedesignColors.actionPrimary),
+            icon: Icon(
+                allOn ? Icons.deselect_rounded : Icons.select_all_rounded,
+                size: 18),
+            label: Text(allOn ? 'Quitar selección' : 'Seleccionar todos'),
+          ),
+          deleting
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 14),
+                  child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: RedesignColors.peligro400)),
+                )
+              : IconButton(
+                  tooltip: 'Eliminar seleccionados',
+                  icon: Icon(Icons.delete_rounded,
+                      color: n == 0
+                          ? RedesignColors.primario400
+                          : RedesignColors.peligro400),
+                  onPressed: n == 0 ? null : onDelete,
+                ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final exercisesAsync = ref.watch(exercisesProvider);
+    final myTrainerId = ref.watch(myTrainerIdProvider).valueOrNull;
 
     return exercisesAsync.when(
       data: (exercises) {
@@ -398,7 +580,7 @@ class _ExerciseList extends ConsumerWidget {
         final displayList = filterNoVideo ? noVideoList : filtered;
 
         if (displayList.isEmpty && !filterNoVideo) {
-          return Center(
+          final empty = Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -419,12 +601,20 @@ class _ExerciseList extends ConsumerWidget {
               ],
             ),
           );
+          if (!selecting) return empty;
+          return Column(children: [
+            _selectionBar(const []),
+            Expanded(child: empty),
+          ]);
         }
 
         // Banner only in "Mis ejercicios" tab when there are exercises w/o media
-        final showBanner = customOnly && noVideoCount > 0;
+        final showBanner = customOnly && noVideoCount > 0 && !selecting;
 
-        return ListView.builder(
+        bool isOwn(Map<String, dynamic> e) =>
+            myTrainerId != null && e['created_by_trainer'] == myTrainerId;
+
+        final list = ListView.builder(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
           itemCount: displayList.length + (showBanner ? 1 : 0),
           itemBuilder: (context, index) {
@@ -436,8 +626,26 @@ class _ExerciseList extends ConsumerWidget {
               );
             }
             final exercise = displayList[index - (showBanner ? 1 : 0)];
-            return _ExerciseCard(exercise: exercise);
+            final id = exercise['id'] as String;
+            return _ExerciseCard(
+              exercise: exercise,
+              selecting: selecting,
+              selected: selected.contains(id),
+              // Only own rows are selectable; globals/others show a lock.
+              onToggle: isOwn(exercise) ? () => onToggle(id) : null,
+            );
           },
+        );
+        if (!selecting) return list;
+        final ownIds = [
+          for (final e in displayList)
+            if (isOwn(e)) e['id'] as String,
+        ];
+        return Column(
+          children: [
+            _selectionBar(ownIds),
+            Expanded(child: list),
+          ],
         );
       },
       loading: () => const Center(
@@ -544,8 +752,18 @@ class _NoVideoBanner extends StatelessWidget {
 
 class _ExerciseCard extends StatelessWidget {
   final Map<String, dynamic> exercise;
+  final bool selecting;
+  final bool selected;
 
-  const _ExerciseCard({required this.exercise});
+  /// Null while selecting = not selectable (not own) → lock icon.
+  final VoidCallback? onToggle;
+
+  const _ExerciseCard({
+    required this.exercise,
+    this.selecting = false,
+    this.selected = false,
+    this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -554,10 +772,14 @@ class _ExerciseCard extends StatelessWidget {
     final hasVideo = exercise['video_url'] != null;
     final hasImages = (exercise['image_urls'] as List?)?.isNotEmpty ?? false;
     final hasMedia = hasVideo || hasImages;
-    final gifUrl = exercise['gif_url'] as String?;
+    final gif = exercise['gif_url'] as String?;
+    final firstImage = hasImages
+        ? (exercise['image_urls'] as List).first?.toString()
+        : null;
+    final gifUrl = (gif != null && gif.isNotEmpty) ? gif : firstImage;
 
     return GestureDetector(
-      onTap: () => _showDetail(context),
+      onTap: selecting ? onToggle : () => _showDetail(context),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
@@ -567,6 +789,19 @@ class _ExerciseCard extends StatelessWidget {
         ),
         child: Row(
           children: [
+            if (selecting) ...[
+              Icon(
+                onToggle == null
+                    ? Icons.lock_outline_rounded
+                    : selected
+                        ? Icons.check_box_rounded
+                        : Icons.check_box_outline_blank_rounded,
+                color: selected
+                    ? RedesignColors.actionPrimary
+                    : RedesignColors.primario400,
+              ),
+              const SizedBox(width: 10),
+            ],
             // ── Thumbnail ────────────────────────────────────────────────
             Container(
               width: 64,
@@ -1122,73 +1357,17 @@ class _ExerciseDetailSheetState extends ConsumerState<_ExerciseDetailSheet> {
   }
 
   Future<void> _confirmDelete() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: RedesignColors.primario800,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Text(
-          'Eliminar ejercicio',
-          style: RedesignType.bodySm.copyWith(
-            color: RedesignColors.primario50,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        content: Text(
-          '¿Eliminar "${widget.exercise['name']}" de tu lista? '
-          'Esta acción no se puede deshacer.',
-          style: RedesignType.label.copyWith(color: RedesignColors.primario200),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: RedesignColors.danger,
-              foregroundColor: RedesignColors.peligro200,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+    // Used-in-routine exercises are hidden instead of deleted (routine rows
+    // cascade on delete) — see delete_or_hide_exercises RPC.
+    final navigator = Navigator.of(context);
+    final r = await confirmDeleteOrHideExercises(
+      context,
+      ids: [widget.exercise['id'] as String],
+      run: ref.read(trainerServiceProvider).deleteExercises,
     );
-    if (confirmed != true) return;
-
-    try {
-      await ref
-          .read(trainerServiceProvider)
-          .deleteExercise(widget.exercise['id'] as String);
-      ref.invalidate(exercisesProvider);
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Ejercicio eliminado'),
-            backgroundColor: RedesignColors.success,
-          ),
-        );
-      }
-    } catch (e) {
-      final inUse = e.toString().contains('foreign key') ||
-          e.toString().contains('23503');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              inUse
-                  ? 'No se puede eliminar: el ejercicio está en uso en una rutina.'
-                  : 'Error al eliminar: $e',
-            ),
-            backgroundColor: RedesignColors.danger,
-          ),
-        );
-      }
-    }
+    if (r == null || !mounted) return;
+    ref.invalidate(exercisesProvider);
+    navigator.pop();
   }
 }
 

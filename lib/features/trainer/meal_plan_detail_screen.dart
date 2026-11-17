@@ -8,6 +8,7 @@ import '../../services/trainer_service.dart';
 import '../../services/storage_service.dart';
 import '../shared/redesign_toast.dart';
 import 'banco_alimentos_screen.dart';
+import 'food_edit_sheet.dart' show confirmDestructive;
 import 'nuevo_plan_screen.dart';
 import 'student_detail_screen.dart' show studentDetailProvider;
 
@@ -243,6 +244,10 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
       BuildContext context, Map<String, dynamic> plan, String itemId) async {
     final allowed = await _checkEditGate(context, plan);
     if (!allowed || !context.mounted) return;
+    if (!await confirmDestructive(context, 'Eliminar comida') ||
+        !context.mounted) {
+      return;
+    }
     try {
       await ref.read(trainerServiceProvider).removeMealPlanItem(itemId);
       ref.invalidate(mealPlanDetailProvider(_activePlanId));
@@ -1228,11 +1233,14 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
   // ── Add a food from Banco de alimentos ─────────────────────────────────────
 
   Future<void> _openBanco() async {
-    final result = await Navigator.push<Map<String, dynamic>>(
+    // Multi-pick: the bank stays open while the trainer adds several foods
+    // and returns them all on "Finalizar" (or one prepared meal from Comidas).
+    final picked = await Navigator.push<List<Map<String, dynamic>>>(
       context,
-      MaterialPageRoute(builder: (_) => const BancoAlimentosScreen()),
+      MaterialPageRoute(
+          builder: (_) => const BancoAlimentosScreen(multiPick: true)),
     );
-    if (result == null || !mounted) return;
+    if (picked == null || picked.isEmpty || !mounted) return;
     setState(() {
       final wasEmpty = _foods.isEmpty;
       // Legacy single-food option being extended: keep what it had as the
@@ -1251,25 +1259,31 @@ class _NuevaComidaSheetState extends ConsumerState<_NuevaComidaSheet> {
           'f': m is Map ? _n(m['f']) : 0,
         });
       }
-      final macros = result['macros'];
-      _foods.add({
-        'name': (result['meal_title'] ?? 'Alimento').toString(),
-        'qty': (result['meal_description'] ?? '').toString().trim(),
-        'kcal': _n(result['calories']).round(),
-        'p': macros is Map ? _n(macros['p']) : 0,
-        'c': macros is Map ? _n(macros['c']) : 0,
-        'f': macros is Map ? _n(macros['f']) : 0,
-      });
-      _uploadedImageUrl ??= result['image_url'] as String?;
-      final t = result['time_of_day'] as String?;
-      if (wasEmpty && t != null && widget.slots.any((s) => s.key == t)) {
-        _selectedTime = t;
+      for (final result in picked) {
+        final macros = result['macros'];
+        _foods.add({
+          'name': (result['meal_title'] ?? 'Alimento').toString(),
+          'qty': (result['meal_description'] ?? '').toString().trim(),
+          'kcal': _n(result['calories']).round(),
+          'p': macros is Map ? _n(macros['p']) : 0,
+          'c': macros is Map ? _n(macros['c']) : 0,
+          'f': macros is Map ? _n(macros['f']) : 0,
+        });
+        _uploadedImageUrl ??= result['image_url'] as String?;
+        final t = result['time_of_day'] as String?;
+        if (wasEmpty && t != null && widget.slots.any((s) => s.key == t)) {
+          _selectedTime = t;
+        }
       }
       _syncFromFoods();
     });
   }
 
-  void _removeFood(int i) {
+  Future<void> _removeFood(int i) async {
+    final name = '${_foods[i]['name'] ?? ''}'.trim();
+    final ok = await confirmDestructive(
+        context, name.isEmpty ? 'Eliminar alimento' : 'Eliminar "$name"');
+    if (!ok || !mounted || i >= _foods.length) return;
     setState(() {
       _foods.removeAt(i);
       if (_foods.isEmpty) {

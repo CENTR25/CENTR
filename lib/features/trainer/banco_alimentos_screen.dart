@@ -16,10 +16,16 @@ import 'food_import_sheet.dart';
 // calories:int, macros, image_url, time_of_day) so the caller (Nueva comida
 // sheet) can prefill its form. Admin edits globals; trainers edit their own
 // (copy-on-edit for globals).
+//
+// [multiPick]: the screen stays open while ingredients are added to a running
+// selection (bottom panel) and pops a List of those maps on "Finalizar".
+// Picking a prepared meal from "Comidas" pops right away with the selection
+// plus that meal. Without it, the screen pops a single map (legacy).
 // ---------------------------------------------------------------------------
 
 class BancoAlimentosScreen extends ConsumerStatefulWidget {
-  const BancoAlimentosScreen({super.key});
+  final bool multiPick;
+  const BancoAlimentosScreen({super.key, this.multiPick = false});
 
   @override
   ConsumerState<BancoAlimentosScreen> createState() =>
@@ -36,6 +42,9 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
   bool _selecting = false;
   final Set<String> _selected = {};
   bool _deleting = false;
+
+  // Running multi-pick selection (meal-shaped maps, see header).
+  final List<Map<String, dynamic>> _picked = [];
 
   @override
   void initState() {
@@ -121,10 +130,14 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
     ref.invalidate(mealsBankProvider);
   }
 
-  List<Map<String, dynamic>> _filterFoods(List<Map<String, dynamic>> foods) {
+  /// Foods matching the search text and, unless [anyCategory], the chip.
+  List<Map<String, dynamic>> _filterFoods(List<Map<String, dynamic>> foods,
+      {bool anyCategory = false}) {
     final q = foldSearch(_search.trim());
     return foods.where((f) {
-      if (_category != null && f['category'] != _category) return false;
+      if (!anyCategory && _category != null && f['category'] != _category) {
+        return false;
+      }
       if (q.isEmpty) return true;
       return foldSearch('${f['name'] ?? ''} ${f['state'] ?? ''}').contains(q);
     }).toList();
@@ -152,7 +165,7 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
     final state = (f['state'] ?? '').toString().trim();
     final amount =
         grams == grams.roundToDouble() ? grams.toInt() : grams;
-    Navigator.pop(context, {
+    final picked = <String, dynamic>{
       'meal_title': state.isEmpty ? '${f['name']}' : '${f['name']} ($state)',
       'meal_description': '$amount $unit',
       'calories': (_num(f['calories']) * k).round(),
@@ -163,7 +176,53 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
       },
       'image_url': null,
       'time_of_day': null,
-    });
+    };
+    if (widget.multiPick) {
+      setState(() => _picked.add(picked));
+    } else {
+      Navigator.pop(context, picked);
+    }
+  }
+
+  void _pickMeal(Map<String, dynamic> m) {
+    final picked = {...m, 'calories': _num(m['calories']).round()};
+    if (widget.multiPick) {
+      Navigator.pop(context, [..._picked, picked]);
+    } else {
+      Navigator.pop(context, picked);
+    }
+  }
+
+  void _finishPick() =>
+      Navigator.pop(context, List<Map<String, dynamic>>.of(_picked));
+
+  /// Back with an unfinished selection: confirm before discarding it.
+  Future<void> _confirmDiscard() async {
+    final n = _picked.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: RedesignColors.primario900,
+        title: Text('¿Descartar $n alimento${n == 1 ? '' : 's'}?',
+            style: const TextStyle(color: RedesignColors.primario50)),
+        content: const Text(
+            'Todavía no tocaste "Finalizar". Si salís, no se agregan a la comida.',
+            style: TextStyle(color: RedesignColors.primario300)),
+        actions: [
+          TextButton(
+              style: TextButton.styleFrom(
+                  foregroundColor: RedesignColors.primario300),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Seguir eligiendo')),
+          TextButton(
+              style: TextButton.styleFrom(
+                  foregroundColor: RedesignColors.peligro400),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Descartar')),
+        ],
+      ),
+    );
+    if (ok == true && mounted) Navigator.pop(context);
   }
 
   @override
@@ -172,166 +231,187 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
     final service = ref.watch(foodServiceProvider);
     final foodsTab = _tabs.index == 0;
 
-    return Theme(
-      data: RedesignTheme.theme,
-      child: Scaffold(
-        backgroundColor: RedesignColors.background,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: _selecting
-              ? IconButton(
-                  tooltip: 'Cancelar selección',
-                  icon: const Icon(Icons.close_rounded,
-                      color: RedesignColors.primario50),
-                  onPressed: _exitSelection,
+    return PopScope(
+      canPop: _picked.isEmpty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmDiscard();
+      },
+      child: Theme(
+        data: RedesignTheme.theme,
+        child: Scaffold(
+          backgroundColor: RedesignColors.background,
+          bottomNavigationBar: widget.multiPick && _picked.isNotEmpty
+              ? _PickedPanel(
+                  items: _picked,
+                  onRemove: (i) => setState(() => _picked.removeAt(i)),
+                  onFinish: _finishPick,
                 )
-              : IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                      color: RedesignColors.primario50, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                ),
-          centerTitle: true,
-          title: Text(
-            _selecting
-                ? '${_selected.length} seleccionado${_selected.length == 1 ? '' : 's'}'
-                : 'Banco de alimentos',
-            style: const TextStyle(
-              color: RedesignColors.primario50,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'Metropolis',
-            ),
-          ),
-          actions: [
-            if (_selecting && access != null) ...[
-              Builder(builder: (_) {
-                final visible = _deletableVisibleIds(access);
-                final allOn = visible.isNotEmpty &&
-                    visible.every(_selected.contains);
-                return IconButton(
-                  tooltip: allOn ? 'Quitar selección' : 'Seleccionar todos',
-                  icon: Icon(
-                      allOn
-                          ? Icons.deselect_rounded
-                          : Icons.select_all_rounded,
-                      color: RedesignColors.primario50),
-                  onPressed: () => setState(() {
-                    allOn
-                        ? _selected.removeAll(visible)
-                        : _selected.addAll(visible);
-                  }),
-                );
-              }),
-              _deleting
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 14),
-                      child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: RedesignColors.peligro400)),
-                    )
-                  : IconButton(
-                      tooltip: 'Eliminar seleccionados',
-                      icon: Icon(Icons.delete_rounded,
-                          color: _selected.isEmpty
-                              ? RedesignColors.primario400
-                              : RedesignColors.peligro400),
-                      onPressed: _selected.isEmpty ? null : _deleteSelected,
-                    ),
-            ],
-            if (!_selecting && access != null && access.canWrite && foodsTab)
-              IconButton(
-                tooltip: 'Seleccionar varios',
-                icon: const Icon(Icons.checklist_rounded,
-                    color: RedesignColors.primario50),
-                onPressed: () => setState(() => _selecting = true),
-              ),
-            if (!_selecting && access != null && access.canWrite && foodsTab)
-              IconButton(
-                tooltip: 'Importar CSV',
-                icon: const Icon(Icons.upload_file_rounded,
-                    color: RedesignColors.primario50),
-                onPressed: () async {
-                  final existing = (ref.read(foodsProvider).valueOrNull ?? [])
-                      .where((f) => access.isAdmin
-                          ? f['created_by_trainer'] == null
-                          : f['created_by_trainer'] == access.trainerId)
-                      .map((f) => foodKey(
-                          f['name']?.toString(), f['state']?.toString()))
-                      .toSet();
-                  final done = await FoodImportSheet.show(context,
-                      access: access, service: service, existingKeys: existing);
-                  if (done) _refresh();
-                },
-              ),
-          ],
-          bottom: TabBar(
-            controller: _tabs,
-            indicatorColor: RedesignColors.actionPrimary,
-            labelColor: RedesignColors.primario50,
-            unselectedLabelColor: RedesignColors.primario400,
-            tabs: const [Tab(text: 'Ingredientes'), Tab(text: 'Comidas')],
-          ),
-        ),
-        floatingActionButton: (access != null && access.canWrite && !_selecting)
-            ? FloatingActionButton(
-                backgroundColor: RedesignColors.actionPrimary,
-                foregroundColor: RedesignColors.onActionPrimary,
-                onPressed: () async {
-                  final changed = foodsTab
-                      ? await FoodEditSheet.show(context,
-                          access: access, service: service)
-                      : await MealEditSheet.show(context,
-                          access: access, service: service);
-                  if (changed) _refresh();
-                },
-                child: const Icon(Icons.add_rounded),
-              )
-            : null,
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: TextField(
-                onChanged: (v) => setState(() => _search = v),
-                style: RedesignType.bodySm
-                    .copyWith(color: RedesignColors.primario50),
-                decoration: InputDecoration(
-                  hintText: 'Buscar alimento',
-                  hintStyle: const TextStyle(color: RedesignColors.primario400),
-                  prefixIcon: const Icon(Icons.search_rounded,
-                      color: RedesignColors.primario400),
-                  filled: true,
-                  fillColor: RedesignColors.inputFill,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(RedesignRadius.input),
-                    borderSide: BorderSide.none,
+              : null,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            leading: _selecting
+                ? IconButton(
+                    tooltip: 'Cancelar selección',
+                    icon: const Icon(Icons.close_rounded,
+                        color: RedesignColors.primario50),
+                    onPressed: _exitSelection,
+                  )
+                : IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: RedesignColors.primario50, size: 20),
+                    onPressed: () => Navigator.maybePop(context),
                   ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            centerTitle: true,
+            title: Text(
+              _selecting
+                  ? '${_selected.length} seleccionado${_selected.length == 1 ? '' : 's'}'
+                  : 'Banco de alimentos',
+              style: const TextStyle(
+                color: RedesignColors.primario50,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Metropolis',
+              ),
+            ),
+            actions: [
+              if (_selecting && access != null) ...[
+                Builder(builder: (_) {
+                  final visible = _deletableVisibleIds(access);
+                  final allOn = visible.isNotEmpty &&
+                      visible.every(_selected.contains);
+                  return IconButton(
+                    tooltip: allOn ? 'Quitar selección' : 'Seleccionar todos',
+                    icon: Icon(
+                        allOn
+                            ? Icons.deselect_rounded
+                            : Icons.select_all_rounded,
+                        color: RedesignColors.primario50),
+                    onPressed: () => setState(() {
+                      allOn
+                          ? _selected.removeAll(visible)
+                          : _selected.addAll(visible);
+                    }),
+                  );
+                }),
+                _deleting
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 14),
+                        child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: RedesignColors.peligro400)),
+                      )
+                    : IconButton(
+                        tooltip: 'Eliminar seleccionados',
+                        icon: Icon(Icons.delete_rounded,
+                            color: _selected.isEmpty
+                                ? RedesignColors.primario400
+                                : RedesignColors.peligro400),
+                        onPressed: _selected.isEmpty ? null : _deleteSelected,
+                      ),
+              ],
+              if (!_selecting && access != null && access.canWrite && foodsTab)
+                IconButton(
+                  tooltip: 'Seleccionar varios',
+                  icon: const Icon(Icons.checklist_rounded,
+                      color: RedesignColors.primario50),
+                  onPressed: () => setState(() => _selecting = true),
+                ),
+              if (!_selecting && access != null && access.canWrite && foodsTab)
+                IconButton(
+                  tooltip: 'Importar CSV',
+                  icon: const Icon(Icons.upload_file_rounded,
+                      color: RedesignColors.primario50),
+                  onPressed: () async {
+                    final existing = (ref.read(foodsProvider).valueOrNull ?? [])
+                        .where((f) => access.isAdmin
+                            ? f['created_by_trainer'] == null
+                            : f['created_by_trainer'] == access.trainerId)
+                        .map((f) => foodKey(
+                            f['name']?.toString(), f['state']?.toString()))
+                        .toSet();
+                    final done = await FoodImportSheet.show(context,
+                        access: access, service: service, existingKeys: existing);
+                    if (done) _refresh();
+                  },
+                ),
+            ],
+            bottom: TabBar(
+              controller: _tabs,
+              indicatorColor: RedesignColors.actionPrimary,
+              labelColor: RedesignColors.primario50,
+              unselectedLabelColor: RedesignColors.primario400,
+              tabs: const [Tab(text: 'Ingredientes'), Tab(text: 'Comidas')],
+            ),
+          ),
+          floatingActionButton: (access != null && access.canWrite && !_selecting)
+              ? FloatingActionButton(
+                  backgroundColor: RedesignColors.actionPrimary,
+                  foregroundColor: RedesignColors.onActionPrimary,
+                  onPressed: () async {
+                    final changed = foodsTab
+                        ? await FoodEditSheet.show(context,
+                            access: access, service: service)
+                        : await MealEditSheet.show(context,
+                            access: access, service: service);
+                    if (changed) _refresh();
+                  },
+                  child: const Icon(Icons.add_rounded),
+                )
+              : null,
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                child: TextField(
+                  onChanged: (v) => setState(() => _search = v),
+                  style: RedesignType.bodySm
+                      .copyWith(color: RedesignColors.primario50),
+                  decoration: InputDecoration(
+                    hintText: 'Buscar alimento',
+                    hintStyle: const TextStyle(color: RedesignColors.primario400),
+                    prefixIcon: const Icon(Icons.search_rounded,
+                        color: RedesignColors.primario400),
+                    filled: true,
+                    fillColor: RedesignColors.inputFill,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(RedesignRadius.input),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  ),
                 ),
               ),
-            ),
-            if (foodsTab) _categoryChips(),
-            Expanded(
-              child: TabBarView(
-                controller: _tabs,
-                children: [
-                  _foodsList(access),
-                  _mealsList(access),
-                ],
+              if (foodsTab) _categoryChips(),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabs,
+                  children: [
+                    _foodsList(access),
+                    _mealsList(access),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _categoryChips() {
+    // Counts honour the search text but not the selected chip.
+    final foods = _filterFoods(ref.watch(foodsProvider).valueOrNull ?? const [],
+        anyCategory: true);
+    final counts = <String, int>{};
+    for (final f in foods) {
+      final c = f['category']?.toString();
+      if (c != null) counts[c] = (counts[c] ?? 0) + 1;
+    }
     return SizedBox(
       height: 44,
       child: ListView(
@@ -342,7 +422,8 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: ChoiceChip(
-                label: Text(c ?? 'Todas'),
+                label: Text(
+                    '${c ?? 'Todas'} (${c == null ? foods.length : counts[c] ?? 0})'),
                 selected: _category == c,
                 showCheckmark: false,
                 selectedColor: RedesignColors.secundario300,
@@ -380,12 +461,20 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
             final filtered = _filterFoods(foods);
             if (foods.isEmpty) return _empty('Todavía no hay ingredientes.');
             if (filtered.isEmpty) return _empty('Sin resultados.');
+            final countLabel = filtered.length == foods.length
+                ? '${foods.length} alimento${foods.length == 1 ? '' : 's'}'
+                : '${filtered.length} de ${foods.length} alimentos';
             return ListView.separated(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 96),
-              itemCount: filtered.length,
+              itemCount: filtered.length + 1,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, i) {
-                final f = filtered[i];
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Text(countLabel,
+                      style: RedesignType.label
+                          .copyWith(color: RedesignColors.primario400));
+                }
+                final f = filtered[index - 1];
                 final id = f['id'] as String;
                 return _FoodRow(
                   food: f,
@@ -433,10 +522,7 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
                 final m = filtered[i];
                 return _MealRow(
                   meal: m,
-                  onAdd: () => Navigator.pop(context, {
-                    ...m,
-                    'calories': _num(m['calories']).round(),
-                  }),
+                  onAdd: () => _pickMeal(m),
                   onEdit: (access != null && access.canWrite)
                       ? () async {
                           final changed = await MealEditSheet.show(context,
@@ -839,6 +925,156 @@ class _Thumb extends StatelessWidget {
       color: RedesignColors.primario800,
       child: const Icon(Icons.restaurant_rounded,
           size: 22, color: RedesignColors.primario400),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Multi-pick selection panel (sticky bottom bar)
+// ---------------------------------------------------------------------------
+
+class _PickedPanel extends StatefulWidget {
+  final List<Map<String, dynamic>> items;
+  final void Function(int index) onRemove;
+  final VoidCallback onFinish;
+  const _PickedPanel({
+    required this.items,
+    required this.onRemove,
+    required this.onFinish,
+  });
+
+  @override
+  State<_PickedPanel> createState() => _PickedPanelState();
+}
+
+class _PickedPanelState extends State<_PickedPanel> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = widget.items;
+    final kcal = items.fold<int>(0, (s, m) => s + _num(m['calories']).round());
+    final n = items.length;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: RedesignColors.primario900,
+        border: Border(
+          top: BorderSide(
+            color: RedesignColors.secundario300.withValues(alpha: 0.3),
+          ),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_open)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 240),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(20, 8, 8, 0),
+                  itemCount: n,
+                  itemBuilder: (_, i) {
+                    final m = items[i];
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${m['meal_title'] ?? ''}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: RedesignType.bodySm.copyWith(
+                                  color: RedesignColors.primario50,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                '${m['meal_description'] ?? ''} · '
+                                '${_num(m['calories']).round()} kcal',
+                                style: RedesignType.label.copyWith(
+                                  color: RedesignColors.primario300,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Quitar',
+                          onPressed: () {
+                            widget.onRemove(i);
+                            if (n == 1) setState(() => _open = false);
+                          },
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 20,
+                            color: RedesignColors.primario300,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 20, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => setState(() => _open = !_open),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _open
+                                  ? Icons.expand_more_rounded
+                                  : Icons.expand_less_rounded,
+                              color: RedesignColors.secundario300,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                '$n alimento${n == 1 ? '' : 's'} · $kcal kcal',
+                                overflow: TextOverflow.ellipsis,
+                                style: RedesignType.bodySm.copyWith(
+                                  color: RedesignColors.primario50,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 22),
+                      backgroundColor: RedesignColors.actionPrimary,
+                      foregroundColor: RedesignColors.onActionPrimary,
+                    ),
+                    onPressed: widget.onFinish,
+                    child: const Text('Finalizar'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

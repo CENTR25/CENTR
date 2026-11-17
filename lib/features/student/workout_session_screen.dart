@@ -745,7 +745,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
 
   Widget _buildExerciseView() {
     final exercise = _orderedExercises[_currentExerciseIndex];
-    final exerciseData = exercise['exercises'] as Map<String, dynamic>;
+    final exerciseData = exercise['exercises'] as Map<String, dynamic>? ?? const <String, dynamic>{};
     final name = exerciseData['name'] ?? 'Ejercicio';
     final totalSets = (exercise['sets'] as int?) ?? 3;
     final notes = exercise['comment'] as String?;
@@ -1030,7 +1030,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
     final progress = totalRest > 0 ? _restSecondsRemaining / totalRest : 0.0;
     final totalSets = (currentExercise['sets'] as int?) ?? 3;
 
-    final exerciseData = currentExercise['exercises'] as Map<String, dynamic>;
+    final exerciseData = currentExercise['exercises'] as Map<String, dynamic>? ?? const <String, dynamic>{};
     final currentName = exerciseData['name'] ?? 'Ejercicio';
 
     String nextTitle;
@@ -1040,7 +1040,7 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen>
       nextSub = 'Serie ${_currentSet + 1} de $totalSets';
     } else if (_visitPos < _visitOrder.length - 1) {
       final nextExercise = _orderedExercises[_visitOrder[_visitPos + 1]];
-      final nextData = nextExercise['exercises'] as Map<String, dynamic>;
+      final nextData = nextExercise['exercises'] as Map<String, dynamic>? ?? const <String, dynamic>{};
       final nextSets = (nextExercise['sets'] as int?) ?? 3;
       nextTitle = nextData['name'] ?? 'Siguiente ejercicio';
       nextSub = 'Serie 1 de $nextSets';

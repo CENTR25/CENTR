@@ -371,13 +371,17 @@ class FoodService {
   }
 
   /// All visible foods. A trainer's own row shadows a global with same key.
-  Future<List<Map<String, dynamic>>> getFoods() async {
+  /// Admin manages the global bank only: RLS lets admin SELECT every row, so
+  /// trainer-private copies are filtered out server-side and never shadow a
+  /// global.
+  Future<List<Map<String, dynamic>>> getFoods({FoodAccess? access}) async {
+    final adminOnlyGlobals = access?.isAdmin ?? false;
     final all = <Map<String, dynamic>>[];
     const page = 1000;
     for (var from = 0; from < 10000; from += page) {
-      final res = await _client
-          .from('foods')
-          .select(_foodColumns)
+      var q = _client.from('foods').select(_foodColumns);
+      if (adminOnlyGlobals) q = q.isFilter('created_by_trainer', null);
+      final res = await q
           .order('name', ascending: true)
           .order('id', ascending: true)
           .range(from, from + page - 1);
@@ -385,6 +389,7 @@ class FoodService {
       all.addAll(list);
       if (list.length < page) break;
     }
+    if (adminOnlyGlobals) return all;
     final owned = <String>{
       for (final f in all)
         if (f['created_by_trainer'] != null)
@@ -490,12 +495,15 @@ class FoodService {
 
   // ── default_meals ("Comidas") ──────────────────────────────────────────
 
-  Future<List<Map<String, dynamic>>> getMeals() async {
-    final res = await _client
-        .from('default_meals')
-        .select()
-        .order('meal_title', ascending: true);
+  Future<List<Map<String, dynamic>>> getMeals({FoodAccess? access}) async {
+    // Admin RLS returns every trainer's private meals too — the admin bank
+    // manages globals only (same rule as getFoods).
+    final adminOnlyGlobals = access?.isAdmin ?? false;
+    var q = _client.from('default_meals').select();
+    if (adminOnlyGlobals) q = q.isFilter('created_by_trainer', null);
+    final res = await q.order('meal_title', ascending: true);
     final all = List<Map<String, dynamic>>.from(res as List);
+    if (adminOnlyGlobals) return all;
     final owned = <String>{
       for (final m in all)
         if (m['created_by_trainer'] != null)
@@ -550,8 +558,13 @@ final foodServiceProvider = Provider<FoodService>(
 final foodAccessProvider = FutureProvider<FoodAccess>(
     (ref) => ref.watch(foodServiceProvider).getAccess());
 
-final foodsProvider = FutureProvider<List<Map<String, dynamic>>>(
-    (ref) => ref.watch(foodServiceProvider).getFoods());
+final foodsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final access = await ref.watch(foodAccessProvider.future);
+  return ref.watch(foodServiceProvider).getFoods(access: access);
+});
 
-final mealsBankProvider = FutureProvider<List<Map<String, dynamic>>>(
-    (ref) => ref.watch(foodServiceProvider).getMeals());
+final mealsBankProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final access = await ref.watch(foodAccessProvider.future);
+  return ref.watch(foodServiceProvider).getMeals(access: access);
+});

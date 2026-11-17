@@ -20,6 +20,35 @@ InputDecoration foodFieldDecoration(String label) => InputDecoration(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
 
+/// Navy confirm dialog for irreversible deletes. Resolves true on "Eliminar".
+Future<bool> confirmDestructive(BuildContext context, String title,
+    {String message = 'Esta acción no se puede deshacer.',
+    String confirmLabel = 'Eliminar'}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: RedesignColors.primario900,
+      title: Text(title,
+          style: const TextStyle(color: RedesignColors.primario50)),
+      content: Text(message,
+          style: const TextStyle(color: RedesignColors.primario300)),
+      actions: [
+        TextButton(
+            style: TextButton.styleFrom(
+                foregroundColor: RedesignColors.primario300),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar')),
+        TextButton(
+            style: TextButton.styleFrom(
+                foregroundColor: RedesignColors.peligro400),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(confirmLabel)),
+      ],
+    ),
+  );
+  return ok == true;
+}
+
 Widget _sheetFrame(BuildContext context, String title, List<Widget> children) {
   return Theme(
     data: RedesignTheme.theme,
@@ -223,29 +252,8 @@ class _FoodEditSheetState extends State<FoodEditSheet> {
   }
 
   Future<void> _delete() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: RedesignColors.primario900,
-        title: const Text('Eliminar alimento',
-            style: TextStyle(color: RedesignColors.primario50)),
-        content: const Text('Esta acción no se puede deshacer.',
-            style: TextStyle(color: RedesignColors.primario300)),
-        actions: [
-          TextButton(
-              style: TextButton.styleFrom(
-                  foregroundColor: RedesignColors.primario300),
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
-          TextButton(
-              style: TextButton.styleFrom(
-                  foregroundColor: RedesignColors.peligro400),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Eliminar')),
-        ],
-      ),
-    );
-    if (ok != true) return;
+    if (!await confirmDestructive(context, 'Eliminar alimento')) return;
+    if (!mounted) return;
     setState(() => _saving = true);
     try {
       await widget.service.deleteFood(widget.food!['id'] as String);
@@ -457,6 +465,8 @@ class _MealEditSheetState extends State<MealEditSheet> {
   }
 
   Future<void> _delete() async {
+    if (!await confirmDestructive(context, 'Eliminar comida')) return;
+    if (!mounted) return;
     setState(() => _saving = true);
     try {
       await widget.service.deleteMeal(widget.meal!['id'] as String);

@@ -1,3 +1,12 @@
+/// News sections the admin can file an article under (DB check constraint
+/// news_articles_section_check). Value → Spanish label, in display order.
+const Map<String, String> kNewsSections = {
+  'noticias': 'Noticias',
+  'marcas': 'Marcas',
+  'funciones': 'Funciones',
+  'eventos': 'Eventos',
+};
+
 /// News article model for blog/news system
 class NewsArticle {
   final String id;
@@ -23,6 +32,11 @@ class NewsArticle {
 
   bool get hasLink => linkUrl != null && linkUrl!.trim().isNotEmpty;
 
+  /// One of [kNewsSections] keys. Defaults to 'noticias'.
+  final String section;
+
+  String get sectionLabel => kNewsSections[section] ?? 'Noticias';
+
   NewsArticle({
     required this.id,
     required this.title,
@@ -37,6 +51,7 @@ class NewsArticle {
     this.trainerId,
     this.audience = 'all',
     this.linkUrl,
+    this.section = 'noticias',
   });
 
   factory NewsArticle.fromJson(Map<String, dynamic> json) {
@@ -56,6 +71,7 @@ class NewsArticle {
       trainerId: json['trainer_id'] as String?,
       audience: json['audience'] as String? ?? 'all',
       linkUrl: json['link_url'] as String?,
+      section: json['section'] as String? ?? 'noticias',
     );
   }
 
@@ -74,6 +90,7 @@ class NewsArticle {
       'trainer_id': trainerId,
       'audience': audience,
       'link_url': linkUrl,
+      'section': section,
     };
   }
 
@@ -91,6 +108,7 @@ class NewsArticle {
     String? trainerId,
     String? audience,
     String? linkUrl,
+    String? section,
   }) {
     return NewsArticle(
       id: id ?? this.id,
@@ -106,6 +124,7 @@ class NewsArticle {
       trainerId: trainerId ?? this.trainerId,
       audience: audience ?? this.audience,
       linkUrl: linkUrl ?? this.linkUrl,
+      section: section ?? this.section,
     );
   }
 }

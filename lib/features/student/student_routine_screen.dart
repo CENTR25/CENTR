@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/theme_redesign.dart';
+import '../../services/active_workout_service.dart';
 import '../../services/student_service.dart';
 import 'exercise_detail_screen.dart';
 import 'student_meal_plan_screen.dart';
@@ -232,10 +233,7 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
           active: StudentNavTab.entrenar,
           isOnEntrenarScreen: true,
           onInicioTap: () => Navigator.popUntil(context, (r) => r.isFirst),
-          onEntrenarTap: () {
-            if (_currentRoutine == null || _currentDayExercises.isEmpty) return;
-            _startWorkout(_currentRoutine!, _currentDayExercises);
-          },
+          onEntrenarTap: _onPlayTap,
           onNutricionTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const StudentMealPlanScreen()),
@@ -319,22 +317,67 @@ class _StudentRoutineScreenState extends ConsumerState<StudentRoutineScreen> {
                   label: 'No tenés una rutina activa',
                 )
               : dayExercises.isEmpty
-              ? const _CenteredState(
-                  icon: Icons.snooze_rounded,
-                  label: 'Día de descanso',
-                )
+              ? _RestDay(routineCardioNote: _routineCardioNote(routine))
               : _DayContent(
                   routine: routine,
                   dayNumber: _selectedDay,
                   dayExercises: dayExercises.cast<Map<String, dynamic>>(),
-                  onStart: () => _startWorkout(
-                    routine,
-                    dayExercises.cast<Map<String, dynamic>>(),
-                  ),
+                  routineCardioNote: _routineCardioNote(routine),
                 ),
         ),
       ],
     );
+  }
+
+  /// Trainer-written cardio for the selected day of this routine: null when
+  /// the day isn't flagged in routines.cardio_days, '' when flagged without a
+  /// note, otherwise the routines.cardio_notes text for that day.
+  String? _routineCardioNote(Map<String, dynamic> routine) {
+    final days = ((routine['cardio_days'] as List?) ?? const [])
+        .map((d) => (d as num).toInt());
+    if (!days.contains(_selectedDay)) return null;
+    final notes = routine['cardio_notes'];
+    final note = notes is Map ? notes['$_selectedDay'] : null;
+    return note is String ? note.trim() : '';
+  }
+
+  /// Bottom-nav play FAB — the only start action on this screen. Resumes an
+  /// in-progress workout if there is one, otherwise starts the selected day.
+  Future<void> _onPlayTap() async {
+    final active = ref.read(activeWorkoutProvider);
+    final routine = _currentRoutine;
+    if (active != null) {
+      if (routine != null && routine['id'].toString() == active.routineId) {
+        final exercises =
+            ((routine['routine_exercises'] as List?) ?? const [])
+                .where(
+                  (e) => (e['day_number'] as num?)?.toInt() == active.dayNumber,
+                )
+                .cast<Map<String, dynamic>>()
+                .toList()
+              ..sort(
+                (a, b) => ((a['order_index'] as num?)?.toInt() ?? 0)
+                    .compareTo((b['order_index'] as num?)?.toInt() ?? 0),
+              );
+        if (exercises.isNotEmpty) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => WorkoutSessionScreen(
+                routine: routine,
+                exercises: exercises,
+                dayNumber: active.dayNumber,
+              ),
+            ),
+          );
+          return;
+        }
+      }
+      // Marker points at a routine/day that no longer exists — clear it.
+      if (routine != null) ref.read(activeWorkoutProvider.notifier).finish();
+    }
+    if (routine == null || _currentDayExercises.isEmpty) return;
+    _startWorkout(routine, _currentDayExercises);
   }
 
   Future<void> _startWorkout(
@@ -531,13 +574,16 @@ class _DayContent extends ConsumerWidget {
   final Map<String, dynamic> routine;
   final int dayNumber;
   final List<Map<String, dynamic>> dayExercises;
-  final VoidCallback onStart;
+
+  /// Routine-level cardio for this day (null = not flagged). See
+  /// _StudentRoutineScreenState._routineCardioNote.
+  final String? routineCardioNote;
 
   const _DayContent({
     required this.routine,
     required this.dayNumber,
     required this.dayExercises,
-    required this.onStart,
+    this.routineCardioNote,
   });
 
   int _estimateMinutes() {
@@ -592,6 +638,13 @@ class _DayContent extends ConsumerWidget {
           error: (_, __) => const SizedBox.shrink(),
         ),
 
+        // Routine cardio for this day, written by the trainer in the routine.
+        if (routineCardioNote != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 18),
+            child: _RoutineCardioCard(note: routineCardioNote!),
+          ),
+
         // Exercise card
         Container(
           decoration: BoxDecoration(
@@ -614,30 +667,51 @@ class _DayContent extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(height: 24),
-
-        // Empezar entrenamiento
-        ElevatedButton(
-          onPressed: onStart,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: RedesignColors.actionPrimary,
-            foregroundColor: RedesignColors.onActionPrimary,
-            minimumSize: const Size(double.infinity, 54),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
-          ),
-          child: const Text(
-            'Empezar entrenamiento',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'Metropolis',
-            ),
-          ),
-        ),
+        // Workouts start from the bottom-nav play FAB; this keeps the last
+        // card clear of the floating nav.
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rest day — empty state, plus the routine's cardio when the day is flagged
+// ---------------------------------------------------------------------------
+
+class _RestDay extends StatelessWidget {
+  final String? routineCardioNote;
+  const _RestDay({this.routineCardioNote});
+
+  @override
+  Widget build(BuildContext context) {
+    const empty = _CenteredState(
+      icon: Icons.snooze_rounded,
+      label: 'Día de descanso',
+    );
+    if (routineCardioNote == null) return empty;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(22, 18, 22, 120),
+      children: [
+        _RoutineCardioCard(note: routineCardioNote!),
+        const SizedBox(height: 40),
+        empty,
+      ],
+    );
+  }
+}
+
+/// Amber card for the trainer's per-day routine cardio (routines.cardio_notes).
+class _RoutineCardioCard extends StatelessWidget {
+  final String note;
+  const _RoutineCardioCard({required this.note});
+
+  @override
+  Widget build(BuildContext context) {
+    return _CardioBanner(
+      title: 'Cardio del día',
+      description: note.isNotEmpty
+          ? note
+          : 'Tu entrenador marcó cardio para este día. Consultale qué hacer.',
     );
   }
 }
@@ -647,9 +721,14 @@ class _DayContent extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _CardioBanner extends StatelessWidget {
+  final String title;
   final String description;
   final String? note;
-  const _CardioBanner({required this.description, this.note});
+  const _CardioBanner({
+    this.title = 'Cardio a realizar',
+    required this.description,
+    this.note,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -679,9 +758,9 @@ class _CardioBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Cardio a realizar',
-                  style: TextStyle(
+                Text(
+                  title,
+                  style: const TextStyle(
                     fontFamily: 'Metropolis',
                     color: RedesignColors.primario900,
                     fontSize: 16,

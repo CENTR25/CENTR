@@ -78,6 +78,7 @@ class NewsService {
     String? trainerId,
     String audience = 'all',
     String? linkUrl,
+    String section = 'noticias',
   }) async {
     try {
       final response = await _client.from('news_articles').insert({
@@ -90,6 +91,7 @@ class NewsService {
         'display_order': displayOrder,
         'audience': audience,
         'link_url': linkUrl,
+        'section': section,
         'created_at': DateTime.now().toUtc().toIso8601String(),
         if (trainerId != null) 'trainer_id': trainerId,
       }).select().single();
@@ -113,6 +115,7 @@ class NewsService {
     int? displayOrder,
     String? audience,
     String? linkUrl,
+    String? section,
   }) async {
     try {
       final updates = <String, dynamic>{
@@ -127,6 +130,7 @@ class NewsService {
       if (isPublished != null) updates['is_published'] = isPublished;
       if (displayOrder != null) updates['display_order'] = displayOrder;
       if (audience != null) updates['audience'] = audience;
+      if (section != null) updates['section'] = section;
       if (linkUrl != null) {
         updates['link_url'] = linkUrl.isEmpty ? null : linkUrl;
       }

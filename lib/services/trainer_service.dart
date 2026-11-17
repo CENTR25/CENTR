@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'storage_service.dart';
+import 'exercise_import.dart';
 import '../core/constants/app_constants.dart';
 import '../models/trainer_task_model.dart';
 import '../models/athlete_schedule_slot.dart';
@@ -422,7 +423,13 @@ class TrainerService {
     }
 
     final response = await query.order('name', ascending: true);
-    final exercises = List<Map<String, dynamic>>.from(response);
+    // Hidden rows (soft-deleted because a routine still uses them) stay
+    // reachable through routines but never show in the library/pickers.
+    // RLS already drops hidden globals for non-admins; this also covers the
+    // trainer's own hidden rows and admins browsing as trainer.
+    final exercises = List<Map<String, dynamic>>.from(response)
+        .where((e) => e['is_hidden'] != true)
+        .toList();
 
     // Merge trainer's own media overlay rows so the exercise library
     // shows the trainer's uploaded video/photos on global/seed exercises.
@@ -578,11 +585,14 @@ class TrainerService {
     return response;
   }
 
-  /// Delete a custom exercise. RLS restricts this to the owning trainer.
-  /// Throws if the exercise is still referenced by a routine (FK).
-  Future<void> deleteExercise(String exerciseId) async {
-    await _client.from('exercises').delete().eq('id', exerciseId);
-  }
+  /// Delete own exercises. Ones still used by a routine are HIDDEN instead
+  /// (routine_exercises cascades on delete). Owner-only server-side.
+  Future<DeleteOrHideResult> deleteExercises(List<String> ids) =>
+      deleteOrHideExercises(_client, ids);
+
+  /// Single delete — same delete-or-hide rule as the bulk path.
+  Future<DeleteOrHideResult> deleteExercise(String exerciseId) =>
+      deleteExercises([exerciseId]);
 
   /// Update exercise media URLs after upload
   Future<void> updateExerciseMedia(
@@ -782,6 +792,29 @@ class TrainerService {
     await _client.from('routines').update(updates).eq('id', routineId);
   }
 
+  /// Set (or clear, when blank) the cardio prescription text for one routine
+  /// day. Stored in routines.cardio_notes keyed by the day number as string.
+  /// Read-modify-write against the DB so other days' notes are never lost.
+  Future<void> setCardioNote(String routineId, int dayNumber, String note) async {
+    final row = await _client
+        .from('routines')
+        .select('cardio_notes')
+        .eq('id', routineId)
+        .single();
+    final raw = row['cardio_notes'];
+    final notes = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    final trimmed = note.trim();
+    if (trimmed.isEmpty) {
+      notes.remove('$dayNumber');
+    } else {
+      notes['$dayNumber'] = trimmed;
+    }
+    await _client
+        .from('routines')
+        .update({'cardio_notes': notes})
+        .eq('id', routineId);
+  }
+
   /// Delete routine
   Future<void> deleteRoutine(String routineId) async {
     await _client.from('routines').delete().eq('id', routineId);
@@ -952,6 +985,7 @@ class TrainerService {
   }
 
   /// Save an existing routine (e.g. from a student) as a new template
+  /// ("Duplicar rutina"). Copies settings, day titles, cardio and exercises.
   Future<void> saveRoutineAsTemplate({
     required String sourceRoutineId,
     required String newTitle,
@@ -959,46 +993,21 @@ class TrainerService {
     final trainerId = await _getTrainerId();
     if (trainerId == null) throw Exception('No trainer record found');
 
-    // 1. Get source routine
     final sourceRoutine = await getRoutine(sourceRoutineId);
     if (sourceRoutine == null) throw Exception('Source routine not found');
 
-    // 2. Create new routine as template
-    final newRoutineData = {
-      'trainer_id': trainerId,
-      'title': newTitle,
-      'objective': sourceRoutine['objective'],
-      'level': sourceRoutine['level'],
-      'days_per_week': sourceRoutine['days_per_week'],
-      'week_days': sourceRoutine['week_days'],
-      'created_at': DateTime.now().toUtc().toIso8601String(),
-      'image_url': sourceRoutine['image_url'],
-      // Ensure it's not linked to any specific athlete implicitly (schema doesn't have an owner field other than trainer_id)
-    };
-
     final newRoutine = await _client
         .from('routines')
-        .insert(newRoutineData)
-        .select()
+        .insert({
+          ..._copyableRoutineFields(sourceRoutine),
+          'trainer_id': trainerId,
+          'title': newTitle,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .select('id')
         .single();
 
-    final newRoutineId = newRoutine['id'];
-
-    // 3. Copy exercises
-    final sourceExercises = (sourceRoutine['routine_exercises'] as List? ?? []);
-
-    for (var ex in sourceExercises) {
-      await _client.from('routine_exercises').insert({
-        'routine_id': newRoutineId,
-        'exercise_id': ex['exercise_id'],
-        'day_number': ex['day_number'],
-        'sets': ex['sets'],
-        'reps_target': ex['reps_target'],
-        'rest_seconds': ex['rest_seconds'],
-        'order_index': ex['order_index'],
-        'comment': ex['comment'],
-      });
-    }
+    await _copyRoutineChildren(sourceRoutine, newRoutine['id'] as String);
   }
 
   /// Clone a routine and assign the copy to one student, so the trainer can
@@ -1018,21 +1027,40 @@ class TrainerService {
     final newRoutine = await _client
         .from('routines')
         .insert({
+          ..._copyableRoutineFields(source),
           'trainer_id': trainerId,
           'title': newTitle ?? source['title'],
-          'objective': source['objective'],
-          'level': source['level'],
-          'days_per_week': source['days_per_week'],
-          'week_days': source['week_days'],
-          'description': source['description'],
-          'image_url': source['image_url'],
-          'cardio_days': source['cardio_days'],
           'is_template': false,
         })
-        .select()
+        .select('id')
         .single();
     final newRoutineId = newRoutine['id'] as String;
 
+    await _copyRoutineChildren(source, newRoutineId);
+
+    await assignRoutineToStudent(athleteId: athleteId, routineId: newRoutineId);
+    return newRoutineId;
+  }
+
+  /// Routine columns carried over when duplicating (everything except
+  /// identity/ownership/timestamps, which the caller sets).
+  Map<String, dynamic> _copyableRoutineFields(Map<String, dynamic> source) => {
+        'objective': source['objective'],
+        'level': source['level'],
+        'days_per_week': source['days_per_week'],
+        'week_days': source['week_days'],
+        'description': source['description'],
+        'image_url': source['image_url'],
+        'cardio_days': source['cardio_days'] ?? <int>[],
+        'cardio_notes': source['cardio_notes'] ?? <String, dynamic>{},
+      };
+
+  /// Copy a routine's exercises and per-day titles onto [newRoutineId],
+  /// each in a single batch insert.
+  Future<void> _copyRoutineChildren(
+    Map<String, dynamic> source,
+    String newRoutineId,
+  ) async {
     final exercises = (source['routine_exercises'] as List? ?? []);
     if (exercises.isNotEmpty) {
       await _client.from('routine_exercises').insert([
@@ -1041,18 +1069,28 @@ class TrainerService {
             'routine_id': newRoutineId,
             'exercise_id': ex['exercise_id'],
             'day_number': ex['day_number'],
+            'order_index': ex['order_index'],
             'sets': ex['sets'],
             'reps_target': ex['reps_target'],
             'rest_seconds': ex['rest_seconds'],
-            'order_index': ex['order_index'],
             'superset_group': ex['superset_group'],
             'comment': ex['comment'],
+            'weight_target': ex['weight_target'],
           },
       ]);
     }
 
-    await assignRoutineToStudent(athleteId: athleteId, routineId: newRoutineId);
-    return newRoutineId;
+    final titles = (source['routine_day_titles'] as List? ?? []);
+    if (titles.isNotEmpty) {
+      await _client.from('routine_day_titles').insert([
+        for (final t in titles)
+          {
+            'routine_id': newRoutineId,
+            'day_number': t['day_number'],
+            'title': t['title'],
+          },
+      ]);
+    }
   }
 
   // ==================== MEAL PLANS ====================

@@ -43,62 +43,17 @@ class SupabaseService {
     await _client.from('profiles').update(updates).eq('id', userId);
   }
 
-  /// Record first login and notify admin
+  /// Record first login. The `on_first_login` DB trigger (notify_first_login)
+  /// notifies the trainer + admins exactly once when first_login_at goes from
+  /// NULL to a value — never insert those notifications from the client too
+  /// (that duplicated them, and this runs more than once per login).
   Future<void> recordFirstLogin(String userId) async {
     final now = DateTime.now().toUtc().toIso8601String();
-
-    // Update user's first login time
     await _client
         .from('profiles')
         .update({'first_login_at': now, 'last_login_at': now})
-        .eq('id', userId);
-
-    // Get user details for notification
-    final profile = await getProfile(userId);
-    if (profile != null) {
-      final athlete = await _client
-          .from('athletes')
-          .select('trainer_id, name')
-          .eq('user_id', userId)
-          .maybeSingle();
-      final displayName =
-          athlete?['name'] as String? ?? profile['email'] as String? ?? '';
-      final trainerRecordId = athlete?['trainer_id'] as String?;
-      final trainer = trainerRecordId == null
-          ? null
-          : await _client
-                .from('trainers')
-                .select('user_id')
-                .eq('id', trainerRecordId)
-                .maybeSingle();
-      final trainerUserId = trainer?['user_id'] as String?;
-      if (trainerUserId != null) {
-        // Notify the trainer about student's first login
-        await createNotification(
-          userId: trainerUserId,
-          type: 'firstLogin',
-          title: '¡Nuevo alumno activo!',
-          message: '$displayName ha iniciado sesión por primera vez.',
-          data: {'student_id': userId},
-        );
-      }
-
-      // Also notify admins
-      final admins = await _client
-          .from('profiles')
-          .select('id')
-          .eq('role', 'admin');
-
-      for (final admin in admins) {
-        await createNotification(
-          userId: admin['id'] as String,
-          type: 'firstLogin',
-          title: 'Usuario activo',
-          message: '$displayName ha ingresado por primera vez.',
-          data: {'user_id': userId},
-        );
-      }
-    }
+        .eq('id', userId)
+        .isFilter('first_login_at', null);
   }
 
   /// Update last login time

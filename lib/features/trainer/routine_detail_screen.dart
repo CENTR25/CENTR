@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -177,6 +178,10 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
             final List<int> cardioDays =
                 List<int>.from(routine['cardio_days'] ?? []);
             final isCardioDay = cardioDays.contains(_currentDay);
+            final rawCardioNotes = routine['cardio_notes'];
+            final cardioNote = rawCardioNotes is Map
+                ? (rawCardioNotes['$_currentDay'] as String?) ?? ''
+                : '';
 
             // Per-day muscle-group titles keyed by day_number, shown under the
             // weekday and editable by tapping the header.
@@ -271,7 +276,12 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
 
                       // Cardio toggle
                       _CardioBanner(
+                        // Keyed per day so the note field resets on day switch.
+                        key: ValueKey('cardio-$_currentDay'),
+                        routineId: widget.routineId,
+                        dayNumber: _currentDay,
                         isCardioDay: isCardioDay,
+                        initialNote: cardioNote,
                         onChanged: (val) =>
                             _toggleCardio(routine, _currentDay, val),
                       ),
@@ -501,8 +511,13 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
         routineId: widget.routineId,
         dayNumber: dayNumber,
         defaultRest: _defaultRest,
+        onDefaultRestSaved: _onDefaultRestSaved,
       ),
     );
+  }
+
+  void _onDefaultRestSaved(int seconds) {
+    if (mounted) setState(() => _defaultRest = seconds);
   }
 
   void _showEditExercise(Map<String, dynamic> exercise) {
@@ -514,6 +529,8 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
         routineId: widget.routineId,
         dayNumber: exercise['day_number'],
         existingExercise: exercise,
+        defaultRest: _defaultRest,
+        onDefaultRestSaved: _onDefaultRestSaved,
       ),
     );
   }
@@ -535,98 +552,20 @@ class _RoutineDetailScreenState extends ConsumerState<RoutineDetailScreen>
           ref.invalidate(trainerStatsProvider);
           Navigator.of(context).pop(); // exit detail screen
         },
-        onSaveAsTemplate: () => _showSaveAsTemplateDialog(context),
+        onSaveAsTemplate: _showSaveAsTemplateDialog,
       ),
     );
   }
 
-  void _showSaveAsTemplateDialog(BuildContext context) {
-    final controller = TextEditingController(
-      text: '${widget.routineTitle} (Copia)',
-    );
-
+  void _showSaveAsTemplateDialog() {
+    // Use this screen's own context: the edit sheet that triggers this has
+    // already been popped.
     showDialog(
       context: context,
-      builder: (context) => Theme(
-        data: RedesignTheme.theme,
-        child: AlertDialog(
-          backgroundColor: RedesignColors.primario800,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(RedesignRadius.card)),
-          title: Text(
-            'Guardar como Plantilla',
-            style: RedesignType.bodySm.copyWith(
-              color: RedesignColors.primario50,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Se creará una nueva rutina en tu librería basada en esta configuración.',
-                style: RedesignType.label
-                    .copyWith(color: RedesignColors.primario300),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                style: const TextStyle(color: RedesignColors.primario50),
-                decoration: InputDecoration(
-                  labelText: 'Nombre de la nueva plantilla',
-                  border: OutlineInputBorder(
-                      borderRadius: RedesignRadius.inputBr),
-                ),
-                autofocus: true,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancelar',
-                  style: TextStyle(color: RedesignColors.primario300)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (controller.text.trim().isEmpty) return;
-                final scaffoldMessenger =
-                    ScaffoldMessenger.of(context);
-                final navigator = Navigator.of(context);
-
-                try {
-                  scaffoldMessenger.showSnackBar(
-                    const SnackBar(
-                        content: Text('Guardando plantilla...')),
-                  );
-                  final service = ref.read(trainerServiceProvider);
-                  await service.saveRoutineAsTemplate(
-                    sourceRoutineId: widget.routineId,
-                    newTitle: controller.text.trim(),
-                  );
-                  ref.invalidate(myRoutinesProvider);
-                  navigator.pop();
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content:
-                          const Text('Plantilla guardada con éxito'),
-                      backgroundColor: RedesignColors.success,
-                    ),
-                  );
-                } catch (e) {
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Error: $e'),
-                      backgroundColor: RedesignColors.danger,
-                    ),
-                  );
-                }
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
-        ),
+      barrierDismissible: false,
+      builder: (_) => _DuplicateRoutineDialog(
+        routineId: widget.routineId,
+        initialTitle: '${widget.routineTitle} (Copia)',
       ),
     );
   }
@@ -901,14 +840,90 @@ class _DayPillSelector extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // _CardioBanner — cardio toggle row
 // ---------------------------------------------------------------------------
-class _CardioBanner extends StatelessWidget {
+class _CardioBanner extends ConsumerStatefulWidget {
+  final String routineId;
+  final int dayNumber;
   final bool isCardioDay;
+  final String initialNote;
   final ValueChanged<bool> onChanged;
 
-  const _CardioBanner({required this.isCardioDay, required this.onChanged});
+  const _CardioBanner({
+    super.key,
+    required this.routineId,
+    required this.dayNumber,
+    required this.isCardioDay,
+    required this.initialNote,
+    required this.onChanged,
+  });
+
+  @override
+  ConsumerState<_CardioBanner> createState() => _CardioBannerState();
+}
+
+enum _NoteStatus { idle, pending, saving, saved, error }
+
+class _CardioBannerState extends ConsumerState<_CardioBanner> {
+  late final TextEditingController _noteController =
+      TextEditingController(text: widget.initialNote);
+  // Captured up-front so a pending note can still be flushed from dispose()
+  // (e.g. switching day / leaving the screen) without touching `ref`.
+  late final TrainerService _service;
+  late final ProviderContainer _container;
+  Timer? _debounce;
+  _NoteStatus _status = _NoteStatus.idle;
+  late String _lastSaved = widget.initialNote.trim();
+
+  @override
+  void initState() {
+    super.initState();
+    _service = ref.read(trainerServiceProvider);
+    _container = ProviderScope.containerOf(context, listen: false);
+  }
+
+  bool _disposed = false;
+
+  void _setStatus(_NoteStatus status) {
+    if (!_disposed && mounted) setState(() => _status = status);
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    if (_debounce?.isActive ?? false) {
+      _debounce!.cancel();
+      _persist(); // fire-and-forget flush; no setState after dispose
+    }
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  void _onNoteChanged(String _) {
+    _debounce?.cancel();
+    _setStatus(_NoteStatus.pending);
+    _debounce = Timer(const Duration(milliseconds: 900), _persist);
+  }
+
+  Future<void> _persist() async {
+    _debounce?.cancel();
+    final text = _noteController.text.trim();
+    if (text == _lastSaved) {
+      _setStatus(_NoteStatus.idle);
+      return;
+    }
+    _setStatus(_NoteStatus.saving);
+    try {
+      await _service.setCardioNote(widget.routineId, widget.dayNumber, text);
+      _lastSaved = text;
+      _container.invalidate(routineDetailProvider(widget.routineId));
+      _setStatus(_NoteStatus.saved);
+    } catch (_) {
+      _setStatus(_NoteStatus.error);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isCardioDay = widget.isCardioDay;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Container(
@@ -923,55 +938,107 @@ class _CardioBanner extends StatelessWidget {
                 : RedesignColors.secundario300.withValues(alpha: 0.12),
           ),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isCardioDay
-                    ? RedesignColors.actionPrimary.withValues(alpha: 0.18)
-                    : RedesignColors.primario700,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.directions_run_rounded,
-                color: isCardioDay
-                    ? RedesignColors.actionPrimary
-                    : RedesignColors.primario400,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Cardio para este día',
-                    style: RedesignType.bodySm.copyWith(
-                      color: RedesignColors.primario50,
-                      fontWeight: FontWeight.w600,
-                    ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isCardioDay
+                        ? RedesignColors.actionPrimary.withValues(alpha: 0.18)
+                        : RedesignColors.primario700,
+                    shape: BoxShape.circle,
                   ),
-                  Text(
-                    isCardioDay
-                        ? 'Marcado como día con cardio'
-                        : 'Sin cardio marcado',
-                    style: RedesignType.label
-                        .copyWith(color: RedesignColors.primario400),
+                  child: Icon(
+                    Icons.directions_run_rounded,
+                    color: isCardioDay
+                        ? RedesignColors.actionPrimary
+                        : RedesignColors.primario400,
+                    size: 22,
                   ),
-                ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Cardio para este día',
+                        style: RedesignType.bodySm.copyWith(
+                          color: RedesignColors.primario50,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        isCardioDay
+                            ? 'Marcado como día con cardio'
+                            : 'Sin cardio marcado',
+                        style: RedesignType.label
+                            .copyWith(color: RedesignColors.primario400),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: isCardioDay,
+                  onChanged: widget.onChanged,
+                  activeThumbColor: RedesignColors.onActionPrimary,
+                  activeTrackColor: RedesignColors.actionPrimary,
+                  inactiveThumbColor: RedesignColors.primario400,
+                  inactiveTrackColor:
+                      RedesignColors.primario600.withValues(alpha: 0.6),
+                ),
+              ],
+            ),
+            if (isCardioDay) ...[
+              const SizedBox(height: 10),
+              TextField(
+                controller: _noteController,
+                onChanged: _onNoteChanged,
+                onEditingComplete: _persist,
+                onTapOutside: (_) {
+                  if ((_debounce?.isActive ?? false) ||
+                      _status == _NoteStatus.error) {
+                    _persist();
+                  }
+                  FocusScope.of(context).unfocus();
+                },
+                minLines: 1,
+                maxLines: 3,
+                maxLength: 200,
+                textCapitalization: TextCapitalization.sentences,
+                style: RedesignType.bodySm
+                    .copyWith(color: RedesignColors.primario50),
+                decoration: const InputDecoration(
+                  hintText: '¿Qué cardio? Ej: 20 min cinta inclinada',
+                  counterText: '',
+                  isDense: true,
+                ),
               ),
-            ),
-            Switch(
-              value: isCardioDay,
-              onChanged: onChanged,
-              activeThumbColor: RedesignColors.onActionPrimary,
-              activeTrackColor: RedesignColors.actionPrimary,
-              inactiveThumbColor: RedesignColors.primario400,
-              inactiveTrackColor:
-                  RedesignColors.primario600.withValues(alpha: 0.6),
-            ),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  switch (_status) {
+                    _NoteStatus.idle => 'Se guarda automáticamente',
+                    _NoteStatus.pending => 'Cambios sin guardar…',
+                    _NoteStatus.saving => 'Guardando…',
+                    _NoteStatus.saved => '✓ Guardado',
+                    _NoteStatus.error => 'Error al guardar. Reintentá.',
+                  },
+                  style: RedesignType.label.copyWith(
+                    color: switch (_status) {
+                      _NoteStatus.saved => RedesignColors.success,
+                      _NoteStatus.error => RedesignColors.danger,
+                      _ => RedesignColors.primario400,
+                    },
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1364,6 +1431,23 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
 
         // Añadir foto
         _buildPhotoBox(),
+        if ((_imageUrl?.isNotEmpty ?? false) || _pickedImageBytes != null)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _isSaving
+                  ? null
+                  : () => setState(() {
+                        _imageUrl = null;
+                        _pickedImageBytes = null;
+                      }),
+              style: TextButton.styleFrom(
+                foregroundColor: RedesignColors.danger,
+              ),
+              icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              label: const Text('Quitar foto'),
+            ),
+          ),
         const SizedBox(height: 20),
 
         // Nombre
@@ -1704,7 +1788,8 @@ class _EditRoutineSheetState extends ConsumerState<_EditRoutineSheet> {
         'week_days': weekDays,
         'days_per_week': _daysPerWeek,
         'level': _level,
-        if (finalImageUrl != null) 'image_url': finalImageUrl,
+        // Always written so "Quitar foto" (finalImageUrl == null) clears it.
+        'image_url': (finalImageUrl?.isEmpty ?? true) ? null : finalImageUrl,
       });
       widget.onRoutineUpdated();
       if (nav.mounted) nav.pop();
@@ -1920,12 +2005,16 @@ class _AddExerciseSheet extends ConsumerStatefulWidget {
   final int dayNumber;
   final Map<String, dynamic>? existingExercise;
   final int defaultRest;
+  /// Called after "Usar como predeterminado" succeeds so the parent screen
+  /// uses the new default for the next sheet it opens.
+  final ValueChanged<int>? onDefaultRestSaved;
 
   const _AddExerciseSheet({
     required this.routineId,
     required this.dayNumber,
     this.existingExercise,
     this.defaultRest = 60,
+    this.onDefaultRestSaved,
   });
 
   @override
@@ -1945,6 +2034,11 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
   String _standardReps = '10-12';
   List<String> _individualReps = ['10', '10', '10'];
   late int _rest = widget.defaultRest;
+  // "Usar como predeterminado" state — feedback is shown inside the sheet
+  // because a SnackBar on the parent Scaffold renders behind the modal.
+  bool _savingDefaultRest = false;
+  int? _savedDefaultRest;
+  String? _defaultRestError;
   String _comments = '';
   bool _isLoading = false;
 
@@ -2274,27 +2368,70 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
                 RedesignColors.actionPrimary.withValues(alpha: 0.12),
           ),
           child: Slider(
-            value: _rest.toDouble(),
+            // Clamp: stored values outside the slider range would assert.
+            value: _rest.clamp(30, 180).toDouble(),
             min: 30,
             max: 180,
             divisions: 15,
-            onChanged: (v) => setState(() => _rest = v.round()),
+            onChanged: (v) => setState(() {
+              _rest = v.round();
+              _defaultRestError = null;
+            }),
           ),
         ),
         Align(
           alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: _saveDefaultRest,
-            icon: const Icon(Icons.push_pin_outlined, size: 14),
-            label: const Text('Usar como predeterminado'),
-            style: TextButton.styleFrom(
-              foregroundColor: RedesignColors.actionPrimary,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 4),
-              visualDensity: VisualDensity.compact,
+          child: _savedDefaultRest == _rest
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 4, vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle_rounded,
+                          size: 14, color: RedesignColors.success),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Predeterminado guardado',
+                        style: RedesignType.label.copyWith(
+                          color: RedesignColors.success,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : TextButton.icon(
+                  onPressed: _savingDefaultRest ? null : _saveDefaultRest,
+                  icon: _savingDefaultRest
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: RedesignColors.actionPrimary,
+                          ),
+                        )
+                      : const Icon(Icons.push_pin_outlined, size: 14),
+                  label: const Text('Usar como predeterminado'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: RedesignColors.actionPrimary,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+        ),
+        if (_defaultRestError != null)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              _defaultRestError!,
+              style: RedesignType.label.copyWith(
+                color: RedesignColors.danger,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        ),
         const SizedBox(height: 12),
 
         // Nota para el alumno
@@ -2350,14 +2487,26 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
   }
 
   Future<void> _saveDefaultRest() async {
-    await ref.read(trainerServiceProvider).updateDefaultRestSeconds(_rest);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Descanso predeterminado guardado'),
-          backgroundColor: RedesignColors.success,
-        ),
-      );
+    final seconds = _rest;
+    final service = ref.read(trainerServiceProvider);
+    setState(() {
+      _savingDefaultRest = true;
+      _defaultRestError = null;
+    });
+    try {
+      await service.updateDefaultRestSeconds(seconds);
+      widget.onDefaultRestSaved?.call(seconds);
+      if (!mounted) return;
+      setState(() {
+        _savingDefaultRest = false;
+        _savedDefaultRest = seconds;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _savingDefaultRest = false;
+        _defaultRestError = 'No se pudo guardar el predeterminado.';
+      });
     }
   }
 
@@ -3081,5 +3230,163 @@ class _AssignToStudentsSheetState
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// _DuplicateRoutineDialog — "Duplicar rutina". Stateful with a saving guard so
+// a double tap can't pop twice (which used to pop the detail screen and throw
+// "Cannot use ref after the widget was disposed").
+// ---------------------------------------------------------------------------
+
+class _DuplicateRoutineDialog extends ConsumerStatefulWidget {
+  final String routineId;
+  final String initialTitle;
+
+  const _DuplicateRoutineDialog({
+    required this.routineId,
+    required this.initialTitle,
+  });
+
+  @override
+  ConsumerState<_DuplicateRoutineDialog> createState() =>
+      _DuplicateRoutineDialogState();
+}
+
+class _DuplicateRoutineDialogState
+    extends ConsumerState<_DuplicateRoutineDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialTitle);
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final title = _controller.text.trim();
+    if (title.isEmpty) {
+      setState(() => _error = 'Ingresá un nombre.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    // Capture everything we need BEFORE the await — no `ref` afterwards.
+    final service = ref.read(trainerServiceProvider);
+    final container = ProviderScope.containerOf(context, listen: false);
+    final navigator = Navigator.of(context);
+    final overlay = Overlay.of(context, rootOverlay: true);
+
+    try {
+      await service.saveRoutineAsTemplate(
+        sourceRoutineId: widget.routineId,
+        newTitle: title,
+      );
+      container.invalidate(myRoutinesProvider);
+      if (!mounted) return;
+      navigator.pop();
+      showRedesignToast(
+        overlay.context,
+        title: 'Rutina duplicada',
+        subtitle: 'La copia ya está en tu librería',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = 'No se pudo duplicar: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_saving,
+      child: Theme(
+        data: RedesignTheme.theme,
+        child: AlertDialog(
+          backgroundColor: RedesignColors.primario800,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(RedesignRadius.card)),
+          title: Text(
+            'Duplicar rutina',
+            style: RedesignType.bodySm.copyWith(
+              color: RedesignColors.primario50,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Se creará una nueva rutina en tu librería basada en esta configuración.',
+                style: RedesignType.label
+                    .copyWith(color: RedesignColors.primario300),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _controller,
+                enabled: !_saving,
+                style: const TextStyle(color: RedesignColors.primario50),
+                decoration: InputDecoration(
+                  labelText: 'Nombre de la nueva rutina',
+                  border: OutlineInputBorder(
+                      borderRadius: RedesignRadius.inputBr),
+                ),
+                autofocus: true,
+                onSubmitted: (_) => _save(),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _error!,
+                  style: RedesignType.label.copyWith(
+                    color: RedesignColors.danger,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: _saving ? null : () => Navigator.pop(context),
+              child: const Text('Cancelar',
+                  style: TextStyle(color: RedesignColors.primario300)),
+            ),
+            ElevatedButton(
+              onPressed: _saving ? null : _save,
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(0, 44),
+                backgroundColor: RedesignColors.actionPrimary,
+                foregroundColor: RedesignColors.onActionPrimary,
+                elevation: 0,
+                disabledBackgroundColor:
+                    RedesignColors.actionPrimary.withValues(alpha: 0.6),
+              ),
+              child: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: RedesignColors.onActionPrimary,
+                      ),
+                    )
+                  : const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

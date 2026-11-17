@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/constants/app_constants.dart';
+import 'exercise_import.dart';
 import 'supabase_service.dart';
 
 /// Service for Admin operations
@@ -164,7 +165,7 @@ class AdminService {
   /// Columns needed for the admin exercise list — never select('*').
   static const _exerciseColumns =
       'id, name, muscle_group, secondary_muscles, category, equipment, '
-      'is_hidden, source, created_at';
+      'is_hidden, source, created_at, image_urls, gif_url';
 
   /// Global exercises (created_by_trainer IS NULL): seed + admin-created.
   /// Admins see hidden rows too (RLS). Ordered by name.
@@ -234,10 +235,14 @@ class AdminService {
     await _client.from('exercises').update(updates).eq('id', exerciseId);
   }
 
-  /// Permanently delete a global exercise. RLS restricts this to admin.
-  Future<void> deleteGlobalExercise(String exerciseId) async {
-    await _client.from('exercises').delete().eq('id', exerciseId);
-  }
+  /// Delete global exercises. Ones still used by a routine are HIDDEN instead
+  /// (routine_exercises cascades on delete). Admin-only server-side.
+  Future<DeleteOrHideResult> deleteGlobalExercises(List<String> ids) =>
+      deleteOrHideExercises(_client, ids);
+
+  /// Single delete — same delete-or-hide rule as the bulk path.
+  Future<DeleteOrHideResult> deleteGlobalExercise(String exerciseId) =>
+      deleteGlobalExercises([exerciseId]);
 
   // ==================== INVITATIONS ====================
 

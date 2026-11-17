@@ -30,6 +30,7 @@ class _AdminNewsEditorScreenState
   late final TextEditingController _contentCtrl;
   late final TextEditingController _linkCtrl;
   String _audience = 'all';
+  String _section = 'noticias';
   String? _coverUrl;
   Uint8List? _coverPreview;
   bool _saving = false;
@@ -45,6 +46,7 @@ class _AdminNewsEditorScreenState
     _contentCtrl = TextEditingController(text: a?.content ?? '');
     _linkCtrl = TextEditingController(text: a?.linkUrl ?? '');
     _audience = a?.audience ?? 'all';
+    _section = a?.section ?? 'noticias';
     _coverUrl = a?.imageUrl;
   }
 
@@ -129,6 +131,7 @@ class _AdminNewsEditorScreenState
           isPublished: publish,
           audience: _audience,
           linkUrl: link,
+          section: _section,
         );
       } else {
         await svc.createNews(
@@ -138,6 +141,7 @@ class _AdminNewsEditorScreenState
           isPublished: publish,
           audience: _audience,
           linkUrl: link.isEmpty ? null : link,
+          section: _section,
         );
       }
       ref.invalidate(allNewsProvider);
@@ -208,6 +212,21 @@ class _AdminNewsEditorScreenState
                 hintText: 'Escribí la noticia',
                 alignLabelWithHint: true,
               ),
+            ),
+            const SizedBox(height: 18),
+            _label('Sección'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final e in kNewsSections.entries)
+                  AdminFilterChip(
+                    label: e.value,
+                    active: _section == e.key,
+                    onTap: () => setState(() => _section = e.key),
+                  ),
+              ],
             ),
             const SizedBox(height: 18),
             _label('Link (opcional)'),

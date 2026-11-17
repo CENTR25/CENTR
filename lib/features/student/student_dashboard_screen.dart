@@ -1165,15 +1165,31 @@ class _RecetarioCard extends StatelessWidget {
 // articles here (studentNewsProvider).
 // ---------------------------------------------------------------------------
 
-class _NovedadesSection extends ConsumerWidget {
+class _NovedadesSection extends ConsumerStatefulWidget {
   const _NovedadesSection();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_NovedadesSection> createState() => _NovedadesSectionState();
+}
+
+class _NovedadesSectionState extends ConsumerState<_NovedadesSection> {
+  /// null = all sections.
+  String? _section;
+
+  @override
+  Widget build(BuildContext context) {
     final newsAsync = ref.watch(studentNewsProvider);
     return newsAsync.when(
-      data: (list) {
-        if (list.isEmpty) return const SizedBox.shrink();
+      data: (all) {
+        if (all.isEmpty) return const SizedBox.shrink();
+        // Only offer sections that actually have articles.
+        final present = {for (final a in all) a.section};
+        final sections =
+            kNewsSections.keys.where(present.contains).toList();
+        final selected = present.contains(_section) ? _section : null;
+        final list = selected == null
+            ? all
+            : all.where((a) => a.section == selected).toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1196,6 +1212,29 @@ class _NovedadesSection extends ConsumerWidget {
                 ],
               ),
             ),
+            if (sections.length > 1) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 36,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  children: [
+                    _SectionPill(
+                      label: 'Todas',
+                      active: selected == null,
+                      onTap: () => setState(() => _section = null),
+                    ),
+                    for (final key in sections)
+                      _SectionPill(
+                        label: kNewsSections[key]!,
+                        active: selected == key,
+                        onTap: () => setState(() => _section = key),
+                      ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             SizedBox(
               height: 230,
@@ -1212,6 +1251,49 @@ class _NovedadesSection extends ConsumerWidget {
       },
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _SectionPill extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  const _SectionPill(
+      {required this.label, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active ? RedesignColors.secundario400 : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: active
+                  ? RedesignColors.secundario400
+                  : RedesignColors.primario300,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Metropolis',
+              color: active
+                  ? RedesignColors.primario900
+                  : RedesignColors.primario50,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1255,6 +1337,43 @@ class _NewsCard extends StatelessWidget {
                     colors: [Colors.transparent, Color(0xCC000000)],
                     stops: [0.45, 1.0],
                   ),
+                ),
+              ),
+              Positioned(
+                left: 12,
+                top: 12,
+                right: 12,
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xB3000000),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        article.sectionLabel,
+                        style: const TextStyle(
+                          fontFamily: 'Metropolis',
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (article.hasLink)
+                      Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: const BoxDecoration(
+                          color: Color(0xB3000000),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.open_in_new_rounded,
+                            color: Colors.white, size: 15),
+                      ),
+                  ],
                 ),
               ),
               Positioned(

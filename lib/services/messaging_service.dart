@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -39,6 +41,55 @@ class MessagingService {
 
     await _notifyRecipient(athleteId, senderRole, trimmed);
   }
+
+  /// Max upload sizes (bucket hard limit is 10 MB).
+  static const maxImageBytes = 5 * 1024 * 1024;
+  static const maxAudioBytes = 10 * 1024 * 1024;
+  static const _bucket = 'chat-media';
+
+  /// Upload a photo / voice note to the private chat-media bucket under the
+  /// conversation's folder, then insert the message row.
+  Future<void> sendAttachment({
+    required String athleteId,
+    required String senderRole,
+    required String type, // 'image' | 'audio'
+    required Uint8List bytes,
+    required String extension,
+    required String contentType,
+    int? durationMs,
+  }) async {
+    final max = type == 'image' ? maxImageBytes : maxAudioBytes;
+    if (bytes.length > max) {
+      throw Exception('Archivo demasiado grande');
+    }
+    final rnd = Random.secure();
+    final id = List.generate(16, (_) => rnd.nextInt(256))
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join();
+    final path = '$athleteId/$id.$extension';
+
+    await _client.storage.from(_bucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: contentType),
+        );
+
+    await _client.from('messages').insert({
+      'athlete_id': athleteId,
+      'sender_role': senderRole,
+      'body': '',
+      'attachment_type': type,
+      'attachment_path': path,
+      'attachment_duration_ms': ?durationMs,
+    });
+
+    await _notifyRecipient(
+        athleteId, senderRole, Message.preview('', type));
+  }
+
+  /// Short-lived signed URL for a chat attachment (bucket is private).
+  Future<String> signedUrl(String path) =>
+      _client.storage.from(_bucket).createSignedUrl(path, 60 * 60);
 
   Future<void> _notifyRecipient(
     String athleteId,
@@ -111,7 +162,8 @@ class MessagingService {
     // RLS limits these rows to the trainer's own athletes.
     final rows = await _client
         .from('messages')
-        .select('athlete_id, sender_role, body, is_read, created_at')
+        .select(
+            'athlete_id, sender_role, body, attachment_type, is_read, created_at')
         .order('created_at', ascending: false);
 
     final byAthlete = <String, Map<String, dynamic>>{};
@@ -122,7 +174,8 @@ class MessagingService {
         aid,
         () => {
           'athlete_id': aid,
-          'last_body': r['body'],
+          'last_body': Message.preview(
+              r['body']?.toString(), r['attachment_type']?.toString()),
           'last_at': r['created_at'],
           'last_sender': r['sender_role'],
           'unread': 0,
@@ -188,6 +241,13 @@ final messagingServiceProvider = Provider<MessagingService>((ref) {
 final messagesStreamProvider =
     StreamProvider.autoDispose.family<List<Message>, String>((ref, athleteId) {
   return ref.watch(messagingServiceProvider).watchMessages(athleteId);
+});
+
+/// Signed URL per attachment path (private bucket). Keyed by path, so a
+/// message's media resolves once while the chat is open.
+final chatMediaUrlProvider =
+    FutureProvider.autoDispose.family<String, String>((ref, path) {
+  return ref.watch(messagingServiceProvider).signedUrl(path);
 });
 
 /// Trainer inbox conversations.

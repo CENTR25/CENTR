@@ -1421,9 +1421,13 @@ class _NewsCard extends StatelessWidget {
   /// doesn't navigate its own window away (white screen on back).
   Future<void> _openLink(BuildContext context) async {
     final value = article.linkUrl!.trim();
-    final url = RegExp(r'^https?://', caseSensitive: false).hasMatch(value)
-        ? value
-        : 'https://$value';
+    // Upgrade http→https: the plain-http hop adds a redirect page inside the
+    // iOS in-app browser that's left blank when you come back from an app
+    // (e.g. instagram.com hands off to the Instagram app).
+    final url = value.replaceFirst(
+      RegExp(r'^(https?://)?', caseSensitive: false),
+      'https://',
+    );
     final uri = Uri.tryParse(url);
     var ok = false;
     if (uri != null) {

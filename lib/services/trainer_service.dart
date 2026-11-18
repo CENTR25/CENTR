@@ -1775,10 +1775,22 @@ class TrainerService {
             .toList()
           ..sort();
 
+    final titleRows = await _client
+        .from('routine_day_titles')
+        .select('day_number, title')
+        .eq('routine_id', routineId);
+    final dayTitles = <int, String>{
+      for (final t in titleRows as List)
+        if (t['day_number'] is int &&
+            (t['title'] as String?)?.trim().isNotEmpty == true)
+          t['day_number'] as int: (t['title'] as String).trim(),
+    };
+
     return {
       'routine_id': routineId,
       'title': ar['routines']?['title'] ?? 'Rutina',
       'days': days,
+      'day_titles': dayTitles,
     };
   }
 

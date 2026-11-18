@@ -155,6 +155,34 @@ const _headerAliases = <String, String>{
   'id': 'id',
 };
 
+/// Columns written by [foodsToCsv]: canonical keys of [_headerAliases], so an
+/// exported file can be pasted straight back into the importer.
+const kFoodCsvExportColumns = <String>[
+  'name', 'category', 'state', 'calories', 'protein', 'carbs', 'fat',
+  'fiber', 'serving_size', 'serving_unit', 'source', 'verified',
+];
+
+String _csvCell(dynamic v) {
+  if (v == null) return '';
+  var s = v is double && v == v.truncateToDouble()
+      ? v.toInt().toString()
+      : v.toString();
+  // Neutralise spreadsheet formula injection (=, +, -, @ at the start of a
+  // text cell would execute when the backup is opened in Sheets/Excel).
+  if (v is String && RegExp(r'^[=+\-@\t\r]').hasMatch(s)) s = "'$s";
+  if (RegExp(r'[",\n\r]').hasMatch(s)) s = '"${s.replaceAll('"', '""')}"';
+  return s;
+}
+
+/// Serialises foods to a comma-separated CSV (header + one row per food).
+String foodsToCsv(List<Map<String, dynamic>> foods) {
+  final b = StringBuffer()..writeln(kFoodCsvExportColumns.join(','));
+  for (final f in foods) {
+    b.writeln(kFoodCsvExportColumns.map((c) => _csvCell(f[c])).join(','));
+  }
+  return b.toString();
+}
+
 /// Parses a numeric cell tolerating decimal comma. Returns null when invalid.
 double? parseDecimal(String raw) {
   var s = raw.trim().replaceAll(RegExp(r'\s'), '');

@@ -66,4 +66,42 @@ void main() {
     expect(r.rows[0].data['category'], 'Proteínas');
     expect(r.rows[1].data['category'], 'Otros');
   });
+
+  test('foodsToCsv round-trips through parseFoodsCsv', () {
+    final foods = [
+      {
+        'name': 'Arroz, blanco "largo"',
+        'category': 'Carbohidratos y cereales',
+        'state': 'Cocido',
+        'calories': 130.0,
+        'protein': 2.7,
+        'carbs': 28,
+        'fat': 0.3,
+        'fiber': 0.4,
+        'serving_size': 100.0,
+        'serving_unit': 'g',
+        'source': 'USDA',
+        'verified': true,
+      },
+    ];
+    final csv = foodsToCsv(foods);
+    expect(csv.split('\n').first, kFoodCsvExportColumns.join(','));
+    final r = parseFoodsCsv(csv);
+    expect(r.fileErrors, isEmpty);
+    expect(r.rows, hasLength(1));
+    expect(r.rows.first.isValid, isTrue);
+    final d = r.rows.first.data;
+    expect(d['name'], 'Arroz, blanco "largo"');
+    expect(d['state'], 'Cocido');
+    expect(d['calories'], 130);
+    expect(d['protein'], 2.7);
+    expect(d['verified'], isTrue);
+  });
+
+  test('foodsToCsv neutralises formula injection', () {
+    final csv = foodsToCsv([
+      {'name': '=HYPERLINK("x")', 'calories': 1},
+    ]);
+    expect(csv, contains('"\'=HYPERLINK(""x"")"'));
+  });
 }

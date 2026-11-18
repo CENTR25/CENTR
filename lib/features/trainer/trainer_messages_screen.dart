@@ -43,8 +43,12 @@ class TrainerMessagesScreen extends ConsumerWidget {
         floatingActionButton: FloatingActionButton.extended(
           backgroundColor: RedesignColors.actionPrimary,
           foregroundColor: RedesignColors.onActionPrimary,
+          // The redesign theme forces CircleBorder on FABs, which crops the
+          // extended label into a circle ("uevo me").
+          shape: const StadiumBorder(),
+          extendedPadding: const EdgeInsets.symmetric(horizontal: 22),
           icon: const Icon(Icons.edit_outlined),
-          label: const Text('Nuevo mensaje'),
+          label: Text('Nuevo mensaje', style: RedesignType.buttonSm),
           onPressed: () => _startNewChat(context, ref),
         ),
         body: convosAsync.when(

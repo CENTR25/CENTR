@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../core/utils/string_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/constants/meal_times.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../services/trainer_service.dart';
 import 'session_detail_screen.dart';
@@ -244,6 +245,8 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
       return;
     }
     final days = (routine['days'] as List).cast<int>();
+    final dayTitles =
+        (routine['day_titles'] as Map?)?.cast<int, String>() ?? const {};
     if (days.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -288,11 +291,20 @@ class _StudentHistoryScreenState extends ConsumerState<StudentHistoryScreen>
             for (final d in days)
               ListTile(
                 title: Text(
-                  'Día $d',
+                  (d >= 1 && d <= 7) ? kWeekdayNames[d - 1] : 'Día $d',
                   style: RedesignType.bodySm.copyWith(
                     color: RedesignColors.primario50,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+                subtitle: dayTitles[d] == null
+                    ? null
+                    : Text(
+                        dayTitles[d]!,
+                        style: RedesignType.bodySm.copyWith(
+                          color: RedesignColors.primario300,
+                        ),
+                      ),
                 trailing: const Icon(
                   Icons.chevron_right,
                   color: RedesignColors.primario300,

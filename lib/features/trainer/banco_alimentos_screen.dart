@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/theme/theme_redesign.dart';
 import '../../core/utils/string_utils.dart';
 import '../../services/food_service.dart';
@@ -71,6 +74,33 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
         .where(access.canEdit)
         .map((f) => f['id'] as String)
         .toList();
+  }
+
+  /// Backup: every food in the list as a CSV in the importer's format. On the
+  /// web/PWA this opens the share sheet (Guardar en Archivos / Drive) or falls
+  /// back to a plain download.
+  Future<void> _exportCsv() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final foods = await ref.read(foodsProvider.future);
+      if (foods.isEmpty) {
+        messenger.showSnackBar(
+            const SnackBar(content: Text('No hay alimentos para exportar')));
+        return;
+      }
+      final now = DateTime.now();
+      final stamp = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
+          '${now.day.toString().padLeft(2, '0')}';
+      final name = 'alimentos_$stamp.csv';
+      final bytes = Uint8List.fromList(utf8.encode(foodsToCsv(foods)));
+      await Share.shareXFiles(
+        [XFile.fromData(bytes, name: name, mimeType: 'text/csv')],
+        fileNameOverrides: [name],
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text('No se pudo exportar el CSV')));
+    }
   }
 
   Future<void> _deleteSelected() async {
@@ -319,6 +349,13 @@ class _BancoAlimentosScreenState extends ConsumerState<BancoAlimentosScreen>
                   icon: const Icon(Icons.checklist_rounded,
                       color: RedesignColors.primario50),
                   onPressed: () => setState(() => _selecting = true),
+                ),
+              if (!_selecting && access != null && foodsTab)
+                IconButton(
+                  tooltip: 'Exportar CSV',
+                  icon: const Icon(Icons.download_rounded,
+                      color: RedesignColors.primario50),
+                  onPressed: _exportCsv,
                 ),
               if (!_selecting && access != null && access.canWrite && foodsTab)
                 IconButton(

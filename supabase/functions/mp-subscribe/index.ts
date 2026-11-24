@@ -11,7 +11,7 @@ import { MpError, mp, mpId, safeInitPoint } from "../_shared/mp.ts";
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>;
 
-const backUrl = () => Deno.env.get("BILLING_BACK_URL") ?? "https://prgs.pages.dev/billing/return";
+const backUrl = () => Deno.env.get("BILLING_BACK_URL") ?? "https://prgs.app/billing/return";
 
 // ---------------------------------------------------------------------------
 // THE ONLY PLACE THAT KNOWS HOW A PAYER IS BOUND TO A PREAPPROVAL.

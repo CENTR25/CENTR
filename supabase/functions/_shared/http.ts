@@ -38,11 +38,11 @@ export function getAdmin(): SupabaseClient {
 
 // ---- CORS ------------------------------------------------------------------
 // Allow-list instead of "*": these endpoints carry user JWTs. Native Flutter
-// does not need CORS; only the web build (prgs.pages.dev) does. In test env,
+// does not need CORS; only the web build (prgs.app) does. In test env,
 // localhost dev servers are also allowed.
 function allowedOrigin(origin: string | null): string | null {
   if (!origin) return null;
-  const list = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://prgs.pages.dev")
+  const list = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://prgs.app")
     .split(",").map((s) => s.trim()).filter(Boolean);
   if (list.includes(origin)) return origin;
   if (Deno.env.get("MP_ENV") === "test" && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {

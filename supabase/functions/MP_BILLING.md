@@ -23,8 +23,8 @@ All five functions use `verify_jwt = false` (see each `config.toml`) and authent
 | `MP_ENV` | `test` or `prod` (rows/plans are tagged with it; mismatches are ignored) |
 | `CRON_SECRET` | random string; only `mp-reconcile` |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | injected by Supabase |
-| optional `ALLOWED_ORIGINS` | CORS allow-list, default `https://prgs.pages.dev` (localhost allowed only when `MP_ENV=test`) |
-| optional `BILLING_BACK_URL` | default `https://prgs.pages.dev/billing/return` |
+| optional `ALLOWED_ORIGINS` | CORS allow-list, default `https://prgs.app` (localhost allowed only when `MP_ENV=test`) |
+| optional `BILLING_BACK_URL` | default `https://prgs.app/billing/return` |
 | optional `MP_GRACE_DAYS` (5), `MP_WEBHOOK_TOLERANCE_SECONDS` (300) | |
 
 Set with: `supabase secrets set MP_ENV=test` (read the token/secret from your secret store, do not paste into chat or files).

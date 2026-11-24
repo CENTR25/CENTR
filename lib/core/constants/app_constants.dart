@@ -13,15 +13,15 @@ class AppConstants {
 
   // Base URL for student invite links.
   // Points to the Cloudflare-deployed web app's /register route.
-  // Update when the app gets its own domain.
-  static const String inviteBaseUrl = 'https://prgs.pages.dev/register';
+  // Custom domain: prgs.app.
+  static const String inviteBaseUrl = 'https://prgs.app/register';
 
   // Base URL for trainer first-login links (invitation token flow).
-  static const String firstLoginBaseUrl = 'https://prgs.pages.dev/first-login';
+  static const String firstLoginBaseUrl = 'https://prgs.app/first-login';
 
   /// Where password-recovery email links land (must be in the Supabase Auth
   /// "Redirect URLs" allow-list; otherwise Supabase falls back to the Site URL).
-  static const String resetPasswordUrl = 'https://prgs.pages.dev/reset-password';
+  static const String resetPasswordUrl = 'https://prgs.app/reset-password';
 
   // WhatsApp CTA for brands/marketing inquiries.
   // TODO: set real PRGS WhatsApp number.

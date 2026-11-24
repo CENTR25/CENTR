@@ -1,6 +1,6 @@
 # Deploy
 
-Production web app: **https://prgs.pages.dev** (Cloudflare Pages, project `prgs`).
+Production web app: **https://prgs.app** (Cloudflare Pages, project `prgs`).
 
 ## How it deploys
 - The Pages project is **git-connected to `CENTR25/CENTR`** with **automatic deployments on `main`**.
@@ -29,7 +29,7 @@ Production web app: **https://prgs.pages.dev** (Cloudflare Pages, project `prgs`
 
 ## After a deploy
 - Users on the PWA must fully close & reopen the app once to drop the old cached service-worker bundle.
-- Verify live == build: `curl -s https://prgs.pages.dev/main.dart.js | md5` should match
+- Verify live == build: `curl -s https://prgs.app/main.dart.js | md5` should match
   `md5 build/web/main.dart.js` after a local `flutter build web --release`.
 
 ## Old target (deprecated / removed)

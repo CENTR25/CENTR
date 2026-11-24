@@ -832,66 +832,16 @@ class StudentService {
       // Update Streak on successful completion
       if (logData['is_completed'] == true) {
         if (athleteId != null) {
+          // The trainer's "workoutCompleted" notification is created by the
+          // workout_sessions_notify_trainer DB trigger (see
+          // notify_trainer_on_workout_completed.sql), so it can't be lost if
+          // the app is closed right after finishing.
           await _updateStreak(athleteId);
-
-          // Notify trainer about workout completion
-          await _notifyTrainerWorkoutCompleted(
-            athleteId,
-            logData['duration_seconds'] as int?,
-          );
         }
       }
     } catch (e) {
       debugPrint('❌ Error saving workout session: $e');
       // Rethrow if needed, or handle gracefully
-    }
-  }
-
-  /// Notify trainer when student completes a workout
-  Future<void> _notifyTrainerWorkoutCompleted(
-    String athleteId,
-    int? durationSeconds,
-  ) async {
-    try {
-      final athlete = await _client
-          .from('athletes')
-          .select('user_id, trainer_id, name')
-          .eq('id', athleteId)
-          .maybeSingle();
-      if (athlete == null) return;
-
-      final trainerRecordId = athlete['trainer_id'] as String?;
-      if (trainerRecordId == null) return;
-
-      final trainer = await _client
-          .from('trainers')
-          .select('user_id')
-          .eq('id', trainerRecordId)
-          .maybeSingle();
-      final trainerUserId = trainer?['user_id'] as String?;
-      if (trainerUserId == null) return;
-
-      final studentName = athlete['name'] as String? ?? 'Alumno';
-      final studentUserId = athlete['user_id'] as String? ?? athleteId;
-      final durationMinutes = durationSeconds != null
-          ? (durationSeconds / 60).round()
-          : 0;
-
-      // Create notification for trainer
-      await _client.from('notifications').insert({
-        'user_id': trainerUserId,
-        'type': 'workoutCompleted',
-        'title': '¡Entrenamiento completado!',
-        'message':
-            '$studentName completó su entrenamiento${durationMinutes > 0 ? ' en $durationMinutes min' : ''}',
-        'data': {'student_id': studentUserId, 'athlete_id': athleteId},
-        'is_read': false,
-      });
-
-      debugPrint('📬 Trainer notified of workout completion');
-    } catch (e) {
-      debugPrint('⚠️ Error notifying trainer: $e');
-      // Non-critical, don't throw
     }
   }
 

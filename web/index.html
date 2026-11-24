@@ -18,22 +18,45 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="PRGS: entrenamiento, rutinas y planes de alimentación para entrenadores y alumnos.">
+
+  <!-- Social share previews -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="PRGS">
+  <meta property="og:title" content="PRGS">
+  <meta property="og:description" content="Entrenamiento, rutinas y planes de alimentación para entrenadores y alumnos.">
+  <meta property="og:url" content="https://prgs.app/">
+  <meta property="og:image" content="https://prgs.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="PRGS">
+  <meta name="twitter:description" content="Entrenamiento, rutinas y planes de alimentación para entrenadores y alumnos.">
+  <meta name="twitter:image" content="https://prgs.app/og-image.png">
   <meta name="theme-color" content="#001934">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Progress">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-title" content="PRGS">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>Progress</title>
+  <title>PRGS</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script>
+    // Chrome fires beforeinstallprompt before Flutter boots; stash it so the
+    // in-app "Agregar a Inicio" pop-up can trigger the native install dialog.
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.__a2hsDeferred = e;
+      window.dispatchEvent(new Event('a2hs-ready'));
+    });
+  </script>
   <script>
     // iOS swipe-back guard. The initial document history entry has no Flutter
     // serialCount state; when a swipe-back lands on it, the Flutter engine

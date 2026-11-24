@@ -8,6 +8,7 @@ import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_provider.dart';
 import 'core/routing/app_router.dart';
+import 'widgets/install_app_prompt.dart';
 import 'services/auth_service.dart' show PasswordRecoveryFlag;
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'core/swipe_back_handler_stub.dart'
@@ -103,6 +104,14 @@ class NorthStarApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       routerConfig: router,
+      // Web-only "Agregar a Inicio" pop-up; no-ops on android/ios and when
+      // already installed.
+      builder: (context, child) => Stack(
+        children: [
+          child ?? const SizedBox.shrink(),
+          if (kIsWeb) const InstallAppPrompt(),
+        ],
+      ),
     );
   }
 }

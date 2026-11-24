@@ -10,6 +10,7 @@ import 'package:north_star/features/auth/presentation/first_login_screen.dart';
 import 'package:north_star/features/auth/presentation/student_register_screen.dart';
 import 'package:north_star/features/admin/presentation/admin_dashboard_screen.dart';
 import 'package:north_star/features/trainer/trainer_dashboard_screen.dart';
+import 'package:north_star/features/trainer/billing_return_screen.dart';
 import 'package:north_star/features/student/student_dashboard_screen.dart';
 import 'package:north_star/features/student/student_intake_screen.dart';
 import 'package:north_star/features/shared/widgets/loading_screen.dart';
@@ -34,6 +35,10 @@ class AppRoutes {
   static const String trainerDashboard = '/trainer';
   static const String trainerStudents = '/trainer/students';
   static const String trainerRoutines = '/trainer/routines';
+
+  // Mercado Pago checkout return (back_url of mp-subscribe). Trainer-only,
+  // lives outside /trainer because the URL is fixed server-side.
+  static const String billingReturn = '/billing/return';
 
   // Student routes
   static const String studentDashboard = '/student';
@@ -78,6 +83,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           state.matchedLocation == AppRoutes.resetPassword ||
           state.matchedLocation == AppRoutes.firstLogin;
       final isSplash = state.matchedLocation == AppRoutes.splash;
+      final isBillingReturn =
+          state.matchedLocation == AppRoutes.billingReturn;
       final isResetRoute = state.matchedLocation == AppRoutes.resetPassword;
       // A fresh recovery-email link (/reset-password?token_hash=…): reachable
       // signed out, and signed in as someone else (verifying it switches the
@@ -98,7 +105,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         // until auth resolves. Park on the splash loader instead until we know
         // the role. Once we have a (possibly stale) user we keep returning
         // null so an in-app background reload doesn't flash the loader.
-        if (authState.user == null && !isSplash && !isLoginRoute) {
+        // /billing/return is kept (the screen only polls the user's own
+        // subscription row; the role gate below still applies once known).
+        if (authState.user == null &&
+            !isSplash &&
+            !isLoginRoute &&
+            !isBillingReturn) {
           return AppRoutes.splash;
         }
         return null;
@@ -136,7 +148,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // behind those screens is already protected by RLS, but the UI must not
       // be reachable at all.
       final allowedPrefix = _roleRoutePrefix(authState.user?.role);
+      final isTrainerBillingReturn =
+          isBillingReturn && authState.user?.role == UserRole.trainer;
       if (allowedPrefix != null &&
+          !isTrainerBillingReturn &&
           !state.matchedLocation.startsWith(allowedPrefix)) {
         return _getDashboardRoute(authState.user?.role);
       }
@@ -205,6 +220,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.trainerDashboard,
         builder: (context, state) => const TrainerDashboardScreen(),
+      ),
+
+      GoRoute(
+        path: AppRoutes.billingReturn,
+        builder: (context, state) => const BillingReturnScreen(),
       ),
 
       // Student routes

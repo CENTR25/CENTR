@@ -24,6 +24,7 @@ import 'trainer_agenda_screen.dart';
 import 'required_reading_editor_screen.dart';
 import 'mi_suscripcion_screen.dart';
 import 'elegir_plan_screen.dart';
+import 'student_limit_dialog.dart';
 import 'trainer_stats_screen.dart';
 import 'trainer_settings_screen.dart';
 import 'trainer_novedades_screen.dart';
@@ -2328,6 +2329,7 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
 
   Future<void> _copyLink() async {
     if (_inviteLink == null) return;
+    if (await blockIfAtStudentLimit(context, ref)) return;
     await Clipboard.setData(ClipboardData(text: _inviteLink!));
     if (mounted) {
       showRedesignToast(
@@ -2340,6 +2342,7 @@ class _InviteStudentSheetState extends ConsumerState<_InviteStudentSheet> {
 
   Future<void> _shareLink() async {
     if (_inviteLink == null) return;
+    if (await blockIfAtStudentLimit(context, ref)) return;
     await Share.share(
       '¡Únete a mi equipo de entrenamiento! Regístrate aquí: $_inviteLink',
       subject: 'Invitación a North Star',

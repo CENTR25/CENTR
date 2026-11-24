@@ -134,6 +134,11 @@ class _StudentRegisterScreenState extends ConsumerState<StudentRegisterScreen> {
     if (message.contains('rate limit') || message.contains('rate_limit')) {
       return 'Demasiados intentos seguidos. Espera unos minutos e intenta de nuevo.';
     }
+    // handle_new_user fails when the inviting trainer is at their plan's
+    // student cap (athletes trigger); GoTrue masks it as a generic DB error.
+    if (message.contains('Database error saving new user')) {
+      return 'No pudimos crear tu cuenta. Es posible que tu entrenador haya alcanzado el límite de alumnos de su plan: avisale e intentá de nuevo más tarde.';
+    }
     return message;
   }
 

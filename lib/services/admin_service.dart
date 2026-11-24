@@ -383,6 +383,15 @@ class AdminService {
     await _client.from('subscription_plans').update(updates).eq('id', planId);
   }
 
+  /// Number of trainer_subscriptions rows pointing at a plan (any state).
+  Future<int> countPlanSubscriptions(String planId) async {
+    final res = await _client
+        .from('trainer_subscriptions')
+        .select('id')
+        .eq('plan_id', planId);
+    return (res as List).length;
+  }
+
   /// Deactivate a plan (soft delete — hidden from new assignments).
   Future<void> deactivatePlan(String planId) async {
     await _client

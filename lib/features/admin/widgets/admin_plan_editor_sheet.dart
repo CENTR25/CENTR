@@ -27,6 +27,8 @@ class _AdminPlanEditorSheetState extends ConsumerState<AdminPlanEditorSheet> {
   late final TextEditingController _maxCtrl;
   late final TextEditingController _featuresCtrl;
   bool _loading = false;
+  int _subscriberCount = 0;
+  bool get _hasSubscribers => _subscriberCount > 0;
 
   bool get _isEdit => widget.plan != null;
 
@@ -43,6 +45,37 @@ class _AdminPlanEditorSheetState extends ConsumerState<AdminPlanEditorSheet> {
         TextEditingController(text: p?['max_students']?.toString() ?? '');
     _featuresCtrl = TextEditingController(
         text: adminFeatureLabels(p?['features']).join(', '));
+    if (p != null) _loadSubscriberCount(p['id'] as String);
+  }
+
+  Future<void> _loadSubscriberCount(String planId) async {
+    try {
+      final n = await ref.read(adminServiceProvider).countPlanSubscriptions(planId);
+      if (mounted) setState(() => _subscriberCount = n);
+    } catch (_) {
+      // Fail safe: if we cannot tell, lock the price.
+      if (mounted) setState(() => _subscriberCount = 1);
+    }
+  }
+
+  Future<bool> _confirmCapChange() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cambiar máximo de alumnos'),
+        content: const Text(
+            'Este plan tiene suscriptores. El nuevo máximo se aplica de inmediato a todos ellos. ¿Continuar?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Continuar')),
+        ],
+      ),
+    );
+    return ok ?? false;
   }
 
   @override
@@ -57,6 +90,11 @@ class _AdminPlanEditorSheetState extends ConsumerState<AdminPlanEditorSheet> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_isEdit && _hasSubscribers) {
+      final oldMax = widget.plan!['max_students']?.toString() ?? '';
+      if (_maxCtrl.text.trim() != oldMax && !await _confirmCapChange()) return;
+      if (!mounted) return;
+    }
     setState(() => _loading = true);
     final features = _featuresCtrl.text
         .split(',')
@@ -74,7 +112,7 @@ class _AdminPlanEditorSheetState extends ConsumerState<AdminPlanEditorSheet> {
         await admin.updateSubscriptionPlan(
           widget.plan!['id'] as String,
           name: name,
-          price: price,
+          price: _hasSubscribers ? null : price,
           durationDays: duration,
           maxStudents: max,
           features: features,
@@ -141,9 +179,19 @@ class _AdminPlanEditorSheetState extends ConsumerState<AdminPlanEditorSheet> {
                 icon: Icons.attach_money_rounded,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                readOnly: _hasSubscribers,
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? 'Requerido' : null,
               ),
+              if (_hasSubscribers)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, left: 4),
+                  child: Text(
+                    'Este plan tiene suscriptores. Para cambiar el precio, creá un plan nuevo y desactivá este.',
+                    style: RedesignType.label
+                        .copyWith(color: RedesignColors.advertencia400),
+                  ),
+                ),
               const SizedBox(height: 12),
               _field(
                 controller: _durationCtrl,
@@ -199,8 +247,10 @@ class _AdminPlanEditorSheetState extends ConsumerState<AdminPlanEditorSheet> {
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
+    bool readOnly = false,
   }) {
     return TextFormField(
+      readOnly: readOnly,
       controller: controller,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,

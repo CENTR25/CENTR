@@ -1,32 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../core/theme/theme_redesign.dart';
+import '../../core/utils/billing_format.dart';
+import '../../models/billing_subscription.dart';
+import '../../models/mp_payment.dart';
+import '../../services/billing_service.dart';
 import '../../services/trainer_service.dart';
 import '../shared/redesign_toast.dart';
+import 'billing_return_screen.dart';
+import 'elegir_plan_screen.dart';
 
 // ---------------------------------------------------------------------------
 // MiSuscripcionScreen
 //
-// Shows the trainer's current plan, student usage, and payment stubs.
-// All payment actions (Cambiar, Historial, Cancelar) are stubs that show a
-// "Próximamente" toast — Mercado Pago integration is pending.
+// The trainer's real subscription: status chip, plan, next charge, student
+// usage, Mercado Pago payment history and cancellation (mp-manage). Plans
+// assigned by PRGS (source = 'manual') are shown read-only.
 // ---------------------------------------------------------------------------
 
-class MiSuscripcionScreen extends ConsumerWidget {
+class MiSuscripcionScreen extends ConsumerStatefulWidget {
   const MiSuscripcionScreen({super.key});
 
-  /// Strip leading "Plan " prefix for display ("Plan Básico" → "Básico").
-  static String _stripPlanPrefix(String name) {
-    if (name.startsWith('Plan ')) return name.substring(5);
-    return name;
-  }
+  @override
+  ConsumerState<MiSuscripcionScreen> createState() =>
+      _MiSuscripcionScreenState();
+}
+
+class _MiSuscripcionScreenState extends ConsumerState<MiSuscripcionScreen> {
+  bool _cancelling = false;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final subAsync = ref.watch(myTrainerSubscriptionProvider);
+  Widget build(BuildContext context) {
+    final subAsync = ref.watch(billingSubscriptionProvider);
     final studentsAsync = ref.watch(myStudentsProvider);
+    final paymentsAsync = ref.watch(billingPaymentsProvider);
 
     return Theme(
       data: RedesignTheme.theme,
@@ -60,88 +68,23 @@ class MiSuscripcionScreen extends ConsumerWidget {
             ),
           ),
           data: (sub) {
-            final plan = sub?['subscription_plans'] as Map<String, dynamic>?;
-            final planName = _stripPlanPrefix(
-              (plan?['name'] as String?) ?? 'Básico',
-            );
-            final price = (plan?['price'] as num?) ?? 0;
-            final maxStudents = plan?['max_students'] as int?;
-            final isActive = (sub?['is_active'] as bool?) ?? false;
-            final endsAt = sub?['ends_at'] as String?;
-
+            final now = DateTime.now();
+            final status = sub?.statusAt(now);
             final studentCount = studentsAsync.maybeWhen(
               data: (s) => s.length,
               orElse: () => 0,
             );
+            final hasAccess = sub != null && sub.hasAccess(now);
+            final maxStudents = studentCapFor(sub, now);
 
             return ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               children: [
-                // ── Plan card ───────────────────────────────────────────────
-                _SectionCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Tu plan',
-                                  style: RedesignType.label.copyWith(
-                                    color: RedesignColors.primario300,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  planName,
-                                  style: RedesignType.headingMd.copyWith(
-                                    color: RedesignColors.primario50,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (isActive)
-                            _StatusPill(
-                              label: 'Activo',
-                              color: RedesignColors.success,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '\$${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)} / mes',
-                        style: RedesignType.bodyMd.copyWith(
-                          color: RedesignColors.actionPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (endsAt != null) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          'Próximo cobro: ${_formatDate(endsAt)}',
-                          style: RedesignType.label.copyWith(
-                            color: RedesignColors.primario300,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
+                _SectionCard(child: _planCardBody(context, sub, status, now)),
                 const SizedBox(height: 16),
 
-                // ── Usage ────────────────────────────────────────────────────
-                Text(
-                  'Uso del plan',
-                  style: RedesignType.bodySm.copyWith(
-                    color: RedesignColors.primario50,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                // ── Usage ────────────────────────────────────────────────
+                _sectionTitle('Uso del plan'),
                 const SizedBox(height: 10),
                 _SectionCard(
                   child: _UsageRow(
@@ -150,129 +93,84 @@ class MiSuscripcionScreen extends ConsumerWidget {
                     max: maxStudents,
                   ),
                 ),
-
                 const SizedBox(height: 16),
 
-                // ── Payment section ──────────────────────────────────────────
-                Text(
-                  'Pago',
-                  style: RedesignType.bodySm.copyWith(
-                    color: RedesignColors.primario50,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                // ── Payment history ──────────────────────────────────────
+                _sectionTitle('Historial de pagos'),
                 const SizedBox(height: 10),
                 _SectionCard(
-                  child: Column(
-                    children: [
-                      // Payment method row
-                      Row(
-                        children: [
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: RedesignColors.secundario300
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.credit_card_rounded,
-                              color: RedesignColors.actionPrimary,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Método de pago no configurado',
-                              style: RedesignType.label.copyWith(
-                                color: RedesignColors.primario300,
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => _stubSnackBar(context),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              foregroundColor: RedesignColors.actionPrimaryDark,
-                            ),
-                            child: Text(
-                              'Cambiar',
-                              style: RedesignType.label.copyWith(
-                                color: RedesignColors.actionPrimaryDark,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 24, color: RedesignColors.primario600),
-                      // Payment history row
-                      InkWell(
-                        onTap: () => _stubSnackBar(context),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: RedesignColors.secundario300
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Icon(
-                                  Icons.receipt_long_rounded,
-                                  color: RedesignColors.actionPrimary,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Historial de pagos',
-                                  style: RedesignType.bodySm.copyWith(
-                                    color: RedesignColors.primario50,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                              const Icon(
-                                Icons.chevron_right_rounded,
-                                color: RedesignColors.primario400,
-                                size: 20,
-                              ),
-                            ],
-                          ),
+                  child: paymentsAsync.when(
+                    loading: () => const Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: RedesignColors.actionPrimary,
                         ),
                       ),
-                    ],
+                    ),
+                    error: (_, __) => _mutedText('No se pudo cargar el historial'),
+                    data: (payments) => payments.isEmpty
+                        ? _mutedText('Todavía no hay pagos registrados')
+                        : Column(
+                            children: [
+                              for (var i = 0; i < payments.length; i++) ...[
+                                if (i > 0)
+                                  const Divider(
+                                      height: 20,
+                                      color: RedesignColors.primario600),
+                                _PaymentRow(payment: payments[i]),
+                              ],
+                            ],
+                          ),
                   ),
                 ),
 
-                const SizedBox(height: 32),
-
-                // ── Cancel ───────────────────────────────────────────────────
-                Center(
-                  child: TextButton(
-                    onPressed: () => _confirmCancel(context),
-                    style: TextButton.styleFrom(
-                      foregroundColor: RedesignColors.danger,
-                    ),
-                    child: Text(
-                      'Cancelar suscripción',
-                      style: RedesignType.buttonSm.copyWith(
-                        color: RedesignColors.danger,
+                // ── Actions ──────────────────────────────────────────────
+                const SizedBox(height: 24),
+                if (sub != null && sub.canCancel(now)) ...[
+                  _outlinedAction(
+                    'Cambiar de plan',
+                    () => _openPlans(context),
+                  ),
+                  Center(
+                    child: TextButton(
+                      onPressed: _cancelling ? null : () => _confirmCancel(sub),
+                      style: TextButton.styleFrom(
+                        foregroundColor: RedesignColors.danger,
                       ),
+                      child: _cancelling
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: RedesignColors.danger,
+                              ),
+                            )
+                          : Text(
+                              'Cancelar suscripción',
+                              style: RedesignType.buttonSm
+                                  .copyWith(color: RedesignColors.danger),
+                            ),
                     ),
                   ),
-                ),
-
+                ] else if (status == BillingStatus.pending) ...[
+                  _outlinedAction(
+                    'Verificar pago',
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BillingReturnScreen(
+                          subscriptionId: sub!.id,
+                        ),
+                      ),
+                    ).then((_) => _refresh()),
+                  ),
+                ] else if (!hasAccess && !(sub?.isManual ?? false)) ...[
+                  _outlinedAction('Elegir plan', () => _openPlans(context)),
+                ],
                 const SizedBox(height: 40),
               ],
             );
@@ -282,25 +180,136 @@ class MiSuscripcionScreen extends ConsumerWidget {
     );
   }
 
-  String _formatDate(String isoDate) {
-    try {
-      final dt = DateTime.parse(isoDate).toLocal();
-      return DateFormat('dd/MM/yyyy').format(dt);
-    } catch (_) {
-      return isoDate;
-    }
-  }
+  // ── Plan card content per status ──────────────────────────────────────────
 
-  void _stubSnackBar(BuildContext context) {
-    showRedesignToast(
-      context,
-      title: 'Próximamente',
-      subtitle: 'Esta función estará disponible pronto.',
-      icon: Icons.access_time_rounded,
+  Widget _planCardBody(BuildContext context, BillingSubscription? sub,
+      BillingStatus? status, DateTime now) {
+    if (sub == null || status == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Tu plan',
+              style: RedesignType.label
+                  .copyWith(color: RedesignColors.primario300)),
+          const SizedBox(height: 4),
+          Text('Sin plan activo',
+              style: RedesignType.headingMd
+                  .copyWith(color: RedesignColors.primario50)),
+          const SizedBox(height: 8),
+          _mutedText(
+              'Podés tener hasta $kFreeStudentCap alumnos. Elegí un plan para sumar más.'),
+        ],
+      );
+    }
+
+    final plan = sub.plan;
+    final (chipLabel, chipColor) = _chip(sub, status, now);
+    final lines = <String>[];
+    final until = formatBillingDate(sub.accessUntil);
+    switch (status) {
+      case BillingStatus.active:
+        lines.add(
+            'Próximo cobro: ${formatBillingDate(sub.nextPaymentDate ?? sub.endsAt)}');
+      case BillingStatus.pastDue:
+        lines.add(
+            'No pudimos cobrar tu último pago. Actualizá tu medio de pago en Mercado Pago para no perder el acceso.');
+        lines.add('Acceso hasta: $until');
+      case BillingStatus.paused:
+        lines.add('Cobros pausados. Acceso hasta: $until');
+      case BillingStatus.cancelled:
+        final stillActive = sub.accessUntil != null && now.isBefore(sub.accessUntil!);
+        lines.add(stillActive
+            ? 'Tu acceso continúa hasta: $until'
+            : 'Cancelada. Tu acceso terminó el $until');
+      case BillingStatus.expired:
+        lines.add('Venció el $until');
+      case BillingStatus.pending:
+        lines.add(
+            'Esperando confirmación del pago. Si ya pagaste, puede tardar unos minutos.');
+      case BillingStatus.manual:
+        lines.add('Vigente hasta: ${formatBillingDate(sub.endsAt)}');
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Tu plan',
+                      style: RedesignType.label
+                          .copyWith(color: RedesignColors.primario300)),
+                  const SizedBox(height: 4),
+                  Text(
+                    plan?.displayName ?? 'Plan',
+                    style: RedesignType.headingMd
+                        .copyWith(color: RedesignColors.primario50),
+                  ),
+                ],
+              ),
+            ),
+            _StatusPill(label: chipLabel, color: chipColor),
+          ],
+        ),
+        if (plan != null && !sub.isManual) ...[
+          const SizedBox(height: 12),
+          Text(
+            formatArsPerMonth(plan.price),
+            style: RedesignType.bodyMd.copyWith(
+              color: RedesignColors.actionPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+        for (final l in lines) ...[
+          const SizedBox(height: 6),
+          Text(l,
+              style: RedesignType.label
+                  .copyWith(color: RedesignColors.primario300)),
+        ],
+      ],
     );
   }
 
-  void _confirmCancel(BuildContext context) {
+  (String, Color) _chip(
+      BillingSubscription sub, BillingStatus status, DateTime now) {
+    final label =
+        billingStatusLabel(status, graceDays: sub.graceDaysLeft(now));
+    switch (status) {
+      case BillingStatus.active:
+        return (label, RedesignColors.success);
+      case BillingStatus.pending:
+      case BillingStatus.pastDue:
+        return (label, RedesignColors.advertencia400);
+      case BillingStatus.manual:
+        return (label, RedesignColors.actionPrimary);
+      case BillingStatus.expired:
+        return (label, RedesignColors.danger);
+      case BillingStatus.paused:
+      case BillingStatus.cancelled:
+        return (label, RedesignColors.primario400);
+    }
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  void _refresh() {
+    ref.invalidate(billingSubscriptionProvider);
+    ref.invalidate(billingPaymentsProvider);
+    ref.invalidate(myTrainerSubscriptionProvider);
+  }
+
+  void _openPlans(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ElegirPlanScreen()),
+    ).then((_) => _refresh());
+  }
+
+  void _confirmCancel(BillingSubscription sub) {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -316,7 +325,7 @@ class MiSuscripcionScreen extends ConsumerWidget {
           ),
         ),
         content: Text(
-          'Tu plan seguirá activo hasta el final del período actual.',
+          'No se te volverá a cobrar. Tu plan seguirá activo hasta el final del período ya pagado (${formatBillingDate(sub.accessUntil)}).',
           style: RedesignType.label.copyWith(color: RedesignColors.primario300),
         ),
         actions: [
@@ -332,7 +341,7 @@ class MiSuscripcionScreen extends ConsumerWidget {
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              _stubSnackBar(context);
+              _cancel(sub);
             },
             child: Text(
               'Cancelar plan',
@@ -343,6 +352,118 @@ class MiSuscripcionScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _cancel(BillingSubscription sub) async {
+    setState(() => _cancelling = true);
+    try {
+      await ref.read(billingServiceProvider).cancel(sub.id);
+      ref.invalidate(myTrainerSubscriptionProvider);
+      ref.invalidate(billingPaymentsProvider);
+      final fresh = await ref.refresh(billingSubscriptionProvider.future);
+      if (!mounted) return;
+      showRedesignToast(
+        context,
+        title: 'Suscripción cancelada',
+        subtitle:
+            'Seguís con acceso hasta el ${formatBillingDate(fresh?.accessUntil ?? sub.accessUntil)}.',
+        duration: const Duration(milliseconds: 3200),
+      );
+    } on BillingException catch (e) {
+      if (!mounted) return;
+      showRedesignToast(
+        context,
+        title: 'No se pudo cancelar',
+        subtitle: e.message,
+        icon: Icons.error_outline_rounded,
+        duration: const Duration(milliseconds: 3200),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      showRedesignToast(
+        context,
+        title: 'No se pudo cancelar',
+        subtitle: 'Probá de nuevo en unos minutos.',
+        icon: Icons.error_outline_rounded,
+      );
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
+    }
+  }
+
+  // ── Small builders ────────────────────────────────────────────────────────
+
+  Widget _sectionTitle(String t) => Text(
+        t,
+        style: RedesignType.bodySm.copyWith(
+          color: RedesignColors.primario50,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+
+  Widget _mutedText(String t) => Text(
+        t,
+        style: RedesignType.label.copyWith(color: RedesignColors.primario300),
+      );
+
+  Widget _outlinedAction(String label, VoidCallback onTap) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton(
+            onPressed: onTap,
+            child: Text(
+              label,
+              style: RedesignType.buttonLg
+                  .copyWith(color: RedesignColors.onActionPrimary),
+            ),
+          ),
+        ),
+      );
+}
+
+// ---------------------------------------------------------------------------
+// _PaymentRow
+// ---------------------------------------------------------------------------
+
+class _PaymentRow extends StatelessWidget {
+  final MpPayment payment;
+
+  const _PaymentRow({required this.payment});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = payment.isApproved
+        ? RedesignColors.success
+        : (payment.status == 'rejected' || payment.status == 'cancelled')
+            ? RedesignColors.danger
+            : RedesignColors.advertencia400;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '\$ ${formatArs(payment.amount)}',
+                style: RedesignType.bodySm.copyWith(
+                  color: RedesignColors.primario50,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                formatBillingDate(payment.date),
+                style: RedesignType.label
+                    .copyWith(color: RedesignColors.primario300),
+              ),
+            ],
+          ),
+        ),
+        _StatusPill(label: payment.statusLabel, color: color),
+      ],
     );
   }
 }

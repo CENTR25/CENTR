@@ -1,16 +1,22 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/theme_redesign.dart';
-import '../../services/trainer_service.dart';
-import '../shared/redesign_toast.dart';
+import '../../core/utils/billing_format.dart';
+import '../../models/billing_plan.dart';
+import '../../services/auth_service.dart';
+import '../../services/billing_service.dart';
+import 'billing_return_screen.dart';
 
 // ---------------------------------------------------------------------------
 // ElegirPlanScreen
 //
-// Full-screen plan picker. Lets the trainer toggle Mensual / Anual, browse
-// tiers, and tap to select. The "Pasar a <plan>" action is a payment stub
-// (Mercado Pago integration pending) that shows a "Próximamente" toast.
+// Full-screen plan picker (monthly ARS plans from subscription_plans). The
+// "Suscribirme" action asks for the Mercado Pago account email, calls
+// mp-subscribe and opens the returned checkout URL. The plan is NEVER
+// activated here: BillingReturnScreen polls until the webhook confirms it.
 // ---------------------------------------------------------------------------
 
 class ElegirPlanScreen extends ConsumerStatefulWidget {
@@ -21,27 +27,19 @@ class ElegirPlanScreen extends ConsumerStatefulWidget {
 }
 
 class _ElegirPlanScreenState extends ConsumerState<ElegirPlanScreen> {
-  bool _isAnual = false;
-  String? _selectedPlanName; // stripped plan name of the currently selected card
-
-  /// Strip leading "Plan " for display ("Plan Profesional" → "Profesional").
-  static String _strip(String name) {
-    if (name.startsWith('Plan ')) return name.substring(5);
-    return name;
-  }
+  String? _selectedPlanId;
+  bool _busy = false;
 
   @override
   Widget build(BuildContext context) {
-    final plansAsync = ref.watch(subscriptionPlansProvider);
-    final subAsync = ref.watch(myTrainerSubscriptionProvider);
+    final plansAsync = ref.watch(billingPlansProvider);
+    final subAsync = ref.watch(billingSubscriptionProvider);
 
-    final currentPlanName = subAsync.maybeWhen(
-      data: (sub) {
-        final raw = sub?['subscription_plans']?['name'] as String?;
-        return raw != null ? _strip(raw) : null;
-      },
-      orElse: () => null,
-    );
+    final current = subAsync.maybeWhen(data: (s) => s, orElse: () => null);
+    final currentPlanId =
+        current != null && current.hasAccess(DateTime.now()) && !current.isManual
+            ? current.plan?.id
+            : null;
 
     return Theme(
       data: RedesignTheme.theme,
@@ -75,30 +73,27 @@ class _ElegirPlanScreenState extends ConsumerState<ElegirPlanScreen> {
             ),
           ),
           data: (plans) {
-            // Default-select Profesional, or trainer's current plan on first load.
-            if (_selectedPlanName == null && plans.isNotEmpty) {
-              final profIndex = plans.indexWhere(
-                (p) => _strip(p['name'] as String? ?? '').toLowerCase() == 'profesional',
+            if (plans.isEmpty) {
+              return const Center(
+                child: Text(
+                  'Todavía no hay planes disponibles',
+                  style: TextStyle(color: RedesignColors.primario300),
+                ),
               );
-              final defaultName = profIndex >= 0
-                  ? _strip(plans[profIndex]['name'] as String? ?? '')
-                  : _strip(plans.first['name'] as String? ?? '');
-              // Set without triggering another build cycle — safe in the
-              // data callback since we're inside `when()`.
-              _selectedPlanName ??= defaultName;
             }
+            // Default selection: the recommended plan, else the first one.
+            _selectedPlanId ??= (plans.firstWhere(
+              (p) => p.displayName.toLowerCase() == 'profesional',
+              orElse: () => plans.first,
+            )).id;
+            final selected = plans.firstWhere(
+              (p) => p.id == _selectedPlanId,
+              orElse: () => plans.first,
+            );
 
             return Column(
               children: [
-                // ── Mensual / Anual toggle ────────────────────────────────
                 const SizedBox(height: 8),
-                _BillingToggle(
-                  isAnual: _isAnual,
-                  onChanged: (v) => setState(() => _isAnual = v),
-                ),
-                const SizedBox(height: 20),
-
-                // ── Plan cards ────────────────────────────────────────────
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -106,42 +101,24 @@ class _ElegirPlanScreenState extends ConsumerState<ElegirPlanScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final plan = plans[index];
-                      final name = _strip(plan['name'] as String? ?? '');
-                      final price = (plan['price'] as num?) ?? 0;
-                      final maxStudents = plan['max_students'] as int?;
-                      final features =
-                          (plan['features'] as Map<String, dynamic>?) ?? {};
-                      final durationDays = (plan['duration_days'] as num?) ?? 30;
-
-                      final displayPrice = _isAnual
-                          ? price * 12 * 0.8 // 20 % discount
-                          : price.toDouble();
-
-                      final isProfesional =
-                          name.toLowerCase() == 'profesional';
-                      final isSelected = _selectedPlanName == name;
-                      final isCurrent = currentPlanName == name;
-
                       return _PlanCard(
-                        name: name,
-                        price: displayPrice,
-                        isAnual: _isAnual,
-                        maxStudents: maxStudents,
-                        features: features,
-                        durationDays: durationDays.toInt(),
-                        isRecommended: isProfesional,
-                        isSelected: isSelected,
-                        isCurrent: isCurrent,
-                        onTap: () => setState(() => _selectedPlanName = name),
+                        plan: plan,
+                        isRecommended:
+                            plan.displayName.toLowerCase() == 'profesional',
+                        isSelected: plan.id == selected.id,
+                        isCurrent: plan.id == currentPlanId,
+                        onTap: () => setState(() => _selectedPlanId = plan.id),
                       );
                     },
                   ),
                 ),
-
-                // ── Bottom CTA ────────────────────────────────────────────
                 _BottomCta(
-                  planName: _selectedPlanName ?? '',
-                  onTap: () => _handleUpgrade(context),
+                  label: selected.id == currentPlanId
+                      ? 'Es tu plan actual'
+                      : 'Suscribirme',
+                  busy: _busy,
+                  enabled: selected.id != currentPlanId,
+                  onTap: () => _subscribe(selected),
                 ),
               ],
             );
@@ -151,134 +128,107 @@ class _ElegirPlanScreenState extends ConsumerState<ElegirPlanScreen> {
     );
   }
 
-  void _handleUpgrade(BuildContext context) {
-    showRedesignToast(
-      context,
-      title: 'Próximamente',
-      subtitle: 'Los pagos estarán disponibles pronto.',
-      icon: Icons.access_time_rounded,
-    );
+  Future<void> _subscribe(BillingPlan plan) async {
+    final email = await _askPayerEmail();
+    if (email == null || !mounted) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final navigator = Navigator.of(context);
+    try {
+      final res = await ref
+          .read(billingServiceProvider)
+          .subscribe(planId: plan.id, payerEmail: email);
+      final launched = await launchUrl(
+        Uri.parse(res.initPoint),
+        mode: LaunchMode.externalApplication,
+        webOnlyWindowName: kIsWeb ? '_self' : null,
+      );
+      if (!launched) {
+        throw const BillingException(
+            'No pudimos abrir Mercado Pago. Probá de nuevo.');
+      }
+      if (!mounted) return;
+      // "Esperando confirmación": polls until the webhook activates the plan.
+      navigator.pushReplacement(MaterialPageRoute(
+        builder: (_) => BillingReturnScreen(subscriptionId: res.subscriptionId),
+      ));
+    } on BillingException catch (e) {
+      messenger?.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      messenger?.showSnackBar(const SnackBar(
+          content: Text('No pudimos iniciar el pago. Probá de nuevo.')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
-}
 
-// ---------------------------------------------------------------------------
-// _BillingToggle — Mensual / Anual segmented toggle
-// ---------------------------------------------------------------------------
-
-class _BillingToggle extends StatelessWidget {
-  final bool isAnual;
-  final ValueChanged<bool> onChanged;
-
-  const _BillingToggle({required this.isAnual, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      height: 44,
-      decoration: BoxDecoration(
-        color: RedesignColors.primario700,
-        borderRadius: BorderRadius.circular(RedesignRadius.buttonSm),
-        border: Border.all(
-          color: RedesignColors.secundario300.withValues(alpha: 0.18),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          _ToggleHalf(
-            label: 'Mensual',
-            selected: !isAnual,
-            onTap: () => onChanged(false),
-            isLeft: true,
-          ),
-          _ToggleHalf(
-            label: 'Anual',
-            badge: 'ahorrás 20%',
-            selected: isAnual,
-            onTap: () => onChanged(true),
-            isLeft: false,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToggleHalf extends StatelessWidget {
-  final String label;
-  final String? badge;
-  final bool selected;
-  final VoidCallback onTap;
-  final bool isLeft;
-
-  const _ToggleHalf({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    required this.isLeft,
-    this.badge,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = BorderRadius.horizontal(
-      left: Radius.circular(isLeft ? RedesignRadius.buttonSm : 0),
-      right: Radius.circular(isLeft ? 0 : RedesignRadius.buttonSm),
-    );
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          decoration: BoxDecoration(
-            color: selected
-                ? RedesignColors.actionPrimary
-                : Colors.transparent,
-            borderRadius: radius,
-          ),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                label,
-                style: RedesignType.buttonSm.copyWith(
-                  color: selected
-                      ? RedesignColors.onActionPrimary
-                      : RedesignColors.primario300,
-                  fontWeight: FontWeight.w600,
-                ),
+  /// Asks for the Mercado Pago account email (prefilled with the trainer's).
+  Future<String?> _askPayerEmail() {
+    final ctrl =
+        TextEditingController(text: ref.read(currentUserProvider)?.email ?? '');
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        String? error;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            backgroundColor: RedesignColors.primario700,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(RedesignRadius.card),
+            ),
+            title: Text(
+              'Email de Mercado Pago',
+              style: RedesignType.bodySm.copyWith(
+                color: RedesignColors.primario50,
+                fontWeight: FontWeight.w600,
               ),
-              if (badge != null) ...[
-                const SizedBox(width: 4),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? RedesignColors.onActionPrimary.withValues(alpha: 0.15)
-                        : RedesignColors.secundario300.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    badge!,
-                    style: TextStyle(
-                      fontFamily: 'Metropolis',
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: selected
-                          ? RedesignColors.onActionPrimary
-                          : RedesignColors.actionPrimary,
-                    ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ingresá el email de la cuenta de Mercado Pago con la que vas a pagar. Tiene que ser ese mismo email.',
+                  style: RedesignType.label
+                      .copyWith(color: RedesignColors.primario300),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ctrl,
+                  keyboardType: TextInputType.emailAddress,
+                  autofocus: true,
+                  style: const TextStyle(color: RedesignColors.primario50),
+                  decoration: InputDecoration(
+                    hintText: 'tu@email.com',
+                    errorText: error,
                   ),
                 ),
               ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text('Cancelar',
+                    style: RedesignType.buttonSm
+                        .copyWith(color: RedesignColors.primario300)),
+              ),
+              TextButton(
+                onPressed: () {
+                  final v = ctrl.text.trim();
+                  if (!isValidEmail(v)) {
+                    setLocal(() => error = 'Ingresá un email válido');
+                    return;
+                  }
+                  Navigator.of(ctx).pop(v);
+                },
+                child: Text('Continuar',
+                    style: RedesignType.buttonSm
+                        .copyWith(color: RedesignColors.actionPrimaryDark)),
+              ),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -288,24 +238,14 @@ class _ToggleHalf extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PlanCard extends StatelessWidget {
-  final String name;
-  final double price;
-  final bool isAnual;
-  final int? maxStudents;
-  final Map<String, dynamic> features;
-  final int durationDays;
+  final BillingPlan plan;
   final bool isRecommended;
   final bool isSelected;
   final bool isCurrent;
   final VoidCallback onTap;
 
   const _PlanCard({
-    required this.name,
-    required this.price,
-    required this.isAnual,
-    required this.maxStudents,
-    required this.features,
-    required this.durationDays,
+    required this.plan,
     required this.isRecommended,
     required this.isSelected,
     required this.isCurrent,
@@ -313,32 +253,11 @@ class _PlanCard extends StatelessWidget {
   });
 
   List<_FeatureItem> _buildFeatures() {
-    final items = <_FeatureItem>[];
-
-    // Students capacity
-    if (maxStudents == null) {
-      items.add(const _FeatureItem('Alumnos ilimitados'));
-    } else {
-      items.add(_FeatureItem('Hasta $maxStudents alumnos'));
-    }
-
-    // Support tier
-    final support = features['support'] as String?;
-    if (support != null) {
-      items.add(_FeatureItem('Soporte $support'));
-    }
-
-    // Analytics
-    if (features['analytics'] == true) {
-      items.add(const _FeatureItem('Analytics'));
-    }
-
-    // Custom branding
-    if (features['custom_branding'] == true) {
-      items.add(const _FeatureItem('Marca personalizada'));
-    }
-
-    return items;
+    final max = plan.maxStudents;
+    return [
+      _FeatureItem(max == null ? 'Alumnos ilimitados' : 'Hasta $max alumnos'),
+      ...plan.featureLabels.map(_FeatureItem.new),
+    ];
   }
 
   @override
@@ -349,9 +268,9 @@ class _PlanCard extends StatelessWidget {
             ? RedesignColors.secundario300.withValues(alpha: 0.5)
             : RedesignColors.secundario300.withValues(alpha: 0.18);
 
-    final priceStr =
-        '\$${price.toStringAsFixed(price.truncateToDouble() == price ? 0 : 2)}';
-    final perLabel = isAnual ? '/año' : '/mes';
+    final name = plan.displayName;
+    final priceStr = '\$ ${formatArs(plan.price)}';
+    const perLabel = ' / mes';
     final featureItems = _buildFeatures();
 
     return GestureDetector(
@@ -518,10 +437,17 @@ class _FeatureItem {
 // ---------------------------------------------------------------------------
 
 class _BottomCta extends StatelessWidget {
-  final String planName;
+  final String label;
+  final bool busy;
+  final bool enabled;
   final VoidCallback onTap;
 
-  const _BottomCta({required this.planName, required this.onTap});
+  const _BottomCta({
+    required this.label,
+    required this.busy,
+    required this.enabled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -542,13 +468,22 @@ class _BottomCta extends StatelessWidget {
         width: double.infinity,
         height: 54,
         child: ElevatedButton(
-          onPressed: planName.isNotEmpty ? onTap : null,
-          child: Text(
-            planName.isNotEmpty ? 'Pasar a $planName' : 'Seleccioná un plan',
-            style: RedesignType.buttonLg.copyWith(
-              color: RedesignColors.onActionPrimary,
-            ),
-          ),
+          onPressed: enabled && !busy ? onTap : null,
+          child: busy
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: RedesignColors.onActionPrimary,
+                  ),
+                )
+              : Text(
+                  label,
+                  style: RedesignType.buttonLg.copyWith(
+                    color: RedesignColors.onActionPrimary,
+                  ),
+                ),
         ),
       ),
     );

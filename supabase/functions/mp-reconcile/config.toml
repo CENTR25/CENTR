@@ -1,0 +1,2 @@
+[functions.mp-reconcile]
+verify_jwt = false

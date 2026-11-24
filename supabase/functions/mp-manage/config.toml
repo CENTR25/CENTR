@@ -1,0 +1,2 @@
+[functions.mp-manage]
+verify_jwt = false

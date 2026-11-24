@@ -1,11 +1,11 @@
 {
-    "name": "Progress",
-    "short_name": "Progress",
+    "name": "PRGS",
+    "short_name": "PRGS",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#001934",
     "theme_color": "#001934",
-    "description": "A new Flutter project.",
+    "description": "Entrenamiento, rutinas y planes de alimentación para entrenadores y alumnos.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

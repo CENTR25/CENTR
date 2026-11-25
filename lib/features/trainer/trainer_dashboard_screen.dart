@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_redesign.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/supabase_service.dart';
+import '../../../services/app_settings_service.dart';
 import '../../../services/trainer_service.dart';
 import '../../../services/storage_service.dart';
 import '../../../services/notification_providers.dart';
@@ -22,6 +23,7 @@ import 'nuevo_plan_screen.dart';
 import 'exercise_library_screen.dart';
 import 'trainer_agenda_screen.dart';
 import 'required_reading_editor_screen.dart';
+import 'intake_editor_screen.dart';
 import 'mi_suscripcion_screen.dart';
 import 'elegir_plan_screen.dart';
 import 'student_limit_dialog.dart';
@@ -718,58 +720,74 @@ class _FirstStepsChecklist extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final steps = ref.watch(trainerFirstStepsProvider).valueOrNull;
-    if (steps == null) return const SizedBox.shrink();
-
-    // Nothing left to do → hide the whole section.
-    if (steps.hasStudent &&
-        steps.hasRoutine &&
-        steps.hasReading &&
-        steps.hasVideo) {
-      return const SizedBox.shrink();
-    }
+    final config = ref.watch(firstStepsConfigProvider).valueOrNull;
+    if (steps == null || config == null) return const SizedBox.shrink();
 
     void refresh() => ref.invalidate(trainerFirstStepsProvider);
 
-    final items = <(bool, String, VoidCallback)>[
-      (
+    // id -> (is done, action). Labels / visibility / order come from the admin
+    // config; the completion rule stays here.
+    final rules = <String, (bool, VoidCallback)>{
+      'student': (
         steps.hasStudent,
-        'Invita a tu primer alumno',
         () => showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (_) => const _InviteStudentSheet(),
-        ).then((_) => refresh()),
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const _InviteStudentSheet(),
+            ).then((_) => refresh()),
       ),
-      (
+      'routine': (
         steps.hasRoutine,
-        'Crea tu primera rutina',
         () => showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (_) => const _CreateRoutineSheet(),
-        ).then((_) => refresh()),
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const _CreateRoutineSheet(),
+            ).then((_) => refresh()),
       ),
-      (
+      'mealplan': (
+        steps.hasMealPlan,
+        () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NuevoPlanScreen()),
+            ).then((_) => refresh()),
+      ),
+      'intake': (
+        steps.hasIntake,
+        () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const TrainerIntakeEditorScreen(),
+              ),
+            ).then((_) => refresh()),
+      ),
+      'reading': (
         steps.hasReading,
-        'Completa la sección de lectura obligatoria',
         () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const RequiredReadingEditorScreen(),
-          ),
-        ).then((_) => refresh()),
+              context,
+              MaterialPageRoute(
+                builder: (_) => const RequiredReadingEditorScreen(),
+              ),
+            ).then((_) => refresh()),
       ),
-      (
+      'video': (
         steps.hasVideo,
-        'Agrega tus propios videos al listado de ejercicios',
         () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ExerciseLibraryScreen()),
-        ).then((_) => refresh()),
+              context,
+              MaterialPageRoute(builder: (_) => const ExerciseLibraryScreen()),
+            ).then((_) => refresh()),
       ),
+    };
+
+    final items = <(bool, String, VoidCallback)>[
+      for (final c in config)
+        if (c.enabled && rules[c.id] != null)
+          (rules[c.id]!.$1, c.label, rules[c.id]!.$2),
     ];
+
+    // Nothing left to do (or admin hid every step) → hide the whole section.
+    if (items.every((i) => i.$1)) return const SizedBox.shrink();
 
     final done = items.where((i) => i.$1).length;
 

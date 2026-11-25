@@ -229,15 +229,18 @@ class AdminSegmentedPills extends StatelessWidget {
                     borderRadius: BorderRadius.circular(26),
                   ),
                   alignment: Alignment.center,
-                  child: Text(
-                    labels[i],
-                    style: RedesignType.buttonSm.copyWith(
-                      color: i == activeIndex
-                          ? RedesignColors.onActionPrimary
-                          : RedesignColors.primario50,
-                      fontWeight: i == activeIndex
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      labels[i],
+                      style: RedesignType.buttonSm.copyWith(
+                        color: i == activeIndex
+                            ? RedesignColors.onActionPrimary
+                            : RedesignColors.primario50,
+                        fontWeight: i == activeIndex
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/theme_redesign.dart';
 import '../../../core/utils/string_utils.dart';
 import '../../../models/affiliated_brand_model.dart';
+import '../../../models/first_step_config.dart';
 import '../../../models/news_model.dart';
 import '../../../services/admin_service.dart';
 import '../../../services/affiliated_brand_service.dart';
@@ -59,6 +60,8 @@ class _AdminContentViewState extends ConsumerState<AdminContentView> {
 
   @override
   Widget build(BuildContext context) {
+    // Recetas (3) and Inicio (4) have no "add" action: Recetas is not built
+    // yet and Inicio edits a fixed set of steps.
     // Recetas (index 3) has no "add" action yet — the recetario is not
     // implemented, so this tab only exposes the global on/off switch.
     const addLabels = ['Noticia', 'Marca', 'Ejercicio'];
@@ -76,7 +79,7 @@ class _AdminContentViewState extends ConsumerState<AdminContentView> {
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
           child: AdminSegmentedPills(
-            labels: const ['Noticias', 'Marcas', 'Ejercicios', 'Recetas'],
+            labels: const ['Noticias', 'Marcas', 'Ejercicios', 'Recetas', 'Inicio'],
             activeIndex: _index,
             onChanged: (i) => setState(() => _index = i),
           ),
@@ -89,8 +92,198 @@ class _AdminContentViewState extends ConsumerState<AdminContentView> {
               _BrandsList(),
               _ExercisesList(),
               _RecetasSection(),
+              _FirstStepsEditor(),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Inicio (trainer "Primeros pasos" checklist) ────────────────────────────
+/// Admin editor for the trainer home checklist: rename, show/hide, reorder.
+/// The steps themselves (and how each is detected as done) are fixed in the
+/// app; this only controls what trainers read and see.
+class _FirstStepsEditor extends ConsumerStatefulWidget {
+  const _FirstStepsEditor();
+
+  @override
+  ConsumerState<_FirstStepsEditor> createState() => _FirstStepsEditorState();
+}
+
+class _FirstStepsEditorState extends ConsumerState<_FirstStepsEditor> {
+  List<FirstStepConfig>? _steps; // working copy, null until loaded
+  bool _dirty = false;
+  bool _saving = false;
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      await ref.read(appSettingsServiceProvider).setFirstSteps(_steps!);
+      ref.invalidate(firstStepsConfigProvider);
+      if (!mounted) return;
+      setState(() {
+        _dirty = false;
+        _saving = false;
+      });
+      showRedesignToast(context,
+          title: 'Primeros pasos guardado',
+          subtitle: 'Los entrenadores ya ven los cambios.');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showRedesignToast(context,
+          title: 'No se pudo guardar',
+          subtitle: '$e',
+          icon: Icons.error_outline_rounded);
+    }
+  }
+
+  Future<void> _rename(int i) async {
+    final ctrl = TextEditingController(text: _steps![i].label);
+    final text = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Editar texto'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: 2,
+          maxLength: 80,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text),
+              child: const Text('Aceptar')),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (text == null || text.trim().isEmpty) return;
+    setState(() {
+      _steps![i] = _steps![i].copyWith(label: text.trim());
+      _dirty = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final configAsync = ref.watch(firstStepsConfigProvider);
+    if (_steps == null) {
+      return configAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('$e')),
+        data: (cfg) {
+          // Seed the working copy once, then rebuild from it.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _steps == null) {
+              setState(() => _steps = List.of(cfg));
+            }
+          });
+          return const Center(child: CircularProgressIndicator());
+        },
+      );
+    }
+    final steps = _steps!;
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(22, 4, 22, 130),
+      children: [
+        Text(
+          'Checklist “Primeros pasos” del inicio de los entrenadores. '
+          'Editá el texto, ocultá pasos o cambiá el orden. Cada paso se '
+          'marca solo cuando el entrenador lo completa.',
+          style: RedesignType.label.copyWith(color: RedesignColors.primario300),
+        ),
+        const SizedBox(height: 14),
+        for (var i = 0; i < steps.length; i++) ...[
+          AdminCard(
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    steps[i].label,
+                    style: RedesignType.bodySm.copyWith(
+                      color: steps[i].enabled
+                          ? RedesignColors.primario50
+                          : RedesignColors.primario400,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Subir',
+                  onPressed: i == 0
+                      ? null
+                      : () => setState(() {
+                            final s = steps.removeAt(i);
+                            steps.insert(i - 1, s);
+                            _dirty = true;
+                          }),
+                  icon: const Icon(Icons.arrow_upward_rounded, size: 20),
+                ),
+                IconButton(
+                  tooltip: 'Bajar',
+                  onPressed: i == steps.length - 1
+                      ? null
+                      : () => setState(() {
+                            final s = steps.removeAt(i);
+                            steps.insert(i + 1, s);
+                            _dirty = true;
+                          }),
+                  icon: const Icon(Icons.arrow_downward_rounded, size: 20),
+                ),
+                IconButton(
+                  tooltip: 'Editar texto',
+                  onPressed: () => _rename(i),
+                  icon: const Icon(Icons.edit_rounded, size: 20),
+                ),
+                Switch(
+                  value: steps[i].enabled,
+                  activeThumbColor: RedesignColors.onActionPrimary,
+                  activeTrackColor: RedesignColors.actionPrimary,
+                  onChanged: (v) => setState(() {
+                    steps[i] = steps[i].copyWith(enabled: v);
+                    _dirty = true;
+                  }),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _saving
+                    ? null
+                    : () => setState(() {
+                          _steps = List.of(FirstStepConfig.defaults);
+                          _dirty = true;
+                        }),
+                child: const Text('Restablecer'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: (_dirty && !_saving) ? _save : null,
+                child: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Guardar'),
+              ),
+            ),
+          ],
         ),
       ],
     );

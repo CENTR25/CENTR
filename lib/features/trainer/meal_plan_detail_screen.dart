@@ -240,6 +240,47 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
     });
   }
 
+  Future<void> _copyItem(BuildContext context, Map<String, dynamic> plan,
+      Map<String, dynamic> item, List<int> days) async {
+    final allowed = await _checkEditGate(context, plan);
+    if (!allowed || !context.mounted) return;
+    final from = (item['day_number'] as int?) ?? _currentDay;
+    final targets = await showModalBottomSheet<List<int>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CopyToDaysSheet(
+        plan: plan,
+        days: days,
+        fromDay: from,
+        mealTitle: (item['meal_title'] as String?) ?? 'Comida',
+      ),
+    );
+    if (targets == null || targets.isEmpty || !context.mounted) return;
+    try {
+      // The gate may have swapped in a personalized copy: copy into THAT plan.
+      await ref.read(trainerServiceProvider).copyMealPlanItemToDays(
+          {...item, 'meal_plan_id': _activePlanId}, targets);
+      ref.invalidate(mealPlanDetailProvider(_activePlanId));
+      ref.invalidate(myMealPlansProvider);
+      if (context.mounted) {
+        showRedesignToast(context,
+            title: 'Comida copiada',
+            subtitle: '${targets.length} '
+                '${targets.length == 1 ? 'día' : 'días'}',
+            icon: Icons.copy_rounded);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: RedesignColors.danger),
+        );
+      }
+    }
+  }
+
   Future<void> _deleteItem(
       BuildContext context, Map<String, dynamic> plan, String itemId) async {
     final allowed = await _checkEditGate(context, plan);
@@ -544,6 +585,8 @@ class _MealPlanDetailScreenState extends ConsumerState<MealPlanDetailScreen> {
                         _showAddMealSheet(context, plan, _currentDay, time),
                     onEditMeal: (item) =>
                         _showEditMealSheet(context, plan, item),
+                    onCopyMeal: (item) =>
+                        _copyItem(context, plan, item, days),
                     onDeleteMeal: (itemId) =>
                         _deleteItem(context, plan, itemId),
                   ),
@@ -568,6 +611,7 @@ class _DayContent extends StatelessWidget {
   final Map<String, List<Map<String, dynamic>>> groupedByTime;
   final void Function(String time) onAddMeal;
   final void Function(Map<String, dynamic> item) onEditMeal;
+  final void Function(Map<String, dynamic> item) onCopyMeal;
   final void Function(String itemId) onDeleteMeal;
 
   const _DayContent({
@@ -577,6 +621,7 @@ class _DayContent extends StatelessWidget {
     required this.groupedByTime,
     required this.onAddMeal,
     required this.onEditMeal,
+    required this.onCopyMeal,
     required this.onDeleteMeal,
   });
 
@@ -628,6 +673,7 @@ class _DayContent extends StatelessWidget {
                 items: groupedByTime[slot.key] ?? [],
                 onAdd: () => onAddMeal(slot.key),
                 onEdit: onEditMeal,
+                onCopy: onCopyMeal,
                 onDelete: onDeleteMeal,
               ),
               const SizedBox(height: 16),
@@ -648,6 +694,7 @@ class _TimeSection extends StatelessWidget {
   final List<Map<String, dynamic>> items;
   final VoidCallback onAdd;
   final void Function(Map<String, dynamic>) onEdit;
+  final void Function(Map<String, dynamic>) onCopy;
   final void Function(String) onDelete;
 
   const _TimeSection({
@@ -655,6 +702,7 @@ class _TimeSection extends StatelessWidget {
     required this.items,
     required this.onAdd,
     required this.onEdit,
+    required this.onCopy,
     required this.onDelete,
   });
 
@@ -709,6 +757,7 @@ class _TimeSection extends StatelessWidget {
               item: items[i],
               opNumber: i + 1,
               onEdit: () => onEdit(items[i]),
+              onCopy: () => onCopy(items[i]),
               onDelete: () => onDelete(items[i]['id'] as String),
             ),
             if (i < items.length - 1) const SizedBox(height: 8),
@@ -726,12 +775,14 @@ class _OptionCard extends StatefulWidget {
   final Map<String, dynamic> item;
   final int opNumber;
   final VoidCallback onEdit;
+  final VoidCallback onCopy;
   final VoidCallback onDelete;
 
   const _OptionCard({
     required this.item,
     required this.opNumber,
     required this.onEdit,
+    required this.onCopy,
     required this.onDelete,
   });
 
@@ -895,6 +946,12 @@ class _OptionCardState extends State<_OptionCard> {
                       ),
                       const SizedBox(width: 6),
                       IconButton(
+                        onPressed: widget.onCopy,
+                        tooltip: 'Copiar a otros días',
+                        icon: const Icon(Icons.copy_rounded,
+                            color: RedesignColors.secundario300, size: 20),
+                      ),
+                      IconButton(
                         onPressed: widget.onDelete,
                         tooltip: 'Eliminar',
                         icon: const Icon(Icons.delete_outline_rounded,
@@ -907,6 +964,175 @@ class _OptionCardState extends State<_OptionCard> {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// _CopyToDaysSheet — pick the days a meal option is copied to
+// ---------------------------------------------------------------------------
+
+class _CopyToDaysSheet extends StatefulWidget {
+  final Map<String, dynamic> plan;
+  final List<int> days;
+  final int fromDay;
+  final String mealTitle;
+
+  const _CopyToDaysSheet({
+    required this.plan,
+    required this.days,
+    required this.fromDay,
+    required this.mealTitle,
+  });
+
+  @override
+  State<_CopyToDaysSheet> createState() => _CopyToDaysSheetState();
+}
+
+class _CopyToDaysSheetState extends State<_CopyToDaysSheet> {
+  final Set<int> _selected = {};
+
+  List<int> get _targets =>
+      widget.days.where((d) => d != widget.fromDay).toList();
+
+  @override
+  Widget build(BuildContext context) {
+    final targets = _targets;
+    final allSelected =
+        targets.isNotEmpty && _selected.length == targets.length;
+
+    return Theme(
+      data: RedesignTheme.theme,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              RedesignColors.primario900,
+              RedesignColors.secundario900,
+            ],
+          ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color:
+                          RedesignColors.primario50.withValues(alpha: 0.30),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Copiar a otros días',
+                  style: RedesignType.headingMd.copyWith(
+                    color: RedesignColors.primario50,
+                    fontSize: 20,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '"${widget.mealTitle}" se agrega en el mismo horario de los '
+                  'días que elijas. Después podés editarla en cada día.',
+                  style: RedesignType.label
+                      .copyWith(color: RedesignColors.primario300),
+                ),
+                const SizedBox(height: 18),
+                if (targets.isEmpty)
+                  Text(
+                    'Agregá otro día con el botón "+" para poder copiar.',
+                    style: RedesignType.bodySm
+                        .copyWith(color: RedesignColors.primario300),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _dayChip(
+                        label: 'Todos',
+                        selected: allSelected,
+                        onTap: () => setState(() {
+                          if (allSelected) {
+                            _selected.clear();
+                          } else {
+                            _selected
+                              ..clear()
+                              ..addAll(targets);
+                          }
+                        }),
+                      ),
+                      for (final d in targets)
+                        _dayChip(
+                          label: dayLabelOf(widget.plan, d),
+                          selected: _selected.contains(d),
+                          onTap: () => setState(() {
+                            if (!_selected.remove(d)) _selected.add(d);
+                          }),
+                        ),
+                    ],
+                  ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _selected.isEmpty
+                        ? null
+                        : () => Navigator.pop(
+                            context, (_selected.toList()..sort())),
+                    child: Text(_selected.isEmpty
+                        ? 'Elegí los días'
+                        : 'Copiar a ${_selected.length} '
+                            '${_selected.length == 1 ? 'día' : 'días'}'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dayChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? RedesignColors.secundario300 : Colors.transparent,
+          borderRadius: BorderRadius.circular(RedesignRadius.buttonSm),
+          border: Border.all(
+            color: RedesignColors.secundario300
+                .withValues(alpha: selected ? 1 : 0.5),
+          ),
+        ),
+        child: Text(
+          label,
+          style: RedesignType.buttonSm.copyWith(
+            color: selected
+                ? RedesignColors.secundario900
+                : RedesignColors.secundario300,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

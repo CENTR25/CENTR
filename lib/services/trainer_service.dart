@@ -1275,6 +1275,30 @@ class TrainerService {
     await _client.from('meal_plan_items').update(updates).eq('id', itemId);
   }
 
+  /// Copy one meal option into the same slot of each day in [targetDays].
+  /// The copies are independent rows, so editing one never touches the others.
+  Future<void> copyMealPlanItemToDays(
+    Map<String, dynamic> item,
+    List<int> targetDays,
+  ) async {
+    if (targetDays.isEmpty) return;
+    await _client.from('meal_plan_items').insert([
+      for (final day in targetDays)
+        {
+          'meal_plan_id': item['meal_plan_id'],
+          'day_number': day,
+          'time_of_day': item['time_of_day'],
+          'meal_title': item['meal_title'],
+          'meal_description': item['meal_description'],
+          'calories': item['calories'],
+          'macros': item['macros'],
+          'image_url': item['image_url'],
+          'order_index': item['order_index'],
+          'sort_order': item['sort_order'],
+        },
+    ]);
+  }
+
   /// Remove item from meal plan
   Future<void> removeMealPlanItem(String itemId) async {
     await _client.from('meal_plan_items').delete().eq('id', itemId);
@@ -1416,13 +1440,22 @@ class TrainerService {
   /// Get trainer stats
   /// Onboarding "Primeros pasos" progress: has the trainer done each first step?
   /// Lightweight existence checks (limit 1) — cheap enough for the home screen.
-  Future<({bool hasStudent, bool hasRoutine, bool hasReading, bool hasVideo})>
+  Future<({
+  bool hasStudent,
+  bool hasRoutine,
+  bool hasMealPlan,
+  bool hasIntake,
+  bool hasReading,
+  bool hasVideo,
+})>
   getFirstSteps() async {
     final trainerId = await _getTrainerId();
     if (trainerId == null) {
       return (
         hasStudent: false,
         hasRoutine: false,
+        hasMealPlan: false,
+        hasIntake: false,
         hasReading: false,
         hasVideo: false,
       );
@@ -1436,6 +1469,18 @@ class TrainerService {
     final routines = await _client
         .from('routines')
         .select('id')
+        .eq('trainer_id', trainerId)
+        .limit(1);
+    final mealPlans = await _client
+        .from('meal_plans')
+        .select('id')
+        .eq('trainer_id', trainerId)
+        .limit(1);
+    // The trainer's own intake-form row only exists once they saved the editor.
+    final intake = await _client
+        .from('intake_form_schemas')
+        .select('trainer_id')
+        .eq('owner_type', 'trainer')
         .eq('trainer_id', trainerId)
         .limit(1);
     final reading = await _client
@@ -1453,6 +1498,8 @@ class TrainerService {
     return (
       hasStudent: students.isNotEmpty,
       hasRoutine: routines.isNotEmpty,
+      hasMealPlan: mealPlans.isNotEmpty,
+      hasIntake: intake.isNotEmpty,
       hasReading: (reading?['required_reading'] as String?)?.trim().isNotEmpty ??
           false,
       hasVideo: videos.isNotEmpty,
@@ -2418,9 +2465,14 @@ final trainerStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 
 /// Provider for the "Primeros pasos" onboarding checklist.
 final trainerFirstStepsProvider = FutureProvider<
-    ({bool hasStudent, bool hasRoutine, bool hasReading, bool hasVideo})>((
-  ref,
-) async {
+    ({
+      bool hasStudent,
+      bool hasRoutine,
+      bool hasMealPlan,
+      bool hasIntake,
+      bool hasReading,
+      bool hasVideo,
+    })>((ref) async {
   final service = ref.watch(trainerServiceProvider);
   return service.getFirstSteps();
 });

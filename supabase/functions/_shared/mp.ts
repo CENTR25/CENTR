@@ -22,13 +22,24 @@ export function mpId(id: unknown): string {
   return encodeURIComponent(id);
 }
 
-export async function mp<T = Record<string, unknown>>(
+/** Call MP as the PRGS platform account (trainer -> PRGS billing). */
+export function mp<T = Record<string, unknown>>(
   method: "GET" | "POST" | "PUT",
   path: string, // always built from literals + mpId()
   body?: unknown,
   idempotencyKey?: string,
 ): Promise<T> {
-  const token = requireEnv("MP_ACCESS_TOKEN");
+  return mpAs<T>(requireEnv("MP_ACCESS_TOKEN"), method, path, body, idempotencyKey);
+}
+
+/** Call MP with an explicit token (a trainer's connected account). */
+export async function mpAs<T = Record<string, unknown>>(
+  token: string,
+  method: "GET" | "POST" | "PUT",
+  path: string, // always built from literals + mpId()
+  body?: unknown,
+  idempotencyKey?: string,
+): Promise<T> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     Accept: "application/json",

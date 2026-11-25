@@ -1,0 +1,2 @@
+[functions.mp-student-manage]
+verify_jwt = false

@@ -2142,6 +2142,50 @@ class TrainerService {
     final newDate = DateTime(newYear, adjustedMonth, newDay);
 
     await updateStudentRenewalDate(athleteId, newDate);
+    // A recorded payment lifts any block (manual or automatic).
+    await setStudentAccessBlocked(athleteId, blocked: false);
+  }
+
+  /// Block / unblock a student's access without deleting anything.
+  Future<void> setStudentAccessBlocked(
+    String athleteId, {
+    required bool blocked,
+    String? reason,
+  }) async {
+    await _client.from('athletes').update({
+      'access_blocked': blocked,
+      'blocked_at':
+          blocked ? DateTime.now().toUtc().toIso8601String() : null,
+      'block_reason':
+          blocked && (reason?.trim().isNotEmpty ?? false) ? reason!.trim() : null,
+    }).eq('id', athleteId);
+  }
+
+  /// Trainer's automatic-cutoff settings (off by default, 3 grace days).
+  Future<({bool enabled, int graceDays})> getAutoBlockSettings() async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) return (enabled: false, graceDays: 3);
+    final row = await _client
+        .from('trainers')
+        .select('auto_block_enabled, auto_block_grace_days')
+        .eq('id', trainerId)
+        .maybeSingle();
+    return (
+      enabled: row?['auto_block_enabled'] as bool? ?? false,
+      graceDays: row?['auto_block_grace_days'] as int? ?? 3,
+    );
+  }
+
+  Future<void> setAutoBlockSettings({
+    required bool enabled,
+    required int graceDays,
+  }) async {
+    final trainerId = await _getTrainerId();
+    if (trainerId == null) throw Exception('Trainer no encontrado');
+    await _client.from('trainers').update({
+      'auto_block_enabled': enabled,
+      'auto_block_grace_days': graceDays.clamp(0, 30),
+    }).eq('id', trainerId);
   }
 
   /// Returns athletes belonging to this trainer whose next_renewal_date falls
@@ -2511,4 +2555,10 @@ final subscriptionPlansProvider =
 final myTrainerSubscriptionProvider =
     FutureProvider<Map<String, dynamic>?>((ref) async {
   return ref.watch(trainerServiceProvider).getMyTrainerSubscription();
+});
+
+/// Trainer's automatic-cutoff settings.
+final autoBlockSettingsProvider =
+    FutureProvider<({bool enabled, int graceDays})>((ref) async {
+  return ref.read(trainerServiceProvider).getAutoBlockSettings();
 });

@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/theme_redesign.dart';
 import '../../services/auth_service.dart';
+import '../../services/student_billing_service.dart';
 import '../../services/trainer_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../shared/redesign_toast.dart';
 import 'change_password_screen.dart';
 import 'intake_editor_screen.dart';
@@ -127,6 +129,12 @@ class _TrainerSettingsScreenState extends ConsumerState<TrainerSettingsScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 28),
+            _SectionLabel('Cobros'),
+            const SizedBox(height: 10),
+            const _Card(child: _MpConnectionRow()),
+            const SizedBox(height: 12),
+            const _Card(child: _AutoBlockSettings()),
             const SizedBox(height: 28),
             _SectionLabel('Notificaciones'),
             const SizedBox(height: 10),
@@ -319,6 +327,193 @@ class _ToggleRow extends StatelessWidget {
             activeTrackColor: RedesignColors.actionPrimary,
             inactiveThumbColor: RedesignColors.primario400,
             inactiveTrackColor: RedesignColors.primario600,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Automatic cutoff: block students whose renewal date passed unpaid.
+/// OFF by default; the trainer picks the grace days.
+class _AutoBlockSettings extends ConsumerWidget {
+  const _AutoBlockSettings();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(autoBlockSettingsProvider);
+    return async.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Text('$e'),
+      data: (cfg) {
+        Future<void> save(bool enabled, int days) async {
+          try {
+            await ref
+                .read(trainerServiceProvider)
+                .setAutoBlockSettings(enabled: enabled, graceDays: days);
+            ref.invalidate(autoBlockSettingsProvider);
+          } catch (e) {
+            if (context.mounted) {
+              showRedesignToast(context,
+                  title: 'No se pudo guardar',
+                  subtitle: '$e',
+                  icon: Icons.error_outline_rounded);
+            }
+          }
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ToggleRow(
+              title: 'Bloquear automáticamente si no pagan',
+              value: cfg.enabled,
+              onChanged: (v) => save(v, cfg.graceDays),
+            ),
+            Text(
+              'Si la fecha de vencimiento de un alumno pasa sin que se '
+              'registre el pago, se le bloquea el acceso (sin borrar nada). '
+              'Registrar el pago lo desbloquea. También podés bloquear a '
+              'mano desde cada alumno.',
+              style: RedesignType.label
+                  .copyWith(color: RedesignColors.primario300),
+            ),
+            if (cfg.enabled) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Días de gracia: ${cfg.graceDays}',
+                      style: RedesignType.bodySm.copyWith(
+                          color: RedesignColors.primario50,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: cfg.graceDays > 0
+                        ? () => save(true, cfg.graceDays - 1)
+                        : null,
+                    icon: const Icon(Icons.remove_circle_outline_rounded),
+                  ),
+                  IconButton(
+                    onPressed: cfg.graceDays < 30
+                        ? () => save(true, cfg.graceDays + 1)
+                        : null,
+                    icon: const Icon(Icons.add_circle_outline_rounded),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Connect / disconnect the trainer's own Mercado Pago account (OAuth).
+class _MpConnectionRow extends ConsumerStatefulWidget {
+  const _MpConnectionRow();
+
+  @override
+  ConsumerState<_MpConnectionRow> createState() => _MpConnectionRowState();
+}
+
+class _MpConnectionRowState extends ConsumerState<_MpConnectionRow> {
+  bool _busy = false;
+
+  Future<void> _connect() async {
+    setState(() => _busy = true);
+    try {
+      final url = await ref.read(studentBillingServiceProvider).startConnect();
+      // Same tab on web so the OAuth redirect lands back in the app.
+      await launchUrl(Uri.parse(url), webOnlyWindowName: '_self');
+    } catch (e) {
+      if (mounted) {
+        showRedesignToast(context,
+            title: 'No se pudo conectar',
+            subtitle: '$e',
+            icon: Icons.error_outline_rounded);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _disconnect() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(studentBillingServiceProvider).disconnect();
+      ref.invalidate(mpConnectedProvider);
+      if (mounted) showRedesignToast(context, title: 'Mercado Pago desconectado');
+    } catch (e) {
+      if (mounted) {
+        showRedesignToast(context,
+            title: 'No se pudo desconectar',
+            subtitle: '$e',
+            icon: Icons.error_outline_rounded);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = ref.watch(mpConnectedProvider);
+    return connected.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Text('$e'),
+      data: (isConnected) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isConnected
+                    ? Icons.check_circle_rounded
+                    : Icons.account_balance_wallet_outlined,
+                color: isConnected
+                    ? RedesignColors.success
+                    : RedesignColors.primario300,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  isConnected
+                      ? 'Mercado Pago conectado'
+                      : 'Conectar Mercado Pago',
+                  style: RedesignType.bodySm.copyWith(
+                      color: RedesignColors.primario50,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+              OutlinedButton(
+                onPressed:
+                    _busy ? null : (isConnected ? _disconnect : _connect),
+                child: _busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text(isConnected ? 'Desconectar' : 'Conectar'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Cobrá la cuota mensual a tus alumnos con suscripción automática. '
+            'El dinero va directo a tu cuenta de Mercado Pago y PRGS detecta '
+            'cada pago solo.',
+            style: RedesignType.label
+                .copyWith(color: RedesignColors.primario300),
           ),
         ],
       ),

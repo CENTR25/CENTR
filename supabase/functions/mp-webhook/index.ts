@@ -8,6 +8,8 @@ import { getAdmin, json, mpEnv } from "../_shared/http.ts";
 import { deriveEventKey, isMpId, resolveTopic, topicAttempts, verifyWebhookSignature } from "../_shared/logic.ts";
 import { MpError } from "../_shared/mp.ts";
 import { syncAuthorizedPayment, syncPayment, syncPreapproval } from "../_shared/billing.ts";
+import { accountByMpUserId, getTrainerAccount } from "../_shared/mp_oauth.ts";
+import { syncStudentAuthorizedPayment, syncStudentPreapproval } from "../_shared/student_billing.ts";
 
 const MAX_BODY = 65_536;
 
@@ -111,6 +113,30 @@ Deno.serve(async (req) => {
   try {
     let outcome = "ignored_topic";
     let usedTopic = topic;
+
+    // Student billing: the notification belongs to a TRAINER's connected MP
+    // account (body.user_id = the seller). The body is untrusted, so it only
+    // selects whose token we re-fetch with; the resource itself must then
+    // belong to that trainer (scoped by trainer_id in student_billing).
+    const sellerId = body.user_id != null ? String(body.user_id) : "";
+    const studentTrainerId = isMpId(sellerId) ? await accountByMpUserId(sellerId) : null;
+    if (studentTrainerId) {
+      const account = await getTrainerAccount(studentTrainerId);
+      if (!account) outcome = "no_account";
+      else if (topic === "subscription_preapproval") {
+        outcome = (await syncStudentPreapproval(studentTrainerId, account.token, resourceId)).result;
+      } else if (topic === "subscription_authorized_payment") {
+        outcome = (await syncStudentAuthorizedPayment(studentTrainerId, account.token, resourceId)).result;
+      }
+      if (eventId) {
+        await admin.from("mp_webhook_events").update({
+          processed_at: new Date().toISOString(),
+          error: outcome === "synced" ? null : outcome,
+        }).eq("id", eventId);
+      }
+      return ok({ outcome: `student_${outcome}` });
+    }
+
     // Bounded (max 2 fetches): an authorized_payment/payment topic carrying a
     // preapproval-shaped id is retried once as preapproval on MP 404.
     for (const t of topicAttempts(topic, resourceId)) {

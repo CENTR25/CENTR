@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../services/student_billing_service.dart';
+import '../shared/redesign_toast.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/theme/theme_redesign.dart';
@@ -222,6 +225,8 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
                         ),
                         onEditRenewal: () =>
                             _showEditRenewalDateDialog(context, student),
+                        onToggleBlock: () =>
+                            _toggleAccessBlock(context, student),
                         onPersonalizeRoutine: (id, title) =>
                             _personalizeRoutine(context, id, title, name),
                         onPersonalizeMealPlan: (id, title) =>
@@ -630,6 +635,70 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen> {
             backgroundColor: RedesignColors.danger,
           ),
         );
+      }
+    }
+  }
+
+  Future<void> _toggleAccessBlock(
+    BuildContext context,
+    Map<String, dynamic> student,
+  ) async {
+    final blocked = student['access_blocked'] == true;
+    final name = (student['name'] as String?) ?? 'el alumno';
+    String? reason;
+
+    if (!blocked) {
+      final ctrl = TextEditingController();
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Bloquear acceso'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('$name no podrá usar la app hasta que lo desbloquees. '
+                  'No se borra nada.'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                maxLength: 120,
+                decoration: const InputDecoration(
+                    labelText: 'Mensaje para el alumno (opcional)'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Bloquear')),
+          ],
+        ),
+      );
+      reason = ctrl.text;
+      ctrl.dispose();
+      if (ok != true) return;
+    }
+
+    try {
+      await ref.read(trainerServiceProvider).setStudentAccessBlocked(
+            widget.studentId,
+            blocked: !blocked,
+            reason: reason,
+          );
+      ref.invalidate(studentDetailProvider(widget.studentId));
+      if (context.mounted) {
+        showRedesignToast(context,
+            title: blocked ? 'Acceso restablecido' : 'Acceso bloqueado',
+            icon: blocked ? Icons.lock_open_rounded : Icons.lock_rounded);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Error: $e'), backgroundColor: RedesignColors.danger));
       }
     }
   }
@@ -1111,6 +1180,7 @@ class _PlanTab extends ConsumerWidget {
   final VoidCallback onEditCardio;
   final VoidCallback onEditSupplements;
   final VoidCallback onEditRenewal;
+  final VoidCallback onToggleBlock;
   final void Function(String id, String title) onPersonalizeRoutine;
   final void Function(String id, String title) onPersonalizeMealPlan;
 
@@ -1123,6 +1193,7 @@ class _PlanTab extends ConsumerWidget {
     required this.onEditCardio,
     required this.onEditSupplements,
     required this.onEditRenewal,
+    required this.onToggleBlock,
     required this.onPersonalizeRoutine,
     required this.onPersonalizeMealPlan,
   });
@@ -1368,6 +1439,10 @@ class _PlanTab extends ConsumerWidget {
             student: student,
             onEdit: onEditRenewal,
           ),
+          const SizedBox(height: 10),
+          _AccessBlockCard(student: student, onToggle: onToggleBlock),
+          const SizedBox(height: 10),
+          _AutoBillingCard(student: student),
         ],
       ),
     );
@@ -2071,6 +2146,205 @@ class _CheckInSection extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Renewal card (Plan tab)
 // ---------------------------------------------------------------------------
+
+/// Manual block / unblock of a student's access (e.g. unpaid renewal).
+/// Auto-recurring cobro through the trainer's Mercado Pago account.
+class _AutoBillingCard extends ConsumerStatefulWidget {
+  final Map<String, dynamic> student;
+  const _AutoBillingCard({required this.student});
+
+  @override
+  ConsumerState<_AutoBillingCard> createState() => _AutoBillingCardState();
+}
+
+class _AutoBillingCardState extends ConsumerState<_AutoBillingCard> {
+  bool _busy = false;
+
+  String get _athleteId => widget.student['id'] as String;
+
+  Future<void> _run(Future<void> Function() action) async {
+    setState(() => _busy = true);
+    try {
+      await action();
+      ref.invalidate(studentSubscriptionProvider(_athleteId));
+    } catch (e) {
+      if (mounted) {
+        showRedesignToast(context,
+            title: 'No se pudo completar',
+            subtitle: '$e',
+            icon: Icons.error_outline_rounded);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _createLink() => _run(() async {
+        final r = await ref
+            .read(studentBillingServiceProvider)
+            .subscribe(_athleteId);
+        if (mounted) await _shareLink(r.initPoint);
+      });
+
+  Future<void> _shareLink(String link) async {
+    final name = (widget.student['name'] as String?) ?? '';
+    await Share.share(
+        'Hola $name! Este es el link para activar el pago automático de tu '
+        'cuota mensual con Mercado Pago: $link');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = ref.watch(mpConnectedProvider).valueOrNull;
+    final sub = ref.watch(studentSubscriptionProvider(_athleteId)).valueOrNull;
+    final fee = double.tryParse('${widget.student['monthly_fee'] ?? ''}');
+
+    String title;
+    String? hint;
+    List<Widget> actions = [];
+
+    if (connected != true) {
+      title = 'Cobro automático';
+      hint = 'Conectá tu Mercado Pago en Configuración → Cobros para cobrar '
+          'por suscripción.';
+    } else if (sub == null || sub.status == 'cancelled') {
+      title = 'Cobro automático';
+      hint = (fee == null || fee <= 0)
+          ? 'Cargá primero la cuota mensual del alumno en Finanzas.'
+          : 'Cuota: \$${fee.toStringAsFixed(0)} por mes.';
+      if (fee != null && fee > 0) {
+        actions = [
+          ElevatedButton(
+            onPressed: _busy ? null : _createLink,
+            child: const Text('Generar link de cobro'),
+          ),
+        ];
+      }
+    } else if (sub.status == 'pending') {
+      title = 'Esperando que el alumno pague';
+      hint = 'Mandale el link. Cuando active el pago, se detecta solo.';
+      actions = [
+        if (sub.initPoint != null)
+          ElevatedButton(
+            onPressed: _busy ? null : () => _shareLink(sub.initPoint!),
+            child: const Text('Reenviar link'),
+          ),
+        TextButton(
+          onPressed: _busy
+              ? null
+              : () => _run(() => ref
+                  .read(studentBillingServiceProvider)
+                  .manage(sub.id, 'cancel')),
+          child: const Text('Cancelar'),
+        ),
+      ];
+    } else {
+      final paused = sub.status == 'paused';
+      final next = sub.nextPaymentDate;
+      title = paused ? 'Cobro automático pausado' : 'Cobro automático activo';
+      hint = next == null
+          ? null
+          : 'Próximo cobro: ${next.day.toString().padLeft(2, '0')}/'
+              '${next.month.toString().padLeft(2, '0')}/${next.year}';
+      actions = [
+        OutlinedButton(
+          onPressed: _busy
+              ? null
+              : () => _run(() => ref
+                  .read(studentBillingServiceProvider)
+                  .manage(sub.id, paused ? 'resume' : 'pause')),
+          child: Text(paused ? 'Reanudar' : 'Pausar'),
+        ),
+        TextButton(
+          onPressed: _busy
+              ? null
+              : () => _run(() => ref
+                  .read(studentBillingServiceProvider)
+                  .manage(sub.id, 'cancel')),
+          child: const Text('Cancelar'),
+        ),
+      ];
+    }
+
+    return _NavyCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.autorenew_rounded,
+                  color: RedesignColors.secundario300, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: RedesignColors.primario50,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    fontFamily: 'Metropolis',
+                  ),
+                ),
+              ),
+              if (_busy)
+                const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+            ],
+          ),
+          if (hint != null) ...[
+            const SizedBox(height: 6),
+            Text(hint,
+                style: const TextStyle(
+                    color: RedesignColors.primario300, fontSize: 13)),
+          ],
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, children: actions),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AccessBlockCard extends StatelessWidget {
+  final Map<String, dynamic> student;
+  final VoidCallback onToggle;
+
+  const _AccessBlockCard({required this.student, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    final blocked = student['access_blocked'] == true;
+    final color = blocked ? RedesignColors.danger : RedesignColors.primario300;
+    return _NavyCard(
+      child: Row(
+        children: [
+          Icon(blocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+              color: color, size: 24),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              blocked ? 'Acceso bloqueado' : 'Acceso del alumno activo',
+              style: TextStyle(
+                color: RedesignColors.primario50,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                fontFamily: 'Metropolis',
+              ),
+            ),
+          ),
+          OutlinedButton(
+            onPressed: onToggle,
+            child: Text(blocked ? 'Desbloquear' : 'Bloquear acceso'),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _RenewalCard extends StatelessWidget {
   final Map<String, dynamic> student;

@@ -17,6 +17,33 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+
+  <!-- Landing at "/" for signed-out visitors. The landing lives in /landing/.
+       If Cloudflare already rewrote "/" to it (see _redirects) this never runs.
+       Otherwise, at the bare root with no Supabase session, swap the page for
+       the landing (URL stays "/"). Signed-in users and every other route boot
+       the Flutter app unchanged. document.open() aborts this parser, so the
+       Flutter scripts below never load for the landing. -->
+  <script>
+    (function () {
+      try {
+        if (location.pathname !== '/') return;
+        var signedIn = Object.keys(localStorage).some(function (k) {
+          return /sb-.+-auth-token$/.test(k);
+        });
+        if (signedIn) return;
+        var x = new XMLHttpRequest();
+        x.open('GET', '/landing/index.html', false);
+        x.send();
+        if (x.status === 200 && x.responseText.indexOf('PRGS') !== -1) {
+          window.__prgsLanding = true;
+          document.open();
+          document.write(x.responseText);
+          document.close();
+        }
+      } catch (e) { /* fall through to the app */ }
+    })();
+  </script>
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="PRGS: entrenamiento, rutinas y planes de alimentación para entrenadores y alumnos.">
 
@@ -71,6 +98,14 @@
       }
     });
   </script>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Boot Flutter unless the landing took over this page (see top of <head>).
+    if (!window.__prgsLanding) {
+      var fb = document.createElement('script');
+      fb.src = 'flutter_bootstrap.js';
+      fb.async = true;
+      document.body.appendChild(fb);
+    }
+  </script>
 </body>
 </html>

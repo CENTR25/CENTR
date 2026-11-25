@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PRGS · No entrenes a ciegas</title>
+  <meta name="description" content="Registrá pesos y repeticiones, respetá tus descansos y mirá cómo avanzás. Si entrenás a otros, acompañá cada paso desde PRGS.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" href="/favicon.png">
+  <meta property="og:title" content="PRGS · No entrenes a ciegas">
+  <meta property="og:image" content="/og-image.png">
+  <script>
+    // Signed-in visitors skip the landing: /login forwards them to their dashboard.
+    try {
+      if (Object.keys(localStorage).some(function (k) { return /sb-.+-auth-token$/.test(k); })) {
+        location.replace('/login');
+      }
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="/landing/styles.css">
+  <link rel="stylesheet" href="/landing/animations.css">
+</head>
+<body>
+
+  <!-- ============ HEADER ============ -->
+  <header class="header">
+    <div class="container header__inner">
+      <a href="#" class="logo" aria-label="PRGS, inicio">
+        <img class="logo__mark" src="/landing/assets/logo-header.svg" alt="" width="40" height="40">
+        <span class="logo__text">PRGS</span>
+      </a>
+
+      <nav class="nav" id="nav" aria-label="Principal">
+        <a href="#alumnos">Para alumnos</a>
+        <a href="#entrenadores">Para entrenadores</a>
+        <a href="#planes">Planes</a>
+        <a href="#faq">F&amp;Q</a>
+        <a href="/login" class="nav__login">Ingresar</a>
+      </nav>
+
+      <div class="header__actions">
+        <a href="/login" class="header__login">Ingresar</a>
+        <a href="#planes" class="btn btn--primary btn--sm">Empezá con PRGS</a>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="nav" aria-label="Abrir menú">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="container hero__inner">
+        <div class="hero__message">
+          <h1 class="hero__title"><span class="line">No entrenes</span> <span class="line">a ciegas.</span> <span class="line accent">Hacé progreso.</span></h1>
+          <p class="lead">Cada serie tiene una razón. Registrá pesos y repeticiones, respetá tus descansos y mirá cómo avanzás. Si entrenás a otros, acompañá cada paso desde PRGS.</p>
+          <div class="hero__actions">
+            <a href="#planes" class="btn btn--primary">
+              Ver planes
+              <img src="/landing/assets/arrow-dark.svg" alt="" width="20" height="20">
+            </a>
+          </div>
+        </div>
+
+        <div class="showcase" aria-hidden="true">
+          <img class="showcase__halo" src="/landing/assets/halo.svg" alt="">
+          <div class="phone phone--left">
+            <img src="/landing/assets/alumno-1.png" alt="">
+          </div>
+          <div class="phone phone--right">
+            <img src="/landing/assets/alumno-2.png" alt="">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PRODUCT AT A GLANCE ============ -->
+    <section class="glance" aria-label="PRGS en números">
+      <div class="container">
+        <ul class="facts">
+          <li class="fact"><strong>3 datos</strong><span>Series, repeticiones y peso</span></li>
+          <li class="fact"><strong>1 timer</strong><span>El descanso también cuenta</span></li>
+          <li class="fact"><strong>2 roles</strong><span>Entrenadores y alumnos</span></li>
+          <li class="fact"><strong>Tu ritmo</strong><span>Un registro que se adapta a vos</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ ENTRENAMIENTO Y PROGRESO ============ -->
+    <section class="section" id="alumnos">
+      <div class="container">
+        <div class="section-intro section-intro--640">
+          <h2 class="h2">De la rutina al avance</h2>
+          <p class="lead">PRGS te ayuda a registrar cada sesión, entender tu progreso y decidir tu próximo paso con claridad.</p>
+        </div>
+
+        <div class="athlete">
+          <div class="benefits">
+            <article class="benefit-card">
+              <img src="/landing/assets/zap.svg" alt="" width="28" height="28">
+              <h3>Registra cada serie con rapidez</h3>
+              <p>Series, repeticiones y peso en pocos toques. La carga anterior siempre a mano para no perder el ritmo.</p>
+            </article>
+            <article class="benefit-card">
+              <img src="/landing/assets/timer.svg" alt="" width="28" height="28">
+              <h3>Descansá con timer y volvé con orden</h3>
+              <p>Activá el descanso entre series y volvé a entrenar cuando corresponde, sin perder el foco.</p>
+            </article>
+            <article class="benefit-card">
+              <img src="/landing/assets/history.svg" alt="" width="28" height="28">
+              <h3>Tu historial, siempre ordenado</h3>
+              <p>Consultá cada sesión y dejá de adivinar cuánto levantaste la última vez. Todo queda registrado.</p>
+            </article>
+            <article class="benefit-card">
+              <img src="/landing/assets/chart.svg" alt="" width="28" height="28">
+              <h3>Hacé visible tu progreso</h3>
+              <p>Compará cargas y volumen para decidir tu próximo desafío con datos reales de tu entrenamiento.</p>
+            </article>
+          </div>
+
+          <div class="panel progress-preview">
+            <div class="progress-preview__head">
+              <h3>Tu progreso, en perspectiva.</h3>
+              <img src="/landing/assets/arrow-light.svg" alt="" width="20" height="20">
+            </div>
+
+            <div class="tabs" role="tablist" aria-label="Ejercicio">
+              <button class="tab is-active" role="tab" aria-selected="true">Press de banca</button>
+              <button class="tab" role="tab" aria-selected="false">Sentadilla</button>
+            </div>
+
+            <div class="load">
+              <div class="load__current">
+                <span class="load__label">Mejor carga registrada</span>
+                <span class="load__value">60 <small>kg</small></span>
+              </div>
+              <span class="load__change">
+                <img src="/landing/assets/trending-up.svg" alt="" width="14" height="14">+10 kg
+              </span>
+            </div>
+
+            <div class="chart" aria-hidden="true">
+              <span class="chart__grid" style="top:20px"></span>
+              <span class="chart__grid" style="top:72px"></span>
+              <span class="chart__grid" style="top:124px"></span>
+              <svg class="chart__trend" viewBox="0 0 522 125" fill="none" aria-hidden="true"><path class="chart__line" d="M0 123.5H86L173 94.2202H260L346 50.3002H433L520 1.50024" stroke="#4FD8BC" stroke-width="3" stroke-linecap="round" pathLength="1"/></svg>
+              <div class="chart__timeline"><span>SEM 1</span><span>SEM 2</span><span>SEM 3</span><span>SEM 4</span></div>
+            </div>
+
+            <div class="sessions">
+              <h4>Últimas sesiones</h4>
+              <div class="session-row"><span>Hoy</span><strong>3 × 10 · 60 kg</strong><img src="/landing/assets/circle-check.svg" alt="Completada" width="16" height="16"></div>
+              <div class="session-row"><span>Lun 12 oct</span><strong>3 × 10 · 57,5 kg</strong><img src="/landing/assets/circle-check.svg" alt="Completada" width="16" height="16"></div>
+            </div>
+
+            <p class="footnote">Ejemplo ilustrativo. Cada proceso es distinto.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ENTRENADORES ============ -->
+    <section class="section section--dark" id="entrenadores">
+      <div class="container trainer">
+        <div class="trainer__message">
+          <div class="section-intro">
+            <h2 class="h2">Dejá de entrenar alumnos por WhatsApp</h2>
+            <p class="lead">Planes, sesiones y progreso de cada alumno en un mismo lugar. Vos te enfocás en entrenar, PRGS se encarga del orden.</p>
+          </div>
+
+          <ul class="trainer-tools">
+            <li class="tool">
+              <span class="icon-box"><img src="/landing/assets/users-round.svg" alt="" width="24" height="24"></span>
+              <div><h3>Todos tus alumnos a la vista</h3><p>Mirá quién entrenó, quién se atrasó y a quién le tenés que dar una devolución, sin tener que preguntar.</p></div>
+            </li>
+            <li class="tool">
+              <span class="icon-box"><img src="/landing/assets/clipboard-list.svg" alt="" width="24" height="24"></span>
+              <div><h3>Tus planes, tu forma de trabajar</h3><p>Armá rutinas a medida, asigná ejercicios y ajustá series, repeticiones y descansos en minutos.</p></div>
+            </li>
+            <li class="tool">
+              <span class="icon-box"><img src="/landing/assets/images.svg" alt="" width="24" height="24"></span>
+              <div><h3>Progreso que se ve</h3><p>Compará fotos de evolución que tus alumnos comparten solo con vos, en un espacio privado.</p></div>
+            </li>
+          </ul>
+
+        </div>
+
+        <div class="panel workspace">
+          <div class="workspace__head">
+            <div>
+              <span class="eyebrow-sm">PRGS</span>
+              <h3>Tus alumnos, al día</h3>
+            </div>
+            <img src="/landing/assets/users-round.svg" alt="" width="24" height="24">
+          </div>
+
+          <div class="workspace__tabs">
+            <span class="is-active">Alumnos</span><span>Planes</span><span>Progreso</span>
+          </div>
+
+          <ul class="students">
+            <li class="student">
+              <span class="avatar">ML</span>
+              <div class="student__info"><strong>Martín L.</strong><span>Fuerza · 4 días</span></div>
+              <span class="status status--ok"><img src="/landing/assets/dot-green.svg" alt="" width="5" height="5">Al día</span>
+            </li>
+            <li class="student">
+              <span class="avatar">VS</span>
+              <div class="student__info"><strong>Valentina S.</strong><span>Hipertrofia · 3 días</span></div>
+              <span class="status status--warn"><img src="/landing/assets/dot-yellow.svg" alt="" width="5" height="5">Por revisar</span>
+            </li>
+            <li class="student">
+              <span class="avatar">NR</span>
+              <div class="student__info"><strong>Nicolás R.</strong><span>Full body · 3 días</span></div>
+              <span class="status status--ok"><img src="/landing/assets/dot-green.svg" alt="" width="5" height="5">Al día</span>
+            </li>
+          </ul>
+
+          <div class="photo-review">
+            <div class="photo-review__head">
+              <h4>Seguimiento de Martín</h4>
+              <img src="/landing/assets/lock.svg" alt="Privado" width="16" height="16">
+            </div>
+            <img class="photo-review__img" src="/landing/assets/progress-photos.png" alt="Comparación de fotos de progreso de un alumno de ejemplo">
+            <div class="photo-review__dates"><span>Registro · 1 oct</span><span>Registro · 14 oct</span></div>
+            <p class="footnote">Fotos compartidas solo con su entrenador. Perfiles y datos de ejemplo.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PANTALLAS DE LA APP ============ -->
+    <section class="section screens" id="pantallas">
+      <div class="container">
+        <div class="screens__head">
+          <div class="section-intro">
+            <h2 class="h2">Conocé la app</h2>
+            <p class="lead">Todo lo que necesitás para entrenar y acompañar a tus alumnos a la mano.</p>
+          </div>
+          <div class="role-toggle" role="tablist" aria-label="Ver pantallas de">
+            <button type="button" class="role-toggle__opt is-active" role="tab" id="tab-alumno" aria-selected="true" aria-controls="screens-alumno">Alumno</button>
+            <button type="button" class="role-toggle__opt" role="tab" id="tab-entrenador" aria-selected="false" aria-controls="screens-entrenador" tabindex="-1">Entrenador</button>
+          </div>
+        </div>
+
+        <div class="screens__panel" id="screens-alumno" role="tabpanel" aria-labelledby="tab-alumno">
+          <ul class="screens__track">
+              <li class="screen">
+                <div class="screen__phone"><img src="/landing/assets/alumno-1.png" alt="Inicio del alumno con su próximo check-in y el entrenamiento en curso" width="390" height="843" loading="lazy"></div>
+                <p class="screen__caption">Tu día, de un vistazo</p>
+              </li>
+              <li class="screen">
+                <div class="screen__phone"><img src="/landing/assets/alumno-2.png" alt="Pantalla de ejercicio con historial de peso y registro de la serie" width="390" height="843" loading="lazy"></div>
+                <p class="screen__caption">Registrá cada serie</p>
+              </li>
+              <li class="screen">
+                <div class="screen__phone"><img src="/landing/assets/alumno-3.png" alt="Perfil del alumno con peso, altura, objetivo y nivel" width="390" height="843" loading="lazy"></div>
+                <p class="screen__caption">Tu perfil y objetivos</p>
+              </li>
+              <li class="screen">
+                <div class="screen__phone"><img src="/landing/assets/alumno-4.png" alt="Beneficios con descuentos en marcas" width="390" height="843" loading="lazy"></div>
+                <p class="screen__caption">Beneficios exclusivos</p>
+              </li>
+              <li class="screen">
+                <div class="screen__phone"><img src="/landing/assets/alumno-5.png" alt="Rutina del día con ejercicios, series y descansos" width="390" height="843" loading="lazy"></div>
+                <p class="screen__caption">Tu rutina de la semana</p>
+              </li>
+          </ul>
+        </div>
+        <div class="screens__panel" id="screens-entrenador" role="tabpanel" aria-labelledby="tab-entrenador" hidden>
+          <ul class="screens__track">
+              <li class="screen">
+                <div class="screen__phone"><img src="/landing/assets/entrenador-1.png" alt="Inicio del entrenador con alumnos por revisar y primeros pasos" width="390" height="843" loading="lazy"></div>
+                <p class="screen__caption">Tu panel de inicio</p>
+              </li>
+              <li class="screen">
+                <div class="screen__phone"><img src="/landing/assets/entrenador-2.png" alt="Detalle de un alumno con su semana de entrenamiento" width="390" height="843" loading="lazy"></div>
+                <p class="screen__caption">El detalle de cada alumno</p>
+              </li>
+              <li class="screen">
+                <div class="screen__phone"><img src="/landing/assets/entrenador-3.png" alt="Agenda con los horarios del día" width="390" height="843" loading="lazy"></div>
+                <p class="screen__caption">Agenda de horarios</p>
+              </li>
+              <li class="screen">
+                <div class="screen__phone"><img src="/landing/assets/entrenador-4.png" alt="Rutina asignada con ejercicios por día" width="390" height="843" loading="lazy"></div>
+                <p class="screen__caption">Rutinas a medida</p>
+              </li>
+              <li class="screen">
+                <div class="screen__phone"><img src="/landing/assets/entrenador-5.png" alt="Buscador para agregar ejercicios a una rutina" width="390" height="843" loading="lazy"></div>
+                <p class="screen__caption">Biblioteca de ejercicios</p>
+              </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PLANES ============ -->
+    <section class="section" id="planes">
+      <div class="container">
+        <div class="pricing-intro">
+          <div class="section-intro">
+            <span class="eyebrow">PLANES PARA ENTRENADORES</span>
+            <h2 class="h2">Un plan para tu próxima meta.</h2>
+            <p class="lead">Elegí según cuántos alumnos acompañás. Todos los planes incluyen rutinas y planes de alimentación ilimitados.</p>
+          </div>
+        </div>
+
+        <div class="plans">
+          <article class="plan">
+            <div class="plan__tag"><span class="plan__label">PARA ARRANCAR</span></div>
+            <div class="plan__intro"><h3>Standard</h3><p>Ordená tu trabajo con tus primeros alumnos.</p></div>
+            <div class="plan__price">
+              <p class="price"><span class="price__cur">ARS </span><span class="price__amount">40.000</span><span class="price__per"> /mes</span></p>
+              <p class="price__note">ARS 2.000 por alumno.</p>
+            </div>
+            <ul class="features">
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Hasta 15 alumnos</li>
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Rutinas ilimitadas</li>
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Planes de alimentación ilimitados</li>
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Todas las herramientas de PRGS</li>
+            </ul>
+            <a href="/login" class="btn btn--outline btn--block">Elegí Standard</a>
+          </article>
+          <article class="plan plan--featured">
+            <div class="plan__tag"><span class="badge">Más elegido</span></div>
+            <div class="plan__intro"><h3>Pro</h3><p>Para entrenadores con una comunidad en crecimiento.</p></div>
+            <div class="plan__price">
+              <p class="price"><span class="price__cur">ARS </span><span class="price__amount">75.000</span><span class="price__per"> /mes</span></p>
+              <p class="price__note price__note--accent">ARS 1.500 por alumno.</p>
+            </div>
+            <ul class="features">
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Hasta 50 alumnos</li>
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Rutinas ilimitadas</li>
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Planes de alimentación ilimitados</li>
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Todas las herramientas de PRGS</li>
+            </ul>
+            <a href="/login" class="btn btn--primary btn--block">Elegí Pro</a>
+          </article>
+          <article class="plan">
+            <div class="plan__tag"><span class="plan__label">PARA CRECER EN GRANDE</span></div>
+            <div class="plan__intro"><h3>Business</h3><p>El mejor precio por alumno para equipos grandes.</p></div>
+            <div class="plan__price">
+              <p class="price"><span class="price__cur">ARS </span><span class="price__amount">120.000</span><span class="price__per"> /mes</span></p>
+              <p class="price__note">ARS 1.200 por alumno.</p>
+            </div>
+            <ul class="features">
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Hasta 100 alumnos*</li>
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Rutinas ilimitadas</li>
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Planes de alimentación ilimitados</li>
+              <li><img src="/landing/assets/check.svg" alt="" width="18" height="18">Todas las herramientas de PRGS</li>
+            </ul>
+            <p class="plan__footnote">*Podés solicitar más alumnos.</p>
+            <a href="/login" class="btn btn--outline btn--block">Elegí Business</a>
+          </article>
+        </div>
+
+        <div class="plan-free">
+          <div>
+            <strong>Base · Gratis</strong>
+            <span>1 alumno, 1 rutina y 1 plan de alimentación. Arrancá a probar PRGS sin costo.</span>
+          </div>
+          <a href="/login" class="btn btn--outline btn--sm">Probar gratis</a>
+        </div>
+
+        <div class="includes">
+          <h3 class="includes__title">Todos los planes incluyen</h3>
+          <div class="includes__grid">
+            <div class="includes__group">
+              <h4>Entrenamiento</h4>
+              <ul>
+                <li><strong>Registro de series, reps y pesos</strong> de cada sesión.</li>
+                <li><strong>Historial por alumno</strong> con gráficas para ver cómo evoluciona.</li>
+                <li><strong>Biblioteca de +150 ejercicios con foto</strong>, y la opción de sumar tus propios videos e imágenes con tu marca.</li>
+              </ul>
+            </div>
+            <div class="includes__group">
+              <h4>Gestión de alumnos</h4>
+              <ul>
+                <li><strong>Panel de control:</strong> de un vistazo, quién entrenó, quién mandó su check-in, a quién le faltan fotos y a quién le toca renovar.</li>
+                <li><strong>Ficha de cada alumno:</strong> horarios, patologías, medicación y todo lo que necesites saber. Usá el formulario que viene o armá el tuyo.</li>
+                <li><strong>Renovaciones:</strong> cuándo te tiene que pagar cada alumno y cuántos días le quedan.</li>
+              </ul>
+            </div>
+            <div class="includes__group">
+              <h4>Organización y comunicación</h4>
+              <ul>
+                <li><strong>Chat interno</strong> para hablar con tus alumnos sin salir de PRGS.</li>
+                <li><strong>Notificaciones</strong> masivas o privadas para cada alumno.</li>
+                <li><strong>Agenda</strong> para tus horarios presenciales y online.</li>
+                <li><strong>Pendientes:</strong> rutinas, planes de alimentación y check-ins por revisar, en una sola lista.</li>
+              </ul>
+            </div>
+            <div class="includes__group">
+              <h4>Beneficios</h4>
+              <ul>
+                <li><strong>Recetario fitness</strong> con más de 100 recetas para tus alumnos.</li>
+                <li><strong>Descuentos exclusivos</strong> en marcas, para vos y tus alumnos.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="pricing-conditions">
+          <p>Sin permanencia. Cambiá o cancelá tu plan cuando quieras.</p>
+          <p class="ai-note">
+            <svg class="ai-note__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.5" stroke="#4FD8BC" stroke-width="1.8"/><path d="M12 11v5.5M12 7.6v.1" stroke="#4FD8BC" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span><strong>PRGS no tiene inteligencia artificial integrada.</strong> Las rutinas, los planes de alimentación y las devoluciones los cargás vos, de forma manual.</span>
+          </p>
+          <p class="small">Precios mensuales en ARS.</p>
+        </div>
+
+        <!-- Banner: servicios de diseño -->
+        <aside class="panel services" id="servicios" aria-labelledby="servicios-title">
+          <div class="services__intro">
+            <span class="eyebrow">Diseño para entrenadores</span>
+            <h2 class="h2" id="servicios-title">Hacé crecer tu marca de entrenador</h2>
+            <p class="lead">Si además de ordenar a tus alumnos querés una marca propia y más presencia, te ayudo con el diseño.</p>
+            <!-- TODO: reemplazar href por el link de contacto (WhatsApp, mail o formulario) -->
+            <a href="/login" class="btn btn--primary btn--sm services__cta">
+              Consultame
+              <img src="/landing/assets/arrow-dark.svg" alt="" width="20" height="20">
+            </a>
+          </div>
+
+          <ul class="services__list">
+            <li class="service">
+              <span class="icon-box"><img src="/landing/assets/svc-branding.svg" alt="" width="24" height="24"></span>
+              <div><h3>Branding</h3><p>Logo, colores y tipografías para tu marca personal.</p></div>
+            </li>
+            <li class="service">
+              <span class="icon-box"><img src="/landing/assets/svc-web.svg" alt="" width="24" height="24"></span>
+              <div><h3>Página web</h3><p>Un sitio propio para mostrar tus planes y sumar alumnos.</p></div>
+            </li>
+            <li class="service">
+              <span class="icon-box"><img src="/landing/assets/svc-video.svg" alt="" width="24" height="24"></span>
+              <div><h3>Edición de video</h3><p>Reels de técnica, rutinas y transformaciones.</p></div>
+            </li>
+            <li class="service">
+              <span class="icon-box"><img src="/landing/assets/svc-ux.svg" alt="" width="24" height="24"></span>
+              <div><h3>Diseño de apps y web</h3><p>Plataformas y apps pensadas para tus alumnos (UX/UI).</p></div>
+            </li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ TESTIMONIOS ============ -->
+    <section class="section section--dark">
+      <div class="container">
+        <div class="section-intro section-intro--840">
+          <h2 class="h2">Lo que cambia cuando registrás tu progreso</h2>
+          <p class="lead">Atletas, gente que vuelve a entrenar y personal trainers usan PRGS para saber dónde están y hacia dónde van.</p>
+        </div>
+
+        <div class="stories">
+          <figure class="story">
+            <img src="/landing/assets/quote.svg" alt="" width="28" height="28">
+            <blockquote>“Antes entrenaba de memoria y nunca sabía si estaba subiendo o estancado. Ahora abro la app, veo lo que hice la última vez y sé exactamente qué intentar hoy.”</blockquote>
+            <figcaption class="persona"><span class="avatar avatar--accent">N</span><span><strong>Nicolás</strong><span>Objetivo: progresar en las cargas</span></span></figcaption>
+          </figure>
+          <figure class="story">
+            <img src="/landing/assets/quote.svg" alt="" width="28" height="28">
+            <blockquote>“Volví al gimnasio después de dos años y lo que más me costaba era sostenerlo. Ver mis semanas cumplidas me motiva más que cualquier rutina.”</blockquote>
+            <figcaption class="persona"><span class="avatar avatar--accent">F</span><span><strong>Florencia</strong><span>Objetivo: construir constancia</span></span></figcaption>
+          </figure>
+          <figure class="story">
+            <img src="/landing/assets/quote.svg" alt="" width="28" height="28">
+            <blockquote>“Tengo todos mis alumnos en un solo lugar. Reviso cómo les fue, ajusto el plan y no pierdo nada entre audios y capturas de WhatsApp.”</blockquote>
+            <figcaption class="persona"><span class="avatar avatar--accent">J</span><span><strong>Julieta</strong><span>Objetivo: acompañar mejor</span></span></figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FAQ ============ -->
+    <section class="section" id="faq">
+      <div class="container faq">
+        <div class="faq__intro">
+          <div class="section-intro">
+            <h2 class="h2">Antes de tu primera serie.</h2>
+            <p class="lead">Lo que necesitás saber para arrancar con confianza.</p>
+          </div>
+          <a href="#planes" class="link-accent">Hablemos de tu plan <img src="/landing/assets/arrow-accent.svg" alt="" width="16" height="16"></a>
+        </div>
+
+        <div class="faq__list">
+          <details class="faq-item" open>
+            <summary><span>¿Puedo empezar sin pagar?</span><i class="faq-icon"><img src="/landing/assets/minus.svg" alt="" width="20" height="20"></i></summary>
+            <p>Sí. El plan Base es gratis e incluye 1 alumno, 1 rutina y 1 plan de alimentación, para que pruebes PRGS sin costo.</p>
+          </details>
+          <details class="faq-item" open>
+            <summary><span>¿Necesito tener entrenador?</span><i class="faq-icon"><img src="/landing/assets/minus.svg" alt="" width="20" height="20"></i></summary>
+            <p>No. Podés crear y seguir tu propia rutina. Si trabajás con un entrenador que usa PRGS, también podés recibir su plan y compartir tus registros.</p>
+          </details>
+          <details class="faq-item" open>
+            <summary><span>¿Qué incluye PRGS para entrenadores?</span><i class="faq-icon"><img src="/landing/assets/minus.svg" alt="" width="20" height="20"></i></summary>
+            <p>Todos los planes incluyen rutinas y planes de alimentación ilimitados, panel de control, ficha de cada alumno, chat, agenda y más. La diferencia está en la cantidad de alumnos: hasta 15, 50 o 100.</p>
+          </details>
+          <details class="faq-item" open>
+            <summary><span>¿Quién puede ver mis fotos de progreso?</span><i class="faq-icon"><img src="/landing/assets/minus.svg" alt="" width="20" height="20"></i></summary>
+            <p>Tus fotos son privadas. Si tenés un entrenador vinculado, elegís compartirlas con él para el seguimiento. No se publican en un feed ni se muestran a otros alumnos.</p>
+          </details>
+          <details class="faq-item" open>
+            <summary><span>¿Qué pasa si tengo más de 100 alumnos?</span><i class="faq-icon"><img src="/landing/assets/minus.svg" alt="" width="20" height="20"></i></summary>
+            <p>Con el plan Business podés solicitar más alumnos.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CTA FINAL ============ -->
+    <section class="cta-final">
+      <div class="container">
+        <h2 class="cta-final__title">Tu próxima serie puede<br>ser el comienzo.</h2>
+        <p class="cta-final__text">Poné tu entrenamiento en marcha. El plan, los registros y tu próxima meta, en un mismo lugar.</p>
+        <a href="#planes" class="btn btn--dark">
+          Empezá ahora
+          <img src="/landing/assets/arrow-light.svg" alt="" width="20" height="20">
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__nav">
+        <div class="footer__brand">
+          <a href="#" class="logo" aria-label="PRGS, inicio">
+            <img class="logo__mark" src="/landing/assets/logo-footer.svg" alt="" width="40" height="40">
+            <span class="logo__text">PRGS</span>
+          </a>
+          <p>Entrená con intención.<br>Progresá con información.</p>
+          <div class="social">
+            <a href="#" aria-label="Instagram"><img src="/landing/assets/instagram.svg" alt="" width="20" height="20"></a>
+            <a href="#" aria-label="Mail"><img src="/landing/assets/mail.svg" alt="" width="20" height="20"></a>
+          </div>
+        </div>
+
+        <div class="footer__links">
+          <div class="link-group">
+            <h4>Producto</h4>
+            <a href="#alumnos">Para alumnos</a><a href="#entrenadores">Para entrenadores</a><a href="#planes">Planes</a>
+          </div>
+          <div class="link-group">
+            <h4>Ayuda</h4>
+            <a href="#faq">Preguntas frecuentes</a><a href="#">Contacto</a><a href="/login">Ingresar</a>
+          </div>
+          <div class="link-group">
+            <h4>Legal</h4>
+            <a href="#">Privacidad</a><a href="#">Términos y condiciones</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer__notes"><p>© 2026 PRGS</p></div>
+    </div>
+  </footer>
+
+  <script>
+    // Menú mobile
+    const toggle = document.querySelector('.menu-toggle');
+    const nav = document.getElementById('nav');
+    toggle.addEventListener('click', () => {
+      const open = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!open));
+      toggle.setAttribute('aria-label', open ? 'Abrir menú' : 'Cerrar menú');
+      nav.classList.toggle('is-open', !open);
+      document.body.classList.toggle('menu-open', !open);
+    });
+    nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+      if (nav.classList.contains('is-open')) toggle.click();
+    }));
+
+    // Toggle Mensual / Anual
+    document.querySelectorAll('.billing__opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const period = btn.dataset.period;
+        document.querySelectorAll('.billing__opt').forEach(b => {
+          const on = b === btn;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
+        document.querySelectorAll('.price__amount').forEach(el => {
+          el.textContent = el.dataset[period];
+        });
+      });
+    });
+
+    // Tabs del preview
+    document.querySelectorAll('.tabs .tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        tab.parentElement.querySelectorAll('.tab').forEach(t => {
+          t.classList.toggle('is-active', t === tab);
+          t.setAttribute('aria-selected', String(t === tab));
+        });
+      });
+    });
+
+    // Pantallas: selector Alumno / Entrenador
+    (() => {
+      const tabs = [...document.querySelectorAll('.role-toggle__opt')];
+      const select = tab => {
+        tabs.forEach(t => {
+          const on = t === tab;
+          t.classList.toggle('is-active', on);
+          t.setAttribute('aria-selected', String(on));
+          t.tabIndex = on ? 0 : -1;
+          const panel = document.getElementById(t.getAttribute('aria-controls'));
+          panel.hidden = !on;
+          if (on) {
+            panel.querySelector('.screens__track').scrollLeft = 0;
+            panel.classList.remove('is-entering'); void panel.offsetWidth; panel.classList.add('is-entering');
+          }
+        });
+      };
+      tabs.forEach((t, i) => {
+        t.addEventListener('click', () => select(t));
+        t.addEventListener('keydown', e => {
+          if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+          const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+          next.focus(); select(next);
+        });
+      });
+    })();
+  </script>
+  <script src="/landing/animations.js" defer></script>
+</body>
+</html>

@@ -599,7 +599,6 @@ class _DayContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cardioAsync = ref.watch(myCardioProvider);
     final count = dayExercises.length;
     final mins = _estimateMinutes();
 
@@ -616,27 +615,6 @@ class _DayContent extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 18),
-
-        // Cardio banner (if the selected day has cardio)
-        cardioAsync.when(
-          data: (cardio) {
-            final days = (cardio['days'] as List?)?.cast<int>() ?? const [];
-            if (!days.contains(dayNumber)) return const SizedBox.shrink();
-            final description = (cardio['description'] as String?)?.trim();
-            final note = (cardio['note'] as String?)?.trim();
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 18),
-              child: _CardioBanner(
-                description: description?.isNotEmpty == true
-                    ? description!
-                    : 'Consultá a tu entrenador',
-                note: (note?.isNotEmpty ?? false) ? note : null,
-              ),
-            );
-          },
-          loading: () => const SizedBox.shrink(),
-          error: (_, __) => const SizedBox.shrink(),
-        ),
 
         // Routine cardio for this day, written by the trainer in the routine.
         if (routineCardioNote != null)
@@ -723,11 +701,9 @@ class _RoutineCardioCard extends StatelessWidget {
 class _CardioBanner extends StatelessWidget {
   final String title;
   final String description;
-  final String? note;
   const _CardioBanner({
     this.title = 'Cardio a realizar',
     required this.description,
-    this.note,
   });
 
   @override
@@ -777,18 +753,6 @@ class _CardioBanner extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                if (note != null) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    note!,
-                    style: TextStyle(
-                      fontFamily: 'Metropolis',
-                      color: RedesignColors.primario900.withValues(alpha: 0.75),
-                      fontSize: 13,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),

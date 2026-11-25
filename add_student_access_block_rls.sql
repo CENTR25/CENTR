@@ -254,8 +254,8 @@ CREATE POLICY blocked_student_denied ON public.workout_sessions
   USING (NOT (SELECT private.i_am_blocked()))
   WITH CHECK (NOT (SELECT private.i_am_blocked()));
 
--- Storage (check-in photos, chat media). Needs the storage owner role;
--- run from the Supabase SQL editor. Not applied yet if this line is still here.
+-- Storage (check-in photos, chat media). APPLIED 2026-11-25 from the Supabase
+-- SQL editor (needs the storage owner role).
 DROP POLICY IF EXISTS blocked_student_denied ON storage.objects;
 CREATE POLICY blocked_student_denied ON storage.objects
   AS RESTRICTIVE FOR ALL TO authenticated

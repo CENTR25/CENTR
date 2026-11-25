@@ -361,7 +361,7 @@ Alan's "Noviembre observaciones" (14 items). Shipped all non-MP, non-design-bloc
 
 ## ADR-0XX: Student access block + trainer-connected Mercado Pago billing
 
-**Status:** Accepted (2026-11-25). Migrations applied and functions deployed; trainer MP connect waits on MP_CLIENT_SECRET; storage restriction pending.
+**Status:** Accepted (2026-11-25). Migrations applied and functions deployed; trainer MP connect waits on MP_CLIENT_SECRET.
 
 **Context:** Trainers need to cut off students who do not renew, and bill students through the trainer's own Mercado Pago account. PRGS already bills trainers via its own MP account (`mp-*` functions, `trainer_subscriptions`).
 
@@ -371,4 +371,4 @@ Alan's "Noviembre observaciones" (14 items). Shipped all non-MP, non-design-bloc
 - Students are billed with auto-recurring preapprovals created on the trainer's account (`mp-student-subscribe`), amount = `athletes.monthly_fee`. The existing `mp-webhook` routes notifications whose `user_id` matches a connected trainer to `student_billing.ts`, which re-fetches from MP, records `student_payments` (idempotent by MP payment id), moves `next_renewal_date`, lifts the block.
 - No PRGS commission.
 
-**Consequences:** Block is enforced by the app gate AND restrictive RLS on 33 student data tables (storage.objects pending). Real MP webhooks for connected (OAuth) sellers are unproven until tested end to end. Needs secrets MP_CLIENT_ID / MP_CLIENT_SECRET / MP_OAUTH_REDIRECT_URI / MP_TOKEN_ENC_KEY.
+**Consequences:** Block is enforced by the app gate AND restrictive RLS on 33 student data tables and storage.objects. Real MP webhooks for connected (OAuth) sellers are unproven until tested end to end. Needs secrets MP_CLIENT_ID / MP_CLIENT_SECRET / MP_OAUTH_REDIRECT_URI / MP_TOKEN_ENC_KEY.
